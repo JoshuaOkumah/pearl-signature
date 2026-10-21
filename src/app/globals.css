@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+/* ────────────────────────────────────────────────────────────────────
+   PEARL Signature — Design Tokens
+   Creative concept: “The Signature Table”
+   Warm Premium Nigerian Food Commerce × Modern Editorial Design
+   ──────────────────────────────────────────────────────────────────── */
+@theme {
+  /* Brand palette (locked) */
+  --color-cream: #fdfbf7; /* primary background */
+  --color-navy: #1a2530; /* structure, text, primary buttons */
+  --color-gold: #d4af37; /* restrained premium accent */
+  --color-leaf: #5c7a58; /* freshness, supportive states */
+  --color-terracotta: #b86a4f; /* appetite, warmth */
+  --color-brown: #8a6a52; /* subtle warm secondary */
+
+  /* Derived surfaces & steps */
+  --color-cream-100: #f9f4ea; /* raised warm surface */
+  --color-cream-200: #f2ebdc; /* subtle fills, chips */
+  --color-sand: #e7dcc6; /* warm borders, dividers */
+  --color-surface: #fffefb; /* cards */
+  --color-border: #e4dbc8; /* default component border */
+
+  --color-navy-900: #131c25;
+  --color-navy-800: #22303d; /* primary button hover */
+  --color-navy-700: #33424f;
+  --color-navy-600: #46586a;
+  --color-ink-muted: #52606e; /* secondary text on cream (AA) */
+
+  --color-gold-600: #b4932a; /* gold hover */
+  --color-gold-700: #8f741f; /* text-safe gold on cream */
+  --color-gold-100: #f6edcf; /* soft gold wash */
+
+  --color-leaf-700: #47603f;
+  --color-leaf-100: #e7ecdf;
+
+  --color-terracotta-700: #9c553c;
+  --color-terracotta-100: #f5e4dc;
+
+  --color-brown-700: #6f5440;
+  --color-brown-100: #ece2d6;
+
+  /* Typography — wired to next/font CSS variables in the root layout */
+  --font-display: var(--font-fraunces), "Georgia", serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px rgb(26 37 48 / 0.05), 0 10px 28px -14px rgb(26 37 48 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(26 37 48 / 0.06), 0 20px 44px -18px rgb(26 37 48 / 0.28);
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Honour reduced-motion for native smooth scrolling too */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  body {
+    background-color: var(--color-cream);
+    color: var(--color-navy);
+    font-family: var(--font-sans);
+  }
+
+  ::selection {
+    background-color: var(--color-gold-100);
+    color: var(--color-navy-900);
+  }
+}
+
+/* Accessible keyboard focus ring used across interactive elements */
+@utility focus-gold {
+  &:focus-visible {
+    outline: 2px solid var(--color-gold-700);
+    outline-offset: 2px;
+  }
+}
+
+/* Skip-to-content link (visible on keyboard focus only) */
+@utility skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -100%;
+  z-index: 60;
+  border-radius: 9999px;
+  background-color: var(--color-navy);
+  color: var(--color-cream);
+  padding: 0.625rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: top 0.2s var(--ease-out-soft);
+
+  &:focus-visible {
+    top: 1rem;
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+  }
+}
+
+/* The pearl detail in the brand wordmark */
+@utility pearl-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 32% 30%, #ffffff 0%, #f3e9d8 48%, #d9c7a3 100%);
+  box-shadow:
+    0 0 0 1.5px color-mix(in srgb, var(--color-gold) 70%, transparent),
+    0 1px 2px rgb(26 37 48 / 0.25);
+}
