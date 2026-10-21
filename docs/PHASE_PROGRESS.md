@@ -5,8 +5,9 @@
 > (see `docs/PHASE1B_REMEDIATION_REPORT.md`). Phase 1 was not approved as-is;
 > the defects found in manual review were fixed and regression-tested.
 > **Phase 2: Catalogue Data & Product Experience — IMPLEMENTED, awaiting review**
-> (see `docs/PHASE2_REPORT.md`). Phase 3 must not begin without explicit
-> approval from the business owner.
+> (see `docs/PHASE2_REPORT.md`). **Phase 2B: Title-First Search Relevance
+> & UX Refinement — IMPLEMENTED** (see section 1D). Phase 3 must not begin
+> without explicit approval from the business owner.
 
 ---
 
@@ -218,6 +219,56 @@ Operator guides: `docs/MONGODB_SETUP.md`, `docs/CLOUDINARY_SETUP.md`.
 **Pending (not verifiable without owner-supplied credentials):** hosted
 Atlas reads/seed and real Cloudinary delivery — both documented step-by-step
 in their setup guides.
+
+---
+
+## 1D. Phase 2B — title-first search relevance & UX refinement
+
+### Problem found in manual testing
+A single-letter query such as `f` returned unrelated products (Egusi Soup
+matched because its *description* contains "favourite"), with no relevance
+ordering.
+
+### Root cause
+Both search paths (database `buildFilter` and fixtures
+`fixtureQueryFilter`) matched an unanchored literal substring across
+`name + shortDescription + description`; results came back in plain
+`sortOrder` order with no ranking.
+
+### What changed
+- **`src/lib/search.ts` (new, pure, shared by both data sources):**
+  `normalizeSearchTerm` (trim, collapse whitespace, case-fold, 100-char
+  bound), `nameMatchTier` (1 = name prefix, 2 = word prefix, 3 = substring
+  for 3+ character terms), `searchCandidateRegex` (escaped, length-aware
+  candidate pattern: `^f` / `(?:^|\b)me` / literal substring),
+  `compareSearchRelevance` (tier → `sortOrder` → slug, fully deterministic).
+- **Matching rules:** names only — descriptions, categories and tags are
+  never searched. 1 character matches only names *beginning* with it; 2
+  characters add word prefixes; 3+ characters add substrings, ranked last.
+  Case-insensitive; surrounding whitespace ignored.
+- **Database path:** the candidate regex lives in the *same* filter as
+  `status`/`categoryId`; matches are fetched, ranked in memory, then sliced
+  for the page (pagination and `countDocuments` totals operate on the true
+  match set — no duplicates across pages, stable across requests).
+  M0-compatible: escaped, anchored, name-only, no Atlas Search.
+- **Fixtures path:** identical rules through the same functions
+  (parity unit-tested).
+- **UX:** 350 ms debounce kept; visible clear control (32 px, clears within
+  the current category, resets page); trim-on-commit and same-value guards
+  prevent redundant navigations; `motion-safe:` pending spinner;
+  search-aware no-results copy echoing the query; label/placeholder now
+  say "by name". Back/Forward re-sync and shareable URLs unchanged.
+
+### Phase 2B verification (all executed)
+| Command | Result |
+| --- | --- |
+| `npx next typegen && npm run typecheck` | ✅ PASS — 0 errors |
+| `npm run lint` | ✅ PASS — 0 errors/warnings |
+| `npm run test` | ✅ PASS — **162/162** (18 files; +29 search/UX tests) |
+| `npm run build` | ✅ PASS — production build, no DB at build |
+| `npm run test:e2e` | ✅ PASS — **39/39** against the production build (fixtures mode) |
+| `npm run screenshots` | ✅ PASS — **95 captures** (incl. search results + empty states), **0 horizontal overflow** |
+| Visual review | ✅ PASS — search results/empty states correct at 320/360/1440 px; Phase 1B mobile nav intact |
 
 ---
 

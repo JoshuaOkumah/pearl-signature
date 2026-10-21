@@ -139,7 +139,8 @@ rewritten). See `docs/PHASE1B_REMEDIATION_REPORT.md`.
 **Phase 2 — implemented, awaiting review:** the catalogue now reads from the
 data layer (MongoDB when `MONGODB_URI` exists, labelled fixtures otherwise):
 
-- `/menu` — database-driven filter chips, debounced search and server-side
+- `/menu` — database-driven filter chips, title-first name search (debounced,
+  with clear control and relevance ranking) and server-side
   pagination (default 12, max 48) in shareable URL params; honest empty,
   past-end and "temporarily unavailable" states; cards show price only when
   configured (`$18.00 CAD` or "Price to be confirmed") — no checkout UI

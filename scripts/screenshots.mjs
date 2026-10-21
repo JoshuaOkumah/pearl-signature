@@ -25,6 +25,8 @@ const routes = [
   "/",
   "/menu",
   "/menu?category=drinks",
+  "/menu?search=pie",
+  "/menu?search=f",
   "/menu/egusi-soup",
   "/menu/no-such-dish",
   "/about",

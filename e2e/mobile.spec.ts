@@ -323,3 +323,40 @@ test("customer-facing copy contains no em dashes", async ({ page }) => {
     expect(findings, `em dashes on ${route}`).toEqual([]);
   }
 });
+
+/* ── 6. menu search on mobile (Phase 2B) ───────────────────────────── */
+
+for (const viewport of [
+  { width: 320, height: 568 },
+  { width: 360, height: 800 },
+]) {
+  test(`menu search is usable at ${viewport.width}×${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/menu");
+
+    const search = page.getByRole("searchbox", { name: "Search dishes by name" });
+    const searchBox = (await search.boundingBox())!;
+    expect(searchBox.width).toBeGreaterThan(200); // full-width row, never crushed
+    expect(searchBox.x + searchBox.width).toBeLessThanOrEqual(viewport.width);
+    expect(await horizontalOverflow(page)).toBe(0);
+
+    // Typing filters server-side; the layout holds with results rendered.
+    await search.fill("pie");
+    await expect(page.getByText("Showing 3 dishes for “pie”")).toBeVisible();
+    expect(await horizontalOverflow(page)).toBe(0);
+
+    // The clear control keeps a comfortable tap target (WCAG 2.5.8 ≥24px)
+    // and reaches the viewport after the natural scroll to the input.
+    const clear = page.getByRole("button", { name: "Clear search" });
+    const clearBox = (await clear.boundingBox())!;
+    expect(clearBox.width).toBeGreaterThanOrEqual(24);
+    expect(clearBox.height).toBeGreaterThanOrEqual(24);
+    await clear.scrollIntoViewIfNeeded();
+    await expect(clear).toBeInViewport();
+    await clear.click();
+
+    await expect(page).toHaveURL("/menu");
+    await expect(page.getByText("Showing all 11 dishes")).toBeVisible();
+    expect(await horizontalOverflow(page)).toBe(0);
+  });
+}

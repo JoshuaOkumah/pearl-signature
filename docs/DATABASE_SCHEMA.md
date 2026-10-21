@@ -74,10 +74,14 @@ mutates index state at runtime or build time).
 - `{ status: 1, categoryId: 1, sortOrder: 1 }` — category filter
 - `{ status: 1, featured: 1, sortOrder: 1 }` — homepage showcase
 
-Search does **not** use Atlas Search (paid). It is a bounded, regex-escaped,
-case-insensitive substring match over `name`, `shortDescription` and
-`description`; a collection scan on an M0-sized catalogue is acceptable and
-documented in `docs/MONGODB_SETUP.md`.
+Search does **not** use Atlas Search (paid). Since Phase 2B it is
+title-first (`src/lib/search.ts`): product **names only**, matched by an
+escaped, length-capped, tier-aware regex (`^f` for single characters,
+`(?:^|\b)` prefixes for two characters, plain substring for three or more),
+then ranked in memory by match tier → `sortOrder` → slug. The existing
+indexes serve the candidate fetch and sort; the collection scan is
+acceptable on an M0-sized catalogue and is documented in
+`docs/MONGODB_SETUP.md`.
 
 ---
 

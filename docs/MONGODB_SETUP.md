@@ -111,10 +111,11 @@ owner's explicit authorization.**
 
 ## 6. Notes and limits on M0
 
-- **Search:** plain escaped-substring regex over name/descriptions — no
-  Atlas Search (paid). On an M0-sized catalogue a collection scan is fine;
-  if the catalogue grows substantially, add a `$text` index (free) or
-  revisit.
+- **Search:** title-first relevance (`src/lib/search.ts`) — an escaped,
+  length-capped, anchored regex over product `name` only (descriptions are
+  not searched), ranked by match tier in application code. No Atlas Search
+  (paid). On an M0-sized catalogue a collection scan is fine; the existing
+  `{ status: 1, sortOrder: 1 }` indexes serve the candidate fetch and sort.
 - **No build-time queries, no scheduled jobs.** Everything is request-time
   with a 5-second bound.
 - M0 has usage/instance limits; nothing in this app opens pools beyond the

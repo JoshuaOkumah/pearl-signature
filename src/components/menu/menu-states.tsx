@@ -20,7 +20,7 @@ interface ResetProps {
   onReset: () => void;
 }
 
-export function MenuEmpty({ onReset }: ResetProps) {
+export function MenuEmpty({ onReset, search }: ResetProps & { search?: string }) {
   return (
     <div className="flex flex-col items-center rounded-3xl border border-dashed border-sand bg-cream-100 px-6 py-16 text-center">
       <span className="flex h-14 w-14 items-center justify-center rounded-full bg-cream-200 text-ink-muted">
@@ -28,7 +28,9 @@ export function MenuEmpty({ onReset }: ResetProps) {
       </span>
       <h3 className="mt-5 font-display text-xl font-semibold text-navy">Nothing here yet</h3>
       <p className="mt-2 max-w-sm text-sm leading-relaxed text-ink-muted">
-        We couldn’t find any dishes matching this view. Try another category or a different search.
+        {search
+          ? `We couldn’t find any dishes matching “${search}”. Check the spelling, or clear the search to see the full menu.`
+          : "We couldn’t find any dishes matching this view. Try another category or a different search."}
       </p>
       <Button variant="outline" className="mt-6" onClick={onReset}>
         View everything

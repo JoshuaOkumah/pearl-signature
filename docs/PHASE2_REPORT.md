@@ -76,8 +76,9 @@ locally (see section K).
   active categories; published products (paged); by category; search;
   by slug; featured; related (same category, self excluded); category
   counts; homepage showcase; totals. Guarantees: `status: "published"` +
-  active category only; search input regex-escaped (`escapeRegExp`) and
-  length-capped (M0-friendly substring match, no Atlas Search); stable
+  active category only; search input regex-escaped (`escapeRegExp`),
+  length-capped and title-first (Phase 2B: names only, tiered relevance,
+  no Atlas Search); stable
   sort by `sortOrder` then slug; invalid records dropped + logged (never
   crash, never render); `ReadResult` instead of throws; `_id` serialised
   to string.

@@ -170,6 +170,78 @@ describe("MenuExplorer navigation", () => {
   });
 });
 
+describe("MenuExplorer search interaction (Phase 2B)", () => {
+  it("offers a clear control only while the input has text", async () => {
+    const user = userEvent.setup();
+    renderExplorer({ activeCategory: "drinks", search: "zobo" });
+    // A committed search shows the clear control immediately.
+    const clear = screen.getByRole("button", { name: "Clear search" });
+
+    await user.click(clear);
+    // Clearing restores the catalogue within the selected category, at once.
+    expect(replace).toHaveBeenCalledWith("/menu?category=drinks");
+    expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("");
+    expect(screen.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
+  });
+
+  it("clears uncommitted typing without navigating (no redundant request)", () => {
+    vi.useFakeTimers();
+    renderExplorer();
+
+    const input = screen.getByRole("searchbox", { name: /Search dishes by name/i });
+    fireEvent.change(input, { target: { value: "zobo" } }); // debounce pending
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    act(() => {
+      vi.advanceTimersByTime(1000); // the pending debounce was cancelled by the cleanup
+    });
+
+    expect(replace).not.toHaveBeenCalled(); // the URL never changed, so nothing to reset
+    expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("");
+    expect(screen.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
+  });
+
+  it("trims surrounding whitespace so identical searches never re-fetch", () => {
+    vi.useFakeTimers();
+    renderExplorer();
+
+    const input = screen.getByRole("searchbox", { name: /Search dishes by name/i });
+    fireEvent.change(input, { target: { value: "  pie  " } });
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith("/menu?search=pie");
+
+    // The committed term equals the trimmed draft: the debounce is a no-op.
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores re-selecting the active category chip", async () => {
+    const user = userEvent.setup();
+    renderExplorer({ activeCategory: "drinks" });
+    await user.click(screen.getByRole("button", { name: /Drinks/ }));
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("describes the name-only search in the accessible label and placeholder", () => {
+    renderExplorer();
+    const input = screen.getByRole("searchbox", { name: "Search dishes by name" });
+    expect(input).toHaveAttribute("placeholder", "Search by dish name");
+  });
+
+  it("echoes the query in the no-results state", () => {
+    renderExplorer({ search: "f", products: [], total: 0 });
+    expect(
+      screen.getByText(
+        "We couldn’t find any dishes matching “f”. Check the spelling, or clear the search to see the full menu.",
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("MenuExplorer pagination", () => {
   it("hides pagination on a single page", () => {
     renderExplorer({ totalPages: 1, page: 1 });

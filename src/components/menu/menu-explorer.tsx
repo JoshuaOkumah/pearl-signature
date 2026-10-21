@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { motion } from "motion/react";
-import { Search } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { menuUrl } from "@/lib/menu-url";
 import { cn, pluralize } from "@/lib/utils";
 import type { CatalogueCategory, Product } from "@/types";
@@ -92,7 +92,10 @@ export function MenuExplorer({
   }, [search]);
 
   const commitSearch = useCallback(
-    (term: string) => {
+    (rawTerm: string) => {
+      // Fold before comparing: "pie " and "pie" are the same search, so a
+      // trailing space can never trigger a redundant server round-trip.
+      const term = rawTerm.trim();
       if (term === committedRef.current) return;
       committedRef.current = term;
       startTransition(() => {
@@ -109,7 +112,16 @@ export function MenuExplorer({
     return () => clearTimeout(timer);
   }, [draft, search, commitSearch]);
 
+  const clearSearch = () => {
+    setDraft("");
+    // Clearing restores the catalogue within the selected category
+    // immediately (no debounce on an intentional action).
+    commitSearch("");
+  };
+
   const selectCategory = (slug: string | null) => {
+    // Re-selecting the active chip is a no-op: no redundant navigation.
+    if (slug === activeCategory) return;
     startTransition(() => {
       router.push(menuUrl({ category: slug, search, pageSize }));
     });
@@ -173,7 +185,7 @@ export function MenuExplorer({
           className="w-full lg:w-72 lg:shrink-0"
         >
           <label htmlFor="menu-search" className="sr-only">
-            Search dishes by name or description
+            Search dishes by name
           </label>
           <div className="relative">
             <Search
@@ -185,10 +197,20 @@ export function MenuExplorer({
               type="search"
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="Search dishes"
+              placeholder="Search by dish name"
               autoComplete="off"
-              className="focus-gold w-full rounded-full border border-border bg-surface py-3 pl-11 pr-4 text-sm text-navy placeholder:text-ink-muted"
+              className="focus-gold w-full rounded-full border border-border bg-surface py-3 pl-11 pr-11 text-sm text-navy placeholder:text-ink-muted [&::-webkit-search-cancel-button]:hidden"
             />
+            {draft ? (
+              <button
+                type="button"
+                onClick={clearSearch}
+                aria-label="Clear search"
+                className="focus-gold absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-cream-200 hover:text-navy"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
         </form>
       </div>
@@ -199,7 +221,11 @@ export function MenuExplorer({
         </p>
         <div className="flex items-center gap-3">
           {isPending ? (
-            <span className="text-xs font-semibold text-ink-muted" aria-hidden="true">
+            <span
+              className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted"
+              aria-hidden="true"
+            >
+              <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" />
               Updating results…
             </span>
           ) : null}
@@ -213,7 +239,9 @@ export function MenuExplorer({
 
       <div aria-busy={isPending}>
         {empty ? (
-          <div className="mt-6">{category || search ? <MenuEmpty onReset={resetAll} /> : <MenuPreparing />}</div>
+          <div className="mt-6">
+            {category || search ? <MenuEmpty onReset={resetAll} search={search || undefined} /> : <MenuPreparing />}
+          </div>
         ) : pastEnd ? (
           <div className="mt-6">
             <MenuPastEnd page={page} onReset={resetToFirstPage} />

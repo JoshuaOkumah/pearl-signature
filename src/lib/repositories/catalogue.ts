@@ -7,15 +7,23 @@ import { placeholderThemeFor } from "@/lib/placeholder-themes";
 import { CategoryModel } from "@/models/category";
 import { ProductModel, type ProductRecord } from "@/models/product";
 import {
+  compareSearchRelevance,
+  escapeRegExp,
+  nameMatchTier,
+  normalizeSearchTerm,
+  searchCandidateRegex,
+} from "@/lib/search";
+import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE,
   MAX_PAGE_SIZE,
-  MAX_SEARCH_LENGTH,
   categoryDTOSchema,
   productDTOSchema,
   productImageSchema,
 } from "@/lib/validations/catalogue";
 import type { CatalogueCategory, Product } from "@/types";
+
+export { escapeRegExp };
 
 /**
  * Catalogue data-access layer (Phase 2).
@@ -23,8 +31,10 @@ import type { CatalogueCategory, Product } from "@/types";
  * Every public read funnels through this module. Guarantees:
  *
  * - Only `status: "published"` products in active categories ever leave here.
- * - Search input is length-bounded and regex-escaped before touching a query
- *   (literal substring match, no pathological patterns, no paid Atlas Search).
+ * - Search is title-first (product names only, tiered relevance, see
+ *   `src/lib/search.ts`): input is length-bounded and regex-escaped before
+ *   touching a query, so no pathological patterns are possible. Descriptions,
+ *   category names and tags are deliberately not searched.
  * - Pagination is server-side with defaults and hard upper bounds.
  * - Database documents are parsed with Zod; invalid records are dropped and
  *   logged instead of crashing a page.
@@ -86,13 +96,14 @@ export function resolveCatalogueSource(): CatalogueSource {
 
 /* ── query helpers ──────────────────────────────────────────────────── */
 
-export function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
+/**
+ * Search terms are folded by `normalizeSearchTerm` (trim, collapse
+ * whitespace, case-fold, length-bound). Matching and ranking live in
+ * `src/lib/search.ts` and are shared with the fixtures path so both
+ * sources behave identically.
+ */
 function normalizeSearch(search?: string): string | null {
-  const term = search?.trim().slice(0, MAX_SEARCH_LENGTH) ?? "";
-  return term ? term : null;
+  return normalizeSearchTerm(search);
 }
 
 function clampPage(page?: number): number {
@@ -273,10 +284,13 @@ function buildFilter(query: ProductQuery, active: CategoryIndex): QueryFilter<Pr
 
   const term = normalizeSearch(query.search);
   if (term) {
-    // Escaped literal substring match: no regex metacharacters survive, so
-    // user input can never build a pathological pattern.
-    const pattern = new RegExp(escapeRegExp(term), "i");
-    filter.$or = [{ name: pattern }, { shortDescription: pattern }, { description: pattern }];
+    // Title-first search (Phase 2B): candidates are matched against the
+    // product NAME only, with an anchored, escaped, length-aware pattern
+    // (see src/lib/search.ts). Descriptions, categories and tags are not
+    // searched. The candidate set equals the tier-match set exactly, so
+    // `countDocuments` totals are true matches and `nameMatchTier` can
+    // rank the fetched candidates deterministically in memory.
+    filter.name = searchCandidateRegex(term) as QueryFilter<ProductRecord>["name"];
   }
 
   return filter;
@@ -285,6 +299,7 @@ function buildFilter(query: ProductQuery, active: CategoryIndex): QueryFilter<Pr
 async function databasePagedProducts(query: ProductQuery): Promise<PagedProducts> {
   const page = clampPage(query.page);
   const pageSize = clampPageSize(query.pageSize);
+  const term = normalizeSearch(query.search);
 
   const active = await loadActiveCategoryIndex();
   const filter = buildFilter(query, active);
@@ -292,12 +307,19 @@ async function databasePagedProducts(query: ProductQuery): Promise<PagedProducts
     return { items: [], total: 0, page, pageSize, totalPages: 1 };
   }
 
+  // Without a search term, pagination pushes straight into the database
+  // (skip/limit over the indexed sort). With a search term, relevance
+  // ranking must run before slicing, so all matches are fetched (bounded
+  // by the name-only, escaped query — fine at M0 catalogue scale), ranked
+  // deterministically, and only then sliced for the requested page.
   const [records, total] = await Promise.all([
-    ProductModel.find(filter)
-      .sort({ sortOrder: 1, slug: 1 })
-      .skip((page - 1) * pageSize)
-      .limit(pageSize)
-      .lean(),
+    term
+      ? ProductModel.find(filter).sort({ sortOrder: 1, slug: 1 }).lean()
+      : ProductModel.find(filter)
+          .sort({ sortOrder: 1, slug: 1 })
+          .skip((page - 1) * pageSize)
+          .limit(pageSize)
+          .lean(),
     ProductModel.countDocuments(filter),
   ]);
 
@@ -309,22 +331,20 @@ async function databasePagedProducts(query: ProductQuery): Promise<PagedProducts
     if (product) items.push(product);
   }
 
-  return { items, total, page, pageSize, totalPages: totalPagesFor(total, pageSize) };
+  const ranked = term ? [...items].sort((a, b) => compareSearchRelevance(a, b, term)) : items;
+  const paged = term ? ranked.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize) : items;
+
+  return { items: paged, total, page, pageSize, totalPages: totalPagesFor(total, pageSize) };
 }
 
 /* ── fixture internals ──────────────────────────────────────────────── */
 
 function fixtureQueryFilter(query: ProductQuery): (product: Product) => boolean {
-  const term = normalizeSearch(query.search)?.toLowerCase();
   return (product) => {
     if (product.status !== "published") return false;
     if (query.categorySlug && product.category !== query.categorySlug) return false;
     if (query.featured && !product.featured) return false;
     if (query.excludeSlug && product.slug === query.excludeSlug) return false;
-    if (term) {
-      const haystack = `${product.name}\n${product.shortDescription ?? ""}\n${product.description}`.toLowerCase();
-      if (!haystack.includes(term)) return false;
-    }
     return true;
   };
 }
@@ -332,10 +352,18 @@ function fixtureQueryFilter(query: ProductQuery): (product: Product) => boolean 
 function fixturePagedProducts(query: ProductQuery): PagedProducts {
   const page = clampPage(query.page);
   const pageSize = clampPageSize(query.pageSize);
+  const term = normalizeSearch(query.search);
 
-  const matched = fixtureProducts
-    .filter(fixtureQueryFilter(query))
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+  let matched = fixtureProducts.filter(fixtureQueryFilter(query));
+  if (term) {
+    // Same title-first rules as the database path (src/lib/search.ts):
+    // names only, tiered relevance, deterministic tiebreaks.
+    matched = matched
+      .filter((product) => nameMatchTier(product.name, term) > 0)
+      .sort((a, b) => compareSearchRelevance(a, b, term));
+  } else {
+    matched = matched.sort((a, b) => a.sortOrder - b.sortOrder);
+  }
 
   const items: Product[] = [];
   for (const product of matched.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize)) {
@@ -403,7 +431,7 @@ export async function getProductsByCategory(
   return getPublishedProducts({ ...options, categorySlug });
 }
 
-/** 4. Search published products by name and descriptions. */
+/** 4. Search published products by name (title-first relevance ordering). */
 export async function searchPublishedProducts(
   search: string,
   options: Omit<ProductQuery, "search"> = {},

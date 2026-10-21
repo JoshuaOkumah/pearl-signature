@@ -169,18 +169,102 @@ describe("fixture-mode catalogue reads", () => {
     expect(result.data.items).toEqual([]);
   });
 
-  it("searches names and descriptions, case-insensitively", async () => {
-    const egusi = await getPublishedProducts({ search: "egusi" });
-    expect(egusi.ok && egusi.data.items.map((product) => product.slug)).toEqual(["egusi-soup"]);
+  it("matches product names only, with title-first relevance (Phase 2B)", async () => {
+    // Single character: only names BEGINNING with it. No product name
+    // starts with "f", so the result is empty — even though Egusi Soup's
+    // description contains "favourite". Descriptions are never searched.
+    const f = await getPublishedProducts({ search: "f" });
+    expect(f.ok && f.data.total).toBe(0);
+    expect(f.ok && f.data.items).toEqual([]);
 
-    const soups = await getPublishedProducts({ search: "SOUP" });
-    expect(soups.ok).toBe(true);
-    if (soups.ok) expect(soups.data.total).toBe(3); // egusi, bitterleaf, vegetable
+    // Two characters: name prefixes (tier 1).
+    const eg = await getPublishedProducts({ search: "eg" });
+    expect(eg.ok && eg.data.items.map((product) => product.slug)).toEqual([
+      "egusi-soup",
+      "egg-roll",
+    ]);
 
-    // Regex metacharacters are harmless input.
+    // Word prefixes rank below name prefixes; "pie" matches three pies in
+    // deterministic catalogue order.
+    const pie = await getPublishedProducts({ search: "pie" });
+    expect(pie.ok && pie.data.items.map((product) => product.slug)).toEqual([
+      "turkey-pie",
+      "meat-pie",
+      "chicken-pie",
+    ]);
+    expect(pie.ok && pie.data.total).toBe(3);
+
+    // Three+ characters: every soup matches via word prefix.
+    const soups = await getPublishedProducts({ search: "sou" });
+    expect(soups.ok && soups.data.items.map((product) => product.slug)).toEqual([
+      "egusi-soup",
+      "bitterleaf-soup",
+      "vegetable-soup",
+    ]);
+  });
+
+  it("is case-insensitive, trims whitespace, and treats empty as no search", async () => {
+    const upper = await getPublishedProducts({ search: "PIE" });
+    expect(upper.ok && upper.data.items.map((product) => product.slug)).toEqual([
+      "turkey-pie",
+      "meat-pie",
+      "chicken-pie",
+    ]);
+
+    const padded = await getPublishedProducts({ search: "  pie  " });
+    expect(padded.ok && padded.data.items.map((product) => product.slug)).toEqual(
+      upper.ok ? upper.data.items.map((product) => product.slug) : [],
+    );
+
+    for (const search of ["", "   "]) {
+      const result = await getPublishedProducts({ search });
+      expect(result.ok && result.data.total).toBe(11);
+    }
+  });
+
+  it("ignores special characters instead of crashing (regex is escaped)", async () => {
     const weird = await getPublishedProducts({ search: "([" });
     expect(weird.ok).toBe(true);
-    if (weird.ok) expect(weird.data.total).toBe(0);
+    if (weird.ok) expect(weird.ok && weird.data.total).toBe(0);
+
+    const glob = await getPublishedProducts({ search: ".*" });
+    expect(glob.ok).toBe(true);
+    if (glob.ok) expect(glob.data.total).toBe(0);
+  });
+
+  it("combines search with the category filter", async () => {
+    const pies = await getPublishedProducts({ categorySlug: "pastries-snacks", search: "pie" });
+    expect(pies.ok && pies.data.total).toBe(3);
+    expect(pies.ok && pies.data.items.every((product) => product.category === "pastries-snacks")).toBe(true);
+
+    // No drinks are called "pie": an honest empty result, not a fallback.
+    const drinkPies = await getPublishedProducts({ categorySlug: "drinks", search: "pie" });
+    expect(drinkPies.ok && drinkPies.data.total).toBe(0);
+    expect(drinkPies.ok && drinkPies.data.items).toEqual([]);
+  });
+
+  it("paginates search results after ranking, with stable pages and no duplicates", async () => {
+    const page1 = await getPublishedProducts({ search: "pie", page: 1, pageSize: 2 });
+    expect(page1.ok && page1.data.items.map((product) => product.slug)).toEqual(["turkey-pie", "meat-pie"]);
+    expect(page1.ok && page1.data.total).toBe(3);
+    expect(page1.ok && page1.data.totalPages).toBe(2);
+
+    const page2 = await getPublishedProducts({ search: "pie", page: 2, pageSize: 2 });
+    expect(page2.ok && page2.data.items.map((product) => product.slug)).toEqual(["chicken-pie"]);
+
+    const seen = new Set(
+      [...(page1.ok ? page1.data.items : []), ...(page2.ok ? page2.data.items : [])].map(
+        (product) => product.slug,
+      ),
+    );
+    expect(seen.size).toBe(3); // no duplicates across pages
+
+    // Determinism: the same request returns the identical slice.
+    const again = await getPublishedProducts({ search: "pie", page: 1, pageSize: 2 });
+    expect(again.ok && again.data.items.map((product) => product.slug)).toEqual([
+      "turkey-pie",
+      "meat-pie",
+    ]);
   });
 
   it("paginates server-side with stable totals", async () => {
@@ -325,7 +409,7 @@ describe("database-mode reads (mocked models)", () => {
     });
   });
 
-  it("escapes search input into literal case-insensitive patterns", async () => {
+  it("builds a name-only, escaped, length-aware candidate filter (Phase 2B)", async () => {
     stubDatabaseEnv();
     stubDatabase();
     vi.mocked(ProductModel.find).mockReturnValue(queryOf([]) as never);
@@ -333,16 +417,72 @@ describe("database-mode reads (mocked models)", () => {
 
     await getPublishedProducts({ search: "a.*b(c" });
 
+    const filter = vi.mocked(ProductModel.find).mock.calls[0][0] as unknown as Record<string, unknown>;
+    // Descriptions, categories and tags are never searched.
+    expect(filter.$or).toBeUndefined();
+    expect(filter.description).toBeUndefined();
+    expect(filter.shortDescription).toBeUndefined();
+    const pattern = filter.name as RegExp;
+    expect(pattern).toBeInstanceOf(RegExp);
+    expect(pattern.flags).toBe("i");
+    expect(pattern.source).toBe("a\\.\\*b\\(c"); // fully escaped literal substring (6 chars)
+  });
+
+  it("anchors single-character searches to the start of the name", async () => {
+    stubDatabaseEnv();
+    stubDatabase();
+    vi.mocked(ProductModel.find).mockReturnValue(queryOf([]) as never);
+    vi.mocked(ProductModel.countDocuments).mockResolvedValue(0 as never);
+
+    await getPublishedProducts({ search: "f" });
+
     const filter = vi.mocked(ProductModel.find).mock.calls[0][0] as unknown as {
-      $or?: Array<Record<string, RegExp>>;
+      name?: RegExp;
+      $or?: unknown[];
     };
-    expect(filter.$or).toHaveLength(3);
-    for (const clause of filter.$or ?? []) {
-      const [pattern] = Object.values(clause);
-      expect(pattern).toBeInstanceOf(RegExp);
-      expect(pattern.flags).toBe("i");
-      expect(pattern.source).toBe("a\\.\\*b\\(c"); // fully escaped literal
-    }
+    expect(filter.$or).toBeUndefined();
+    expect(filter.name?.source).toBe("^f"); // prefix only: "favourite" in a description can never match
+  });
+
+  it("keeps the search constraint in the same filter as status and category", async () => {
+    stubDatabaseEnv();
+    stubDatabase();
+    vi.mocked(ProductModel.find).mockReturnValue(queryOf([]) as never);
+    vi.mocked(ProductModel.countDocuments).mockResolvedValue(0 as never);
+
+    await getPublishedProducts({ categorySlug: "pastries-snacks", search: "pie" });
+
+    const filter = vi.mocked(ProductModel.find).mock.calls[0][0] as unknown as Record<string, unknown>;
+    expect(filter.status).toBe("published");
+    expect(filter.categoryId).toEqual({ $in: ["cat-past"] });
+    expect((filter.name as RegExp).test("Meat Pie")).toBe(true);
+  });
+
+  it("ranks fetched candidates by relevance before slicing the page", async () => {
+    stubDatabaseEnv();
+    stubDatabase();
+    // The database hands over every candidate; the tier order decides,
+    // independent of catalogue sortOrder.
+    vi.mocked(ProductModel.find).mockReturnValue(
+      queryOf([
+        dbRecord({ name: "Chicken Pie", slug: "chicken-pie", sortOrder: 10 }),
+        dbRecord({ name: "Plantain Chips", slug: "plantain-chips", sortOrder: 90 }),
+        dbRecord({ name: "Meat Pie", slug: "meat-pie", sortOrder: 50 }),
+      ]) as never,
+    );
+    vi.mocked(ProductModel.countDocuments).mockResolvedValue(3 as never);
+
+    const result = await getPublishedProducts({ search: "p", page: 1, pageSize: 2 });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // "Plantain Chips" begins with "p" (tier 1) and outranks the tier-2
+    // pies even though its sortOrder is the highest.
+    expect(result.data.items.map((product) => product.slug)).toEqual([
+      "plantain-chips",
+      "chicken-pie",
+    ]);
+    expect(result.data.total).toBe(3);
+    expect(result.data.totalPages).toBe(2);
   });
 
   it("drops draft records even if a query ever hands them over", async () => {

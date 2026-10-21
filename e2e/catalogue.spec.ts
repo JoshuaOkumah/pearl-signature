@@ -3,9 +3,9 @@ import { expect, test } from "@playwright/test";
 /**
  * Phase 2 catalogue suite: menu filtering, shareable URL state, server-side
  * pagination, product detail pages, draft protection, honest pricing, SEO and
- * 404 behaviour.
+ * 404 behaviour. Phase 2B adds the title-first search relevance matrix.
  *
- * Runs against the dev server, which resolves the labelled preview fixtures
+ * Runs against a production build resolving the labelled preview fixtures
  * (no cloud credentials in CI). The same visibility rules apply to database
  * reads (unit-tested in src/lib/repositories/catalogue.test.ts).
  */
@@ -75,6 +75,87 @@ test.describe("PEARL Signature — catalogue", () => {
     await search.fill("");
     await expect(page).toHaveURL("/menu?category=pastries-snacks");
     await expect(page.getByText("Showing 5 dishes in Pastries & Snacks")).toBeVisible();
+  });
+
+  /* ── title-first search relevance (Phase 2B) ───────────────────────── */
+
+  test("single-letter search matches only names starting with that letter", async ({ page }) => {
+    await page.goto("/menu");
+
+    const search = page.getByRole("searchbox", { name: /Search dishes by name/i });
+    await search.fill("f");
+
+    await expect(page).toHaveURL("/menu?search=f");
+    // No dish name starts with "f". Egusi Soup's description contains
+    // "favourite", but descriptions are never searched.
+    await expect(page.getByText("Nothing here yet")).toBeVisible();
+    await expect(page.getByText(/matching “f”/)).toBeVisible();
+    await expect(page.locator('a[href^="/menu/"] h3')).toHaveCount(0);
+
+    // A longer prefix query finds the soups.
+    await search.fill("sou");
+    await expect(page).toHaveURL("/menu?search=sou");
+    await expect(page.getByText("Showing 3 dishes for “sou”")).toBeVisible();
+    await expect(page.locator('a[href^="/menu/"] h3')).toHaveText([
+      "Egusi Soup",
+      "Bitterleaf Soup",
+      "Vegetable Soup",
+    ]);
+  });
+
+  test("search ranks word-prefix matches in a stable, deterministic order", async ({ page }) => {
+    await page.goto("/menu?search=pie");
+
+    await expect(page.getByText("Showing 3 dishes for “pie”")).toBeVisible();
+    // Every card is a pie; ordered by catalogue sort order, never by luck.
+    const cards = page.locator('a[href^="/menu/"] h3');
+    await expect(cards).toHaveText(["Turkey Pie", "Meat Pie", "Chicken Pie"]);
+    await expect(page.getByRole("heading", { name: "Egusi Soup" })).toHaveCount(0);
+
+    // Shareable URL: reloading returns the identical slice.
+    await page.reload();
+    await expect(cards).toHaveText(["Turkey Pie", "Meat Pie", "Chicken Pie"]);
+  });
+
+  test("the clear control restores the catalogue within the category", async ({ page }) => {
+    await page.goto("/menu?category=pastries-snacks&search=pie");
+    await expect(page.getByText("Showing 3 dishes for “pie” in Pastries & Snacks")).toBeVisible();
+
+    await page.getByRole("button", { name: "Clear search" }).click();
+    await expect(page).toHaveURL("/menu?category=pastries-snacks");
+    await expect(page.getByText("Showing 5 dishes in Pastries & Snacks")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Clear search" })).toHaveCount(0);
+  });
+
+  test("search paginates after ranking, without duplicates across pages", async ({ page }) => {
+    await page.goto("/menu?search=pie&pageSize=2");
+    const cards = page.locator('a[href^="/menu/"] h3');
+    await expect(cards).toHaveText(["Turkey Pie", "Meat Pie"]);
+
+    await page
+      .getByRole("navigation", { name: "Pagination" })
+      .getByRole("link", { name: "Next →" })
+      .click();
+    await expect(page).toHaveURL("/menu?search=pie&page=2&pageSize=2");
+    await expect(cards).toHaveText(["Chicken Pie"]);
+    // Nothing from page 1 leaks into page 2.
+    await expect(page.getByRole("heading", { name: "Turkey Pie" })).toHaveCount(0);
+  });
+
+  test("rapid typing settles on the final query with current results", async ({ page }) => {
+    await page.goto("/menu");
+
+    const search = page.getByRole("searchbox", { name: /Search dishes by name/i });
+    await search.click();
+    await search.pressSequentially("pie", { delay: 60 });
+
+    await expect(page).toHaveURL("/menu?search=pie");
+    await expect(page.getByText("Showing 3 dishes for “pie”")).toBeVisible();
+    await expect(page.locator('a[href^="/menu/"] h3')).toHaveText([
+      "Turkey Pie",
+      "Meat Pie",
+      "Chicken Pie",
+    ]);
   });
 
   test("empty results offer a reset", async ({ page }) => {
