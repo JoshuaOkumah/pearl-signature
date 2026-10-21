@@ -13,6 +13,24 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    // Database internals must never be imported from components (including
+    // Client Components) — catalogue reads go through the repository layer,
+    // which returns plain DTOs.
+    files: ["src/components/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "@/lib/db/mongoose", message: "Use the repository layer (src/lib/repositories) instead." },
+            { name: "@/models/category", message: "Mongoose models stay in server-side code; use repositories." },
+            { name: "@/models/product", message: "Mongoose models stay in server-side code; use repositories." },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

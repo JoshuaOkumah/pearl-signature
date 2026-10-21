@@ -1,20 +1,38 @@
 import type { Metadata } from "next";
 import { Clock } from "lucide-react";
 import { Suspense } from "react";
-import { categories } from "@/data/categories";
-import { products } from "@/data/products";
-import { parseMenuFilter } from "@/lib/filter";
+import { loadMenuPageData } from "@/lib/server/catalogue-page";
+import { resolveCatalogueSource } from "@/lib/repositories/catalogue";
+import { absoluteUrl } from "@/lib/site-url";
+import { parseMenuSearchParams } from "@/lib/validations/catalogue";
 import { MenuExplorer } from "@/components/menu/menu-explorer";
 import { MenuExplorerSkeleton } from "@/components/menu/menu-explorer-skeleton";
+import { CatalogueUnavailable } from "@/components/menu/menu-states";
 import { Badge } from "@/components/ui/badge";
 import { Eyebrow, Section } from "@/components/ui/section";
 import { Reveal } from "@/components/ui/reveal";
 
-export const metadata: Metadata = {
-  title: "Menu",
-  description:
-    "Browse the PEARL Signature menu, with traditional Nigerian soups and classics, pastries, snacks and drinks. Ordering opens soon.",
-};
+/**
+ * `/menu` — database-driven catalogue.
+ *
+ * The heading is a static shell section; the explorer streams behind a
+ * Suspense boundary (searchParams + `io()` inside the loaders keep every
+ * database read at request time — nothing queries MongoDB during build).
+ */
+
+export async function generateMetadata(): Promise<Metadata> {
+  const canonical = absoluteUrl("/menu");
+  const preview = resolveCatalogueSource() === "fixtures";
+  return {
+    title: "Menu",
+    description:
+      "Browse the PEARL Signature menu, with traditional Nigerian soups and classics, pastries, snacks and drinks. Ordering opens soon.",
+    alternates: canonical ? { canonical } : undefined,
+    // Preview fixtures are temporary content: never present them as real
+    // inventory to search engines.
+    robots: preview ? { index: false, follow: false } : undefined,
+  };
+}
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -52,6 +70,29 @@ export default function MenuPage({ searchParams }: { searchParams: SearchParams 
 }
 
 async function MenuResults({ searchParams }: { searchParams: SearchParams }) {
-  const { category } = await searchParams;
-  return <MenuExplorer initialFilter={parseMenuFilter(category)} products={products} categories={categories} />;
+  const params = parseMenuSearchParams(await searchParams);
+  const data = await loadMenuPageData(params);
+
+  // Categories or products unavailable: a calm retry state (never a crash,
+  // never silently substituted preview data in production).
+  if (!data.categories.ok || !data.products.ok) {
+    return <CatalogueUnavailable />;
+  }
+
+  const page = data.products.data;
+
+  return (
+    <MenuExplorer
+      categories={data.categories.data}
+      counts={data.counts.ok ? data.counts.data : {}}
+      products={page.items}
+      activeCategory={params.category ?? null}
+      search={params.search ?? ""}
+      page={page.page}
+      pageSize={page.pageSize}
+      total={page.total}
+      totalPages={page.totalPages}
+      source={data.products.source}
+    />
+  );
 }

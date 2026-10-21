@@ -1,10 +1,15 @@
 /**
- * Design-review utility: captures screenshots of every public route at the
- * Phase 1B reference viewports (including mobile landscape and the OPEN
- * mobile menu) and asserts zero horizontal overflow on every capture.
+ * Design-review utility: captures screenshots of every public route —
+ * including the Phase 2 filter state, product detail page and designed 404 —
+ * at the reference viewports (including mobile landscape and the OPEN
+ * mobile menu), and asserts zero horizontal overflow on every capture.
  *
  * Usage:
  *   1. Start the app:        npm run start   (or `npm run dev`)
+ *                            For a production server without MongoDB, set
+ *                            CATALOGUE_SOURCE=fixtures so preview products
+ *                            render; without it the honest unavailable state
+ *                            is what a production build shows.
  *   2. Capture screenshots:  npm run screenshots
  *
  * Output: ./screenshots/<page>-<width>x<height>.png
@@ -16,7 +21,21 @@ import { mkdir } from "node:fs/promises";
 const baseURL = process.env.BASE_URL ?? "http://localhost:3000";
 const outDir = process.env.OUT_DIR ?? "screenshots";
 
-const routes = ["/", "/menu", "/about", "/contact"];
+const routes = [
+  "/",
+  "/menu",
+  "/menu?category=drinks",
+  "/menu/egusi-soup",
+  "/menu/no-such-dish",
+  "/about",
+  "/contact",
+];
+
+/** URL route → stable file name. */
+function nameFor(route) {
+  if (route === "/") return "home";
+  return route.replace(/^\//, "").replace(/[^a-z0-9]+/gi, "-").replace(/-+$/, "");
+}
 
 /** Reference viewports: small phones through desktop, plus mobile landscape. */
 const viewports = [
@@ -58,7 +77,7 @@ async function checkOverflow(page, label) {
 }
 
 for (const route of routes) {
-  const name = route === "/" ? "home" : route.slice(1);
+  const name = nameFor(route);
   for (const viewport of viewports) {
     const page = await browser.newPage({ viewport });
     await page.goto(`${baseURL}${route}`, { waitUntil: "networkidle" });

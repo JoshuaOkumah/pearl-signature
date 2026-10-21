@@ -1,5 +1,7 @@
+import Image from "next/image";
+import { canDeliverImage } from "@/lib/images";
 import { cn, slugify } from "@/lib/utils";
-import type { DishTheme } from "@/types";
+import type { DishTheme, ProductImage } from "@/types";
 
 type Ratio = "4/3" | "3/2" | "16/10" | "square";
 
@@ -11,9 +13,21 @@ const ratioClass: Record<Ratio, string> = {
 };
 
 interface FoodMediaProps {
+  /** Placeholder palette — used whenever there is no deliverable image. */
   theme: DishTheme;
-  /** Dish name — used for deterministic gradient ids. */
+  /** Dish name — used for deterministic gradient ids and placeholder context. */
   label: string;
+  /**
+   * Cloudinary image reference (Phase 2). Rendered through `next/image` only
+   * when the URL is a validated Cloudinary address AND delivery was configured
+   * at build time; otherwise the honest placeholder renders instead — missing
+   * or unconfigured imagery never breaks a layout.
+   */
+  image?: ProductImage | null;
+  /** Responsive `sizes` hint for delivered images (avoids oversized downloads). */
+  sizes?: string;
+  /** Load this image eagerly (detail-page primary image). */
+  priority?: boolean;
   ratio?: Ratio;
   className?: string;
   /** Disambiguates SVG ids when the same dish renders more than once on a page. */
@@ -21,25 +35,49 @@ interface FoodMediaProps {
 }
 
 /**
- * Temporary dish visual — a stylised “plated dish” SVG composition in a
- * per-dish palette. This is deliberately honest placeholder media: no fake
- * photography is presented as real business imagery.
+ * Product media with a two-path strategy:
  *
- * Cloudinary migration path (later phase): keep this component’s props API,
- * swap the SVG body for next/image with a Cloudinary loader and real alt text.
- * Aspect ratios are fixed via `aspect-*`, so layouts never shift.
- *
- * Decorative: the adjacent product name carries the meaning, so the media is
- * hidden from assistive technology.
+ * 1. Real photography (Cloudinary, Phase 2): rendered with `next/image`,
+ *    fixed aspect-ratio container (no layout shift), real alt text.
+ * 2. Temporary placeholder: the Phase 1 “plated dish” SVG composition in the
+ *    product's palette. Deliberately honest placeholder art — no fake
+ *    photography is presented as real business imagery, and it stays
+ *    decorative (the adjacent product name carries the meaning).
  */
-export function FoodMedia({ theme, label, ratio = "4/3", className, idSuffix = "media" }: FoodMediaProps) {
+export function FoodMedia({
+  theme,
+  label,
+  image,
+  sizes,
+  priority,
+  ratio = "4/3",
+  className,
+  idSuffix = "media",
+}: FoodMediaProps) {
+  const containerClass = cn("relative w-full overflow-hidden bg-cream-100", ratioClass[ratio], className);
+
+  if (canDeliverImage(image)) {
+    return (
+      <div className={containerClass}>
+        <Image
+          src={image.secureUrl}
+          alt={image.alt}
+          fill
+          sizes={sizes ?? "100vw"}
+          priority={priority}
+          className="object-cover"
+        />
+      </div>
+    );
+  }
+
   const uid = `${slugify(label)}-${idSuffix}`;
   const bgId = `${uid}-bg`;
   const foodId = `${uid}-food`;
   const plateId = `${uid}-plate`;
 
   return (
-    <div aria-hidden="true" className={cn("relative w-full overflow-hidden bg-cream-100", ratioClass[ratio], className)}>
+    <div aria-hidden="true" className={containerClass}>
       <svg
         className="absolute inset-0 h-full w-full"
         viewBox="0 0 400 300"

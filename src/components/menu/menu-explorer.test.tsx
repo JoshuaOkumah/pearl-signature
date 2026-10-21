@@ -1,60 +1,242 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { categories } from "@/data/categories";
 import { products } from "@/data/products";
-import { MenuExplorer } from "./menu-explorer";
+import type { CatalogueCategory } from "@/types";
+import { MenuExplorer, pageWindow, type MenuExplorerProps } from "./menu-explorer";
 
-describe("MenuExplorer", () => {
-  it("shows every dish by default", () => {
-    render(<MenuExplorer products={products} categories={categories} />);
-    expect(screen.getByText(`Showing all ${products.length} dishes`)).toBeInTheDocument();
-    expect(screen.getByText("Egusi Soup")).toBeInTheDocument();
-    expect(screen.getByText("Zobo")).toBeInTheDocument();
+const { push, replace } = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push, replace, refresh: vi.fn(), prefetch: vi.fn() }),
+}));
+
+const catalogueCategories: CatalogueCategory[] = categories.map((category, index) => ({
+  slug: category.slug,
+  name: category.name,
+  description: category.description,
+  sortOrder: index * 10,
+}));
+
+const published = products.filter((product) => product.status === "published");
+
+const counts: Record<string, number> = {
+  "traditional-foods": 4,
+  "pastries-snacks": 5,
+  drinks: 2,
+};
+
+function renderExplorer(overrides: Partial<MenuExplorerProps> = {}) {
+  const props: MenuExplorerProps = {
+    categories: catalogueCategories,
+    counts,
+    products: published,
+    activeCategory: null,
+    search: "",
+    page: 1,
+    pageSize: 12,
+    total: 11,
+    totalPages: 1,
+    source: "fixtures",
+    ...overrides,
+  };
+  const view = render(<MenuExplorer {...props} />);
+  const rerender = (next: Partial<MenuExplorerProps> = {}) =>
+    view.rerender(<MenuExplorer {...props} {...overrides} {...next} />);
+  return { ...view, rerender, props };
+}
+
+afterEach(() => {
+  vi.clearAllMocks();
+  vi.useRealTimers();
+});
+
+describe("MenuExplorer rendering", () => {
+  it("shows the full catalogue with counts and the preview badge", () => {
+    renderExplorer();
+    expect(screen.getByText("Showing all 11 dishes")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Egusi Soup" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Zobo" })).toBeInTheDocument();
+    expect(screen.getByText("Preview catalogue")).toBeInTheDocument();
+
+    // Chips carry published counts (draft excluded).
+    expect(screen.getByRole("button", { name: /All/ })).toHaveTextContent("(11)");
+    expect(screen.getByRole("button", { name: /Drinks/ })).toHaveTextContent("(2)");
+    expect(screen.getByRole("button", { name: /Traditional/ })).toHaveTextContent("(4)");
   });
 
-  it("filters the grid when a category chip is selected", async () => {
+  it("labels configured prices with CAD and unconfigured ones honestly", () => {
+    renderExplorer();
+    // Fixtures carry no prices: every card says so instead of showing $0.00.
+    expect(screen.getAllByText("Price to be confirmed").length).toBe(published.length);
+    expect(screen.queryByText("$0.00 CAD")).not.toBeInTheDocument();
+
+    renderExplorer({
+      products: [{ ...published[0], priceCents: 1800 }],
+      total: 1,
+    });
+    expect(screen.getAllByText("$18.00 CAD")).toHaveLength(1);
+  });
+
+  it("links each card to its detail page", () => {
+    renderExplorer();
+    const card = screen.getByRole("link", { name: /Egusi Soup/ });
+    expect(card).toHaveAttribute("href", "/menu/egusi-soup");
+  });
+
+  it("omits the preview badge when reading the real database", () => {
+    renderExplorer({ source: "database" });
+    expect(screen.queryByText("Preview catalogue")).not.toBeInTheDocument();
+  });
+
+  it("summarises filtered views", () => {
+    renderExplorer({
+      activeCategory: "drinks",
+      products: published.filter((product) => product.category === "drinks"),
+      total: 2,
+    });
+    expect(screen.getByText("Showing 2 dishes in Drinks")).toBeInTheDocument();
+
+    renderExplorer({ search: "egusi", products: [published[0]], total: 1 });
+    expect(screen.getByText("Showing 1 dish for “egusi”")).toBeInTheDocument();
+  });
+});
+
+describe("MenuExplorer navigation", () => {
+  it("pushes category URLs that preserve the search term and page size", async () => {
     const user = userEvent.setup();
-    render(<MenuExplorer products={products} categories={categories} />);
+    const { rerender } = renderExplorer({ search: "pie", pageSize: 6, total: 3, totalPages: 1 });
 
-    const drinksChip = screen.getByRole("button", { name: /drinks/i });
-    await user.click(drinksChip);
+    await user.click(screen.getByRole("button", { name: /Pastries/ }));
+    expect(push).toHaveBeenCalledWith("/menu?category=pastries-snacks&search=pie&pageSize=6");
 
-    expect(drinksChip).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("Showing 2 dishes")).toBeInTheDocument();
-    expect(screen.getByText("Zobo")).toBeInTheDocument();
-    expect(screen.getByText("Soya Milk")).toBeInTheDocument();
+    // Server response arrives with the new URL state.
+    rerender({ activeCategory: "pastries-snacks" });
+    expect(screen.getByRole("button", { name: /Pastries/ })).toHaveAttribute("aria-pressed", "true");
 
-    // Dishes from other categories leave once the exit animation settles.
-    await waitFor(() => expect(screen.queryByText("Egusi Soup")).not.toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: /^All/ }));
+    expect(push).toHaveBeenLastCalledWith("/menu?search=pie&pageSize=6");
   });
 
-  it("returns to the full list from the 'All' chip", async () => {
+  it("debounces live search into a single replace, preserving the category", () => {
+    vi.useFakeTimers();
+    renderExplorer({ activeCategory: "drinks" });
+
+    const input = screen.getByRole("searchbox", { name: /Search dishes by name/i });
+    fireEvent.change(input, { target: { value: "e" } });
+    fireEvent.change(input, { target: { value: "eg" } });
+    fireEvent.change(input, { target: { value: "egusi" } });
+
+    expect(replace).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(replace).toHaveBeenCalledWith("/menu?category=drinks&search=egusi");
+
+    // No duplicate navigation while the URL is still catching up.
+    act(() => {
+      vi.advanceTimersByTime(350);
+    });
+    expect(replace).toHaveBeenCalledTimes(1);
+  });
+
+  it("commits the search immediately on Enter", () => {
+    vi.useFakeTimers();
+    renderExplorer();
+
+    const input = screen.getByRole("searchbox", { name: /Search dishes by name/i });
+    fireEvent.change(input, { target: { value: "zobo" } });
+    fireEvent.submit(input.closest("form")!);
+
+    expect(replace).toHaveBeenCalledWith("/menu?search=zobo");
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(replace).toHaveBeenCalledTimes(1); // debounce became a no-op
+  });
+
+  it("resynchronises the input when the URL changes from Back/Forward", () => {
+    vi.useFakeTimers();
+    const { rerender } = renderExplorer({ search: "egusi" });
+    const input = () => screen.getByRole("searchbox", { name: /Search dishes by name/i }) as HTMLInputElement;
+    expect(input().value).toBe("egusi");
+
+    fireEvent.change(input(), { target: { value: "egus" } });
+    rerender({ search: "meat" }); // history navigation lands elsewhere
+    expect(input().value).toBe("meat");
+    expect(replace).not.toHaveBeenCalled(); // no navigation loop from the resync
+  });
+});
+
+describe("MenuExplorer pagination", () => {
+  it("hides pagination on a single page", () => {
+    renderExplorer({ totalPages: 1, page: 1 });
+    expect(screen.queryByRole("navigation", { name: "Pagination" })).not.toBeInTheDocument();
+  });
+
+  it("renders bounded controls with hrefs that preserve filters", () => {
+    renderExplorer({ activeCategory: "drinks", search: "puff", pageSize: 6, page: 2, totalPages: 3 });
+
+    const nav = screen.getByRole("navigation", { name: "Pagination" });
+    const previous = screen.getByText("← Previous").closest("a, span")!;
+    expect(previous.tagName).toBe("A"); // page 2 has a previous page
+    expect(previous).toHaveAttribute(
+      "href",
+      "/menu?category=drinks&search=puff&pageSize=6",
+    );
+
+    expect(screen.getByRole("link", { name: "Next →" })).toHaveAttribute(
+      "href",
+      "/menu?category=drinks&search=puff&page=3&pageSize=6",
+    );
+    const current = screen.getByRole("link", { name: "2" });
+    expect(current).toHaveAttribute("aria-current", "page");
+    expect(current).toHaveAttribute(
+      "href",
+      "/menu?category=drinks&search=puff&page=2&pageSize=6",
+    );
+    expect(nav).toBeInTheDocument();
+  });
+
+  it("disables Previous on the first page", () => {
+    renderExplorer({ page: 1, totalPages: 3 });
+    const previous = screen.getByText("← Previous").closest("a, span")!;
+    expect(previous.tagName).toBe("SPAN");
+    expect(previous).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("link", { name: "Next →" })).toHaveAttribute("href", "/menu?page=2");
+  });
+
+  it("exposes a bounded page window", () => {
+    expect(pageWindow(1, 3)).toEqual([1, 2, 3]);
+    expect(pageWindow(5, 10)).toEqual([1, "gap", 4, 5, 6, "gap", 10]);
+    expect(pageWindow(1, 10)).toEqual([1, 2, "gap", 10]);
+    expect(pageWindow(10, 10)).toEqual([1, "gap", 9, 10]);
+  });
+});
+
+describe("MenuExplorer states", () => {
+  it("shows the empty state with a working reset", async () => {
     const user = userEvent.setup();
-    render(<MenuExplorer products={products} categories={categories} />);
+    renderExplorer({ search: "nothing-matches", products: [], total: 0 });
 
-    await user.click(screen.getByRole("button", { name: /drinks/i }));
-    await user.click(screen.getByRole("button", { name: /^All/i }));
-
-    expect(screen.getByText(`Showing all ${products.length} dishes`)).toBeInTheDocument();
-  });
-
-  it("honours an initial filter", () => {
-    render(<MenuExplorer initialFilter="pastries-snacks" products={products} categories={categories} />);
-    expect(screen.getByText("Meat Pie")).toBeInTheDocument();
-    expect(screen.queryByText("Zobo")).not.toBeInTheDocument();
-  });
-
-  it("shows an empty state with a working reset", async () => {
-    const user = userEvent.setup();
-    const drinksOnly = products.filter((product) => product.category === "drinks");
-    render(<MenuExplorer products={drinksOnly} categories={categories} />);
-
-    await user.click(screen.getByRole("button", { name: /traditional foods/i }));
     expect(screen.getByText("Nothing here yet")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "View everything" }));
+    expect(push).toHaveBeenCalledWith("/menu");
+  });
 
-    await user.click(screen.getByRole("button", { name: /view everything/i }));
-    expect(screen.queryByText("Nothing here yet")).not.toBeInTheDocument();
-    expect(screen.getByText("Zobo")).toBeInTheDocument();
+  it("shows the preparing state when the catalogue is empty", () => {
+    renderExplorer({ products: [], total: 0 });
+    expect(screen.getByText("The menu is being prepared")).toBeInTheDocument();
+  });
+
+  it("shows the past-end state and a route back", async () => {
+    const user = userEvent.setup();
+    renderExplorer({ activeCategory: "drinks", page: 9, totalPages: 2, total: 11 });
+
+    expect(screen.getByText("That’s the end of the menu")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Back to the first page" }));
+    expect(push).toHaveBeenCalledWith("/menu?category=drinks");
   });
 });

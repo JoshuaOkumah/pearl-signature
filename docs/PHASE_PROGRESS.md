@@ -4,7 +4,9 @@
 > **Phase 1B: Mobile Responsiveness, Navigation & UI Remediation — COMPLETE**
 > (see `docs/PHASE1B_REMEDIATION_REPORT.md`). Phase 1 was not approved as-is;
 > the defects found in manual review were fixed and regression-tested.
-> Phase 2 must not begin without explicit approval from the business owner.
+> **Phase 2: Catalogue Data & Product Experience — IMPLEMENTED, awaiting review**
+> (see `docs/PHASE2_REPORT.md`). Phase 3 must not begin without explicit
+> approval from the business owner.
 
 ---
 
@@ -148,6 +150,77 @@ in `docs/PHASE1B_REMEDIATION_REPORT.md`; summary:
 
 ---
 
+## 1C. Phase 2 — catalogue data & product experience
+
+Full report: `docs/PHASE2_REPORT.md`. Schema: `docs/DATABASE_SCHEMA.md`.
+Operator guides: `docs/MONGODB_SETUP.md`, `docs/CLOUDINARY_SETUP.md`.
+
+### What shipped
+- **Data layer:** server-only Mongoose connection (cached, HMR-safe, 5s
+  timeouts, `autoIndex: false`, redacted logging); Zod validation at every
+  boundary; repository implementing the full read set (categories, paged
+  published products, search, by slug, featured, related, counts, homepage
+  showcase) with `ReadResult` errors and safe ID serialisation.
+  `src/data` is no longer the production source: fixtures run only in
+  explicit dev/preview mode and are always labelled; production without
+  `MONGODB_URI` shows an honest unavailable state (never silent fallbacks).
+- **Schemas:** `categories` + `products` with unique normalised slugs,
+  embedded image/variant subdocs, draft/published status, availability,
+  featured, sortOrder, tags, timestamps, listing indexes — and
+  **integer-CAD-cent prices** (`priceCents: number | null`, no floats, no
+  `$0` placeholder; unconfigured → "Price to be confirmed").
+- **`/menu`:** DB-driven filter chips, debounced search and server-side
+  pagination (default 12, max 48) in shareable URL params with intact
+  Back/Forward, honest empty/past-end states; cards gain availability and
+  price states; no fake Add-to-Cart.
+- **`/menu/[slug]`:** breadcrumb, back link, gallery (thumbnails with
+  `aria-pressed` + arrow-key navigation, decorative thumb images),
+  price-or-pending, related products excluding self, and **404 for
+  unknown/draft/malformed slugs with genuine 404 status codes** via
+  `src/proxy.ts` (Next 16 Proxy checks the slug before any response
+  streams; database trouble passes through to the retry state instead of
+  404-ing).
+- **Cloudinary display:** `FoodMedia` delivers through `next/image` only
+  when the build configured an allowlisted host and the URL validates,
+  otherwise the Phase 1 placeholder (no CLS, required alt, no secrets, no
+  hotlinks, no upload endpoints).
+- **SEO/honesty:** real metadata + canonical only when a production URL is
+  configured, preview content `noindex`, schema.org Product **without**
+  fabricated offers/ratings/reviews.
+- **Cache Components:** `await io()` keeps the database out of prerendering
+  entirely; no `"use cache"` on catalogue data (prices never go stale);
+  `/` and `/menu` keep PPR shells; `/menu/[slug]` is request-rendered
+  (`instant = false` + `connection()`), with genuine 404 status codes
+  decided by `src/proxy.ts` before any rendering starts.
+- **Seeding:** `npm run seed` — explicit `--yes` (+ `--force-production`
+  for production), masked target display, `$setOnInsert`-only idempotent
+  upserts, no drops, never auto-runs; **not executed against any hosted
+  database** (no credentials exist; authorization required regardless).
+- **Tests:** unit suite 27 → **133** (repository, validations, models,
+  formatting, URL/image helpers, menu explorer, gallery, cards, states,
+  showcase, breadcrumbs); Playwright 21 → **32** with a new `catalogue`
+  suite; screenshots extended to filter/detail/404 routes + a separate
+  unavailable-state capture set.
+
+### Phase 2 verification (all executed)
+| Command | Result |
+| --- | --- |
+| `npx next typegen && npm run typecheck` | ✅ PASS — 0 errors |
+| `npm run lint` | ✅ PASS — 0 errors/warnings |
+| `npm run test` | ✅ PASS — **133/133** (17 files) |
+| `npm run build` | ✅ PASS — no DB configured/queried at build; PPR kept; `ƒ Proxy` registered; `/menu/[slug]` request-rendered |
+| `npm run test:e2e` | ✅ PASS — **32/32** against the production build (fixtures mode) |
+| `npm run screenshots` | ✅ PASS — **75 captures** + 6 unavailable-state captures, **0 horizontal overflow** |
+| Seed safety smoke tests | ✅ PASS — refuses without URI/`--yes`, production refusal, masked output, clean offline failure (unresolvable host, no credentials printed) |
+| 404 status probe | ✅ PASS — unknown/draft/malformed → **404**; published → 200 (production server) |
+| Visual review | ✅ PASS — mobile + desktop passes incl. gallery, filter state, 404, unavailable states |
+
+**Pending (not verifiable without owner-supplied credentials):** hosted
+Atlas reads/seed and real Cloudinary delivery — both documented step-by-step
+in their setup guides.
+
+---
+
 ## 2. Verification results (all executed)
 
 | # | Command | Result |
@@ -190,8 +263,18 @@ in `docs/PHASE1B_REMEDIATION_REPORT.md`; summary:
 
 ## 4. Known limitations
 
-- **No backend of any kind** (by design): menu data is typed local preview data
-  in `src/data`; presentation is already API-ready (same `Product` shape).
+- **Catalogue reads are DB-backed; upload/admin flows are not.** Phase 2
+  added the read layer only — there is no admin CRUD, no cart/checkout and
+  no image upload yet (Phase 3+). Until `MONGODB_URI` exists, the site runs
+  on labelled preview fixtures (dev/preview) or shows the honest unavailable
+  state (production without configuration).
+- Homepage category tiles are local presentation data (menu categories are
+  curated copy); the `/menu` page is the database-driven surface.
+- Product detail pages render per request (`connection()` in the segment
+  layout), so there is no static shell for them; client-side navigations
+  show the segment's loading skeleton while the database read streams in.
+  Genuine 404 status codes come from `src/proxy.ts`, which checks the slug
+  before any response starts.
 - The mobile menu is a **full-viewport** panel, so it has no backdrop layer;
   closing is via the X button, Escape, or a link. (A drawer-with-backdrop is
   an alternative design if the business prefers it later.)
@@ -213,13 +296,15 @@ in `docs/PHASE1B_REMEDIATION_REPORT.md`; summary:
 
 ## 5. Next planned phase (requires approval)
 
-**Phase 2 — Catalogue data & product experience**, tentatively:
-- MongoDB Atlas M0 + Mongoose models (Product, Category) — free tier only.
-- Zod validation for API boundaries; typed data-access layer replacing `src/data`.
-- Product detail routes (`/menu/[slug]`) with sizes/customisation scaffolding.
-- Cloudinary upload/CDN integration replacing `FoodMedia` placeholders
-  (keeping the component API).
-- Continued no-invention rule: prices/details arrive only from the business.
+**Phase 3 — admin, uploads & commerce (tentative):**
+- Admin authentication (session-based, secrets via env vars) + private
+  product/category CRUD.
+- Cloudinary upload/delete endpoints (signed, server-side only) replacing
+  `FoodMedia` placeholders as real photography arrives (component API stays
+  the migration point).
+- Shopping cart, checkout, Stripe + cash-on-arrival option, order lifecycle.
+- Deployment with production env configuration (MONGODB_URI, site URL,
+  Cloudinary cloud name).
 
-Cart, checkout, Stripe, sessions and the admin dashboard remain reserved for
-later phases as specified in `docs/PROJECT_SPEC.md`.
+Cart, checkout, Stripe, sessions and the admin dashboard remain reserved
+for later phases as specified in `docs/PROJECT_SPEC.md`.

@@ -1,14 +1,21 @@
 import { ArrowRight } from "lucide-react";
-import { featuredProducts, products } from "@/data/products";
+import { Suspense } from "react";
+import { loadHomepageShowcase } from "@/lib/server/catalogue-page";
 import { Section, SectionHeading } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
-import { ProductCard } from "@/components/shared/product-card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SignatureFavouritesShowcase } from "./signature-favourites-showcase";
 
 /**
  * Editorial showcase of representative dishes.
  * These are kitchen favourites chosen by the team for presentation —
  * not sales-ranked “bestsellers”.
+ *
+ * The heading is static (ships in the PPR shell); the grid streams from
+ * MongoDB behind Suspense. `loadHomepageShowcase` calls `io()` first, so no
+ * database work happens during build, and every reader sees current
+ * publication state without a redeploy.
  */
 export function SignatureFavourites() {
   return (
@@ -29,27 +36,35 @@ export function SignatureFavourites() {
         </Reveal>
       </div>
 
-      <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {featuredProducts.map((product, index) => (
-          <Reveal key={product.slug} delay={0.06 * index} className={index === 0 ? "sm:col-span-2" : undefined}>
-            <ProductCard product={product} size={index === 0 ? "large" : "default"} className="h-full" />
-          </Reveal>
-        ))}
-
-        {/* Closing tile keeps the grid honest and invites exploration */}
-        <Reveal delay={0.3} className="sm:col-span-2">
-          <div className="flex h-full flex-col justify-between gap-8 rounded-3xl bg-navy p-7 shadow-card">
-            <p className="font-display text-2xl font-semibold leading-snug text-cream">
-              {products.length} Nigerian favourites,{" "}
-              <em className="italic text-gold">one beautifully set table.</em>
-            </p>
-            <ButtonLink href="/menu" variant="outlineLight" className="self-start">
-              Browse everything
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </ButtonLink>
-          </div>
-        </Reveal>
-      </div>
+      <Suspense fallback={<FavouritesGridSkeleton />}>
+        <FavouritesGrid />
+      </Suspense>
     </Section>
+  );
+}
+
+async function FavouritesGrid() {
+  const showcase = await loadHomepageShowcase();
+  if (!showcase.ok) {
+    return <SignatureFavouritesShowcase featured={[]} total={null} state="error" />;
+  }
+  return (
+    <SignatureFavouritesShowcase
+      featured={showcase.data.featured}
+      total={showcase.data.total}
+      state="ok"
+    />
+  );
+}
+
+function FavouritesGridSkeleton() {
+  return (
+    <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4" aria-hidden="true">
+      <Skeleton className="aspect-[16/10] rounded-3xl sm:col-span-2" />
+      <Skeleton className="aspect-[4/3] rounded-3xl" />
+      <Skeleton className="aspect-[4/3] rounded-3xl" />
+      <Skeleton className="aspect-[4/3] rounded-3xl" />
+      <Skeleton className="aspect-[4/3] rounded-3xl sm:col-span-2" />
+    </div>
   );
 }

@@ -92,17 +92,21 @@ Phase 1 only presents this journey; no transactional behaviour is implemented.
 - `next/font` (Fraunces + Manrope)
 - npm
 
-### Reserved for later phases (NOT implemented in Phase 1)
+### Added in Phase 2 (implemented, free tiers only)
+| Technology | Status & purpose |
+| --- | --- |
+| MongoDB Atlas M0 | **Target database (free tier).** Code + docs ready; cluster/credentials pending the owner (see `docs/MONGODB_SETUP.md`) |
+| Mongoose 9 | ODM — `categories` + `products` schemas, `autoIndex: false`, server-only |
+| Zod 4 | Boundary validation — DTOs, URL input bounds, slug rules |
+| Cloudinary | **Display path implemented** (`FoodMedia` → `next/image`, allowlisted host, placeholder fallback). Upload/delete and account provisioning remain later (see `docs/CLOUDINARY_SETUP.md`) |
+| Next 16 Proxy (`proxy.ts`) | Pre-render slug check so unknown/draft product URLs return genuine 404 status codes |
+
+### Reserved for later phases (NOT implemented yet)
 | Technology | Purpose |
 | --- | --- |
-| MongoDB Atlas M0 | Database (free tier — cost-conscious hosting, no Pro/Premium plan) |
-| Mongoose | ODM / data modelling |
-| Cloudinary | Image storage & transformation (free tier) |
 | Stripe | Online payments |
-| Zod | Schema validation at boundaries |
-| Vitest + Testing Library | Unit/component tests |
-| Playwright | End-to-end browser tests |
 | Session-based auth | Private admin authentication (secrets via env vars) |
+| Cloudinary uploads | Signed, server-side image upload/delete (admin flows) |
 
 **Rejected dependencies:** Supabase, Firebase, PostgreSQL — must not be added.
 No paid services, subscriptions or premium dependencies. No secrets in source.
@@ -132,9 +136,23 @@ Commerce × Modern Editorial Design. Full detail lives in `docs/DESIGN_SYSTEM.md
 - Animation & microinteraction system with reduced-motion support.
 - Testing foundation (Vitest unit tests + Playwright smoke tests).
 
+### Phase 2 (implemented)
+- Catalogue read layer: MongoDB/Mongoose schemas (`categories`, `products`),
+  Zod validation, repository with paginated/filtered/search reads, draft
+  protection, integer-CAD-cent pricing.
+- `/menu` driven by the catalogue with shareable URL filter/search/pagination
+  state; honest empty, past-end and unavailable states.
+- `/menu/[slug]` product detail pages: breadcrumb, gallery with accessible
+  thumbnails, related products, genuine 404 status for unknown/draft slugs.
+- Cloudinary display path in `FoodMedia` (guarded `next/image`, placeholder
+  fallback); preview media slots on the demo product.
+- Honest metadata/JSON-LD (no fabricated offers, ratings or reviews);
+  preview content noindexed.
+- Explicit idempotent seeding tool; 133 unit + 32 e2e tests.
+
 ### Upcoming (documented, not implemented)
-- Catalogue API backed by MongoDB; images in Cloudinary.
-- Product detail pages with sizes/customisation.
+- Admin authentication and product/category CRUD (auth-protected).
+- Cloudinary uploads (signed, server-side) as real photography arrives.
 - Shopping cart, checkout, Stripe online payments + cash-on-arrival option.
 - Delivery zones, fees, pickup scheduling (all values supplied by business).
 - Order lifecycle & admin dashboard (auth-protected).

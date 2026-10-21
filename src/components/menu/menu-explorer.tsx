@@ -1,82 +1,300 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
-import { SearchX } from "lucide-react";
-import { useMemo, useState } from "react";
-import { ALL, countByCategory, filterProducts, type MenuFilter } from "@/lib/filter";
-import { pluralize } from "@/lib/utils";
-import type { Category, Product } from "@/types";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { motion } from "motion/react";
+import { Search } from "lucide-react";
+import { menuUrl } from "@/lib/menu-url";
+import { cn, pluralize } from "@/lib/utils";
+import type { CatalogueCategory, Product } from "@/types";
+import { Badge } from "@/components/ui/badge";
 import { Chip } from "@/components/ui/chip";
 import { ProductCard } from "@/components/shared/product-card";
+import { MenuEmpty, MenuPastEnd, MenuPreparing } from "./menu-states";
 
-interface MenuExplorerProps {
-  initialFilter?: MenuFilter;
+const SEARCH_DEBOUNCE_MS = 350;
+
+/**
+ * Visible pagination window: every page up to 7, otherwise first/last with
+ * the neighbourhood of the current page and ellipsis gaps.
+ */
+export function pageWindow(page: number, totalPages: number): Array<number | "gap"> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+  const pages = [...new Set([1, totalPages, page - 1, page, page + 1])].filter(
+    (value) => value >= 1 && value <= totalPages,
+  );
+  const sorted = pages.sort((a, b) => a - b);
+  const window: Array<number | "gap"> = [];
+  let previous = 0;
+  for (const value of sorted) {
+    if (previous && value - previous > 1) window.push("gap");
+    window.push(value);
+    previous = value;
+  }
+  return window;
+}
+
+export interface MenuExplorerProps {
+  categories: CatalogueCategory[];
+  /** Published-product count per category slug (chips). */
+  counts: Record<string, number>;
+  /** Current page of results (server-fetched). */
   products: Product[];
-  categories: Category[];
+  activeCategory: string | null;
+  search: string;
+  page: number;
+  pageSize: number;
+  /** Total matches for the current filters (across all pages). */
+  total: number;
+  totalPages: number;
+  /** "fixtures" renders the honest preview-data badge. */
+  source: "database" | "fixtures";
 }
 
 /**
- * Interactive menu preview. Filtering is client-side against typed local
- * data; when MongoDB lands, the same component will receive server-fetched
- * products with no presentation changes.
+ * Catalogue surface for `/menu`.
+ *
+ * The server owns fetching and filtering; this component owns URL-driven
+ * controls (chips, debounced search, pagination) so category selection and
+ * search stay shareable and Back/Forward friendly. All navigation goes
+ * through `menuUrl` to keep query keys consistent.
  */
-export function MenuExplorer({ initialFilter = ALL, products, categories }: MenuExplorerProps) {
-  const [filter, setFilter] = useState<MenuFilter>(initialFilter);
-  const visible = useMemo(() => filterProducts(products, filter), [products, filter]);
+export function MenuExplorer({
+  categories,
+  counts,
+  products,
+  activeCategory,
+  search,
+  page,
+  pageSize,
+  total,
+  totalPages,
+  source,
+}: MenuExplorerProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  const [draft, setDraft] = useState(search);
+  const [prevSearch, setPrevSearch] = useState(search);
+  const committedRef = useRef(search);
+
+  // Re-sync the input when the URL search changes from outside (Back/Forward).
+  if (prevSearch !== search) {
+    setPrevSearch(search);
+    setDraft(search);
+  }
+
+  useEffect(() => {
+    committedRef.current = search;
+  }, [search]);
+
+  const commitSearch = useCallback(
+    (term: string) => {
+      if (term === committedRef.current) return;
+      committedRef.current = term;
+      startTransition(() => {
+        router.replace(menuUrl({ category: activeCategory, search: term, pageSize }));
+      });
+    },
+    [router, activeCategory, pageSize],
+  );
+
+  // Debounced live search: bounded to one server round-trip per pause.
+  useEffect(() => {
+    if (draft === search) return;
+    const timer = setTimeout(() => commitSearch(draft), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [draft, search, commitSearch]);
+
+  const selectCategory = (slug: string | null) => {
+    startTransition(() => {
+      router.push(menuUrl({ category: slug, search, pageSize }));
+    });
+  };
+
+  const resetAll = () => {
+    startTransition(() => {
+      router.push(menuUrl({ pageSize }));
+    });
+  };
+
+  const resetToFirstPage = () => {
+    startTransition(() => {
+      router.push(menuUrl({ category: activeCategory, search, pageSize }));
+    });
+  };
+
+  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    commitSearch(draft);
+  };
+
+  const category = activeCategory
+    ? categories.find((item) => item.slug === activeCategory)?.name ?? activeCategory
+    : null;
+  const noun = pluralize(total, "dish", "dishes");
+  const summary = search
+    ? category
+      ? `Showing ${total} ${noun} for “${search}” in ${category}`
+      : `Showing ${total} ${noun} for “${search}”`
+    : category
+      ? `Showing ${total} ${noun} in ${category}`
+      : `Showing all ${total} ${noun}`;
+
+  const countValues = Object.values(counts);
+  const allCount = countValues.length > 0 ? countValues.reduce((sum, value) => sum + value, 0) : undefined;
+
+  const pastEnd = total > 0 && page > totalPages;
+  const empty = total === 0;
 
   return (
     <div>
-      <div role="group" aria-label="Filter menu by category" className="flex flex-wrap gap-2.5">
-        <Chip label="All" count={products.length} active={filter === ALL} onSelect={() => setFilter(ALL)} />
-        {categories.map((category) => (
-          <Chip
-            key={category.slug}
-            label={category.name}
-            count={countByCategory(products, category.slug)}
-            active={filter === category.slug}
-            onSelect={() => setFilter(category.slug)}
-          />
-        ))}
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div role="group" aria-label="Filter menu by category" className="flex flex-wrap gap-2.5">
+          <Chip label="All" count={allCount} active={activeCategory === null} onSelect={() => selectCategory(null)} />
+          {categories.map((item) => (
+            <Chip
+              key={item.slug}
+              label={item.name}
+              count={counts[item.slug]}
+              active={activeCategory === item.slug}
+              onSelect={() => selectCategory(item.slug)}
+            />
+          ))}
+        </div>
+
+        <form
+          role="search"
+          aria-label="Search the menu"
+          onSubmit={handleSearchSubmit}
+          className="w-full lg:w-72 lg:shrink-0"
+        >
+          <label htmlFor="menu-search" className="sr-only">
+            Search dishes by name or description
+          </label>
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted"
+              aria-hidden="true"
+            />
+            <input
+              id="menu-search"
+              type="search"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder="Search dishes"
+              autoComplete="off"
+              className="focus-gold w-full rounded-full border border-border bg-surface py-3 pl-11 pr-4 text-sm text-navy placeholder:text-ink-muted"
+            />
+          </div>
+        </form>
       </div>
 
-      <p aria-live="polite" className="mt-6 text-sm font-semibold text-ink-muted">
-        {filter === ALL
-          ? `Showing all ${products.length} dishes`
-          : `Showing ${visible.length} ${pluralize(visible.length, "dish", "dishes")}`}
-      </p>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p aria-live="polite" className="text-sm font-semibold text-ink-muted">
+          {summary}
+        </p>
+        <div className="flex items-center gap-3">
+          {isPending ? (
+            <span className="text-xs font-semibold text-ink-muted" aria-hidden="true">
+              Updating results…
+            </span>
+          ) : null}
+          {source === "fixtures" ? (
+            <Badge tone="neutral" className="border border-sand bg-transparent">
+              Preview catalogue
+            </Badge>
+          ) : null}
+        </div>
+      </div>
 
-      {visible.length > 0 ? (
-        <motion.ul layout className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          <AnimatePresence mode="popLayout">
-            {visible.map((product) => (
+      <div aria-busy={isPending}>
+        {empty ? (
+          <div className="mt-6">{category || search ? <MenuEmpty onReset={resetAll} /> : <MenuPreparing />}</div>
+        ) : pastEnd ? (
+          <div className="mt-6">
+            <MenuPastEnd page={page} onReset={resetToFirstPage} />
+          </div>
+        ) : (
+          <ul
+            className={cn(
+              "mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+              isPending && "opacity-70 transition-opacity duration-200",
+            )}
+          >
+            {products.map((product, index) => (
               <motion.li
                 key={product.slug}
-                layout
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                transition={{
+                  duration: 0.25,
+                  delay: Math.min(index * 0.03, 0.15),
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                className="h-full"
               >
-                <ProductCard product={product} />
+                <ProductCard product={product} className="h-full" />
               </motion.li>
             ))}
-          </AnimatePresence>
-        </motion.ul>
-      ) : (
-        <div className="mt-6 flex flex-col items-center rounded-3xl border border-dashed border-sand bg-cream-100 px-6 py-16 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-cream-200 text-ink-muted">
-            <SearchX className="h-6 w-6" aria-hidden="true" />
-          </span>
-          <h3 className="mt-5 font-display text-xl font-semibold text-navy">Nothing here yet</h3>
-          <p className="mt-2 max-w-sm text-sm leading-relaxed text-ink-muted">
-            We couldn’t find dishes in this category yet. Try another category, or browse the full menu.
-          </p>
-          <Button variant="outline" className="mt-6" onClick={() => setFilter(ALL)}>
-            View everything
-          </Button>
-        </div>
-      )}
+          </ul>
+        )}
+      </div>
+
+      {totalPages > 1 && !empty && !pastEnd ? (
+        <nav aria-label="Pagination" className="mt-10 flex flex-wrap items-center justify-center gap-2">
+          {page > 1 ? (
+            <Link
+              href={menuUrl({ category: activeCategory, search, page: page - 1, pageSize })}
+              className="focus-gold rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold text-navy transition-colors hover:border-navy/40"
+            >
+              ← Previous
+            </Link>
+          ) : (
+            <span aria-disabled="true" className="rounded-full border border-sand px-4 py-2 text-sm font-semibold text-ink-muted opacity-60">
+              ← Previous
+            </span>
+          )}
+
+          {pageWindow(page, totalPages).map((entry, index) =>
+            entry === "gap" ? (
+              <span key={`gap-${index}`} aria-hidden="true" className="px-1 text-ink-muted">
+                …
+              </span>
+            ) : (
+              <Link
+                key={entry}
+                href={menuUrl({ category: activeCategory, search, page: entry, pageSize })}
+                aria-current={entry === page ? "page" : undefined}
+                className={cn(
+                  "focus-gold rounded-full px-3.5 py-2 text-sm font-semibold transition-colors",
+                  entry === page
+                    ? "bg-navy text-cream"
+                    : "border border-border bg-surface text-navy hover:border-navy/40",
+                )}
+              >
+                {entry}
+              </Link>
+            ),
+          )}
+
+          {page < totalPages ? (
+            <Link
+              href={menuUrl({ category: activeCategory, search, page: page + 1, pageSize })}
+              className="focus-gold rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold text-navy transition-colors hover:border-navy/40"
+            >
+              Next →
+            </Link>
+          ) : (
+            <span aria-disabled="true" className="rounded-full border border-sand px-4 py-2 text-sm font-semibold text-ink-muted opacity-60">
+              Next →
+            </span>
+          )}
+        </nav>
+      ) : null}
     </div>
   );
 }

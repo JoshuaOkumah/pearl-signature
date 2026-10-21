@@ -15,7 +15,7 @@ const MOBILE = [
   { width: 667, height: 375 }, // phone landscape below the md breakpoint
 ];
 
-const ROUTES = ["/", "/menu", "/about", "/contact"];
+const ROUTES = ["/", "/menu", "/menu/egusi-soup", "/about", "/contact"];
 
 /* ── helpers ────────────────────────────────────────────────────────── */
 
