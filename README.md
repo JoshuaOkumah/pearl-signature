@@ -61,8 +61,9 @@ npm run lint         # ESLint (next/core-web-vitals + TypeScript rules)
 npm run typecheck    # tsc --noEmit (run `npx next typegen` first if .next/ is empty)
 npm run test         # Vitest unit/component tests (single run)
 npm run test:watch   # Vitest watch mode
-npm run test:e2e     # Playwright smoke tests (starts its own server)
-npm run screenshots  # capture responsive screenshots + overflow check
+npm run test:e2e     # Playwright: smoke + mobile navigation/responsive regression suites
+npm run screenshots  # capture responsive screenshots (incl. open-menu states) + overflow check
+node scripts/audit-mobile.mjs   # diagnostic: DOM geometry, hit-testing, computed contrast
 ```
 
 First-time Playwright setup:
@@ -93,9 +94,10 @@ src/
 ├── data/                   # Typed preview data: products, categories, faqs, nav
 ├── lib/                    # Utilities: cn, slugify, menu filtering
 └── types/                  # Shared domain types
-e2e/                        # Playwright smoke tests
-scripts/screenshots.mjs     # Responsive design-review utility
-docs/                       # Project spec, design system, phase progress
+e2e/                        # Playwright: smoke + mobile/responsive regression tests
+scripts/screenshots.mjs     # Responsive design-review utility (incl. open-menu captures)
+scripts/audit-mobile.mjs    # Diagnostic: DOM geometry, hit-testing, contrast measurement
+docs/                       # Project spec, design system, phase progress, 1B report
 vitest.config.mts           # Vitest setup (jsdom)
 playwright.config.ts        # Playwright setup
 ```
@@ -111,7 +113,14 @@ playwright.config.ts        # Playwright setup
 - `/about`, `/contact` — informational pages (no invented contact details)
 - Sticky responsive header with accessible mobile navigation; brand footer
 - Design tokens, animation system, reduced-motion support
-- 23 Vitest unit tests + 4 Playwright smoke tests passing
+- Copy is em-dash-free and WCAG AA contrast-verified on light and dark surfaces
+- 27 Vitest unit/component tests + 21 Playwright tests passing (smoke,
+  mobile-navigation, responsive-layout, contrast and copy regression suites)
+
+**Phase 1B — complete:** mobile-first remediation after manual review found
+navigation and layout defects (modal menu rebuilt as a portal panel with a
+visible X, header overflow fixed at 320px, contrast misses corrected, copy
+rewritten). See `docs/PHASE1B_REMEDIATION_REPORT.md`.
 
 **Deliberately out of scope for Phase 1:** MongoDB, Cloudinary, Stripe, cart,
 checkout, order placement, admin auth/dashboard, notifications, deployment.
@@ -124,4 +133,5 @@ supplied by the business — nothing is invented.
 | --- | --- |
 | `docs/PROJECT_SPEC.md` | Business requirements, features, unresolved details |
 | `docs/DESIGN_SYSTEM.md` | Colours, typography, spacing, motion, a11y, imagery |
-| `docs/PHASE_PROGRESS.md` | Phase 1 results, verification log, next phase |
+| `docs/PHASE_PROGRESS.md` | Phase 1/1B results, verification log, next phase |
+| `docs/PHASE1B_REMEDIATION_REPORT.md` | Root causes, fixes, verification and evidence for the mobile remediation |

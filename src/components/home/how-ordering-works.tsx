@@ -18,7 +18,7 @@ const steps: Step[] = [
   {
     icon: UtensilsCrossed,
     title: "Choose your favourites",
-    description: "Select the dishes you love — each one prepared to order, just for you.",
+    description: "Select the dishes you love, each one prepared to order just for you.",
   },
   {
     icon: Truck,
@@ -28,7 +28,7 @@ const steps: Step[] = [
   {
     icon: CreditCard,
     title: "Complete your order",
-    description: "Pay securely online, or choose cash on arrival — whichever suits you.",
+    description: "Pay securely online, or choose cash on arrival, whichever suits you.",
   },
 ];
 
@@ -56,7 +56,7 @@ export function HowOrderingWorks() {
                 <span className="flex h-11 w-11 items-center justify-center rounded-full bg-cream-200 text-navy">
                   <step.icon className="h-5 w-5" aria-hidden="true" />
                 </span>
-                <span aria-hidden="true" className="font-display text-3xl font-semibold text-gold">
+                <span aria-hidden="true" className="font-display text-3xl font-semibold text-gold-700">
                   {String(index + 1).padStart(2, "0")}
                 </span>
               </div>

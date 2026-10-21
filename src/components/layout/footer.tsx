@@ -22,12 +22,13 @@ export function Footer() {
           <div>
             <Wordmark tone="cream" />
             <p className="mt-5 max-w-sm text-sm leading-relaxed text-cream/70">
-              PEARL Signature is a Canadian online kitchen celebrating authentic Nigerian cuisine — traditional soups
-              and classics, golden pastries and refreshing drinks, prepared with care and ordered online.
+              PEARL Signature is a Canadian online kitchen celebrating authentic Nigerian cuisine, from
+              traditional soups and classics to golden pastries and refreshing drinks, prepared with care
+              and ordered online.
             </p>
           </div>
 
-          <nav aria-label="Footer — explore">
+          <nav aria-label="Footer, explore">
             <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-cream">Explore</h2>
             <ul className="mt-4 space-y-2.5 text-sm">
               {navItems.map((item) => (
@@ -50,7 +51,7 @@ export function Footer() {
             </ul>
           </nav>
 
-          <nav aria-label="Footer — the menu">
+          <nav aria-label="Footer, the menu">
             <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-cream">The Menu</h2>
             <ul className="mt-4 space-y-2.5 text-sm">
               {categories.map((category) => (

@@ -21,7 +21,7 @@ export const categories: Category[] = [
     shortName: "Pastries",
     tagline: "Baked & fried favourites",
     description:
-      "Golden, flaky pastries and satisfying snacks — perfect for gatherings, gifts, or a quiet treat.",
+      "Golden, flaky pastries and satisfying snacks, perfect for gatherings, gifts, or a quiet treat.",
     theme: { deep: "#7A4E22", base: "#C98F45", accent: "#5C7A58" },
   },
   {

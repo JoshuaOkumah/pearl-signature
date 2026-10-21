@@ -11,7 +11,7 @@ import { Reveal } from "@/components/ui/reveal";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "PEARL Signature is a Canadian online kitchen dedicated to authentic Nigerian cuisine — traditional foods, pastries, snacks and drinks, prepared with care.",
+    "PEARL Signature is a Canadian online kitchen dedicated to authentic Nigerian cuisine, from traditional foods and pastries to snacks and drinks, all prepared with care.",
 };
 
 interface Value {
@@ -24,7 +24,7 @@ const values: Value[] = [
   {
     icon: Leaf,
     title: "Authenticity first",
-    description: "Traditional recipes, respected. We cook the dishes the way they are meant to taste — no shortcuts.",
+    description: "Traditional recipes, respected. We cook every dish the way it is meant to taste, with no shortcuts.",
   },
   {
     icon: HandHeart,
@@ -34,7 +34,7 @@ const values: Value[] = [
   {
     icon: BadgeCheck,
     title: "Quality you can trust",
-    description: "Made to order, handled hygienically and presented beautifully — every single time.",
+    description: "Made to order, handled hygienically and presented beautifully, every single time.",
   },
 ];
 
@@ -49,7 +49,7 @@ export default function AboutPage() {
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-ink-muted md:text-lg">
             PEARL Signature is a Canadian online food business celebrating the richness of Nigerian cuisine. We are
-            an online-only kitchen — no walk-in storefront — which means every dish we make is prepared specifically
+            an online-only kitchen with no walk-in storefront, which means every dish we make is prepared specifically
             for your order, then brought to your door or arranged for pickup.
           </p>
         </Reveal>
@@ -82,7 +82,7 @@ export default function AboutPage() {
               Three corners of a Nigerian table
             </h2>
             <p className="mt-4 text-base leading-relaxed text-ink-muted">
-              Our menu focuses on the dishes home is made of — and it will grow over time as new categories, sizes
+              Our menu focuses on the dishes home is made of, and it will grow over time as new categories, sizes
               and options are added.
             </p>
             <Divider className="mt-8 max-w-xs" />
@@ -92,7 +92,7 @@ export default function AboutPage() {
               </span>
               <p className="text-sm leading-relaxed text-ink-muted">
                 <strong className="font-bold text-navy">Online only, by design.</strong> Being online-only lets us
-                cook to order instead of keeping food waiting — you get dishes at their best, and nothing is wasted.
+                cook to order instead of keeping food waiting. You get every dish at its best, and nothing is wasted.
               </p>
             </div>
           </Reveal>
@@ -118,7 +118,7 @@ export default function AboutPage() {
             <Reveal delay={0.24}>
               <div className="flex items-center gap-3 rounded-2xl px-2 py-1 text-sm text-ink-muted">
                 <ChefHat className="h-4 w-4 shrink-0 text-terracotta" aria-hidden="true" />
-                Every dish is prepared to order — never sitting under a heat lamp.
+                Every dish is prepared to order, never left sitting under a heat lamp.
               </div>
             </Reveal>
           </div>

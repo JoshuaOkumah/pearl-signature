@@ -34,17 +34,23 @@
 | `navy-800/900` | `#22303D` / `#131C25` | Primary-button hover/press |
 | `navy-600/700` | `#46586A` / `#33424F` | Inverse text steps |
 | `ink-muted` | `#52606E` | Secondary text on cream (AA-safe) |
-| `gold-600/700` | `#B4932A` / `#8F741F` | Gold hover / **text-safe gold** |
+| `gold-600/700` | `#B4932A` / `#806519` | Gold hover / **text-safe gold** (≥4.5:1 on cream, cream-100, cream-200, surface and gold-100; never on navy — use `gold`) |
 | `gold-100` | `#F6EDCF` | Soft gold wash (badges, notes) |
 | `leaf-100`, `leaf-700` | `#E7ECDF`, `#47603F` | Fresh/positive badge states |
-| `terracotta-100/700` | `#F5E4DC`, `#9C553C` | Warm badge states |
+| `terracotta-100/700/800` | `#F5E4DC`, `#9C553C`, `#84462F` | Warm badge states; `secondary` button bg/hover (cream text ≥4.5:1) |
 | `brown-100/700` | `#ECE2D6`, `#6F5440` | Warm secondary states |
 
 ### Colour rules
 - Cream is the page; navy provides structure; gold is seasoning, not a sauce.
 - **No large gold panels. No small gold text on cream** (use `gold-700`).
+- **On navy, small gold text uses `gold` (`#D4AF37`, 7.4:1), never `gold-700`**
+  (2.8:1 on navy). `Eyebrow` exposes this as `tone="inverse"`.
 - Gold as a solid button colour appears only on navy surfaces (high contrast).
 - Hover/focus/disabled/selected states exist for every interactive element.
+- Token text colours are verified against their **actual** backgrounds
+  (computed-style contrast, WCAG 2.x AA: 4.5:1 normal, 3:1 large). Opacity
+  modifiers on navy (e.g. `text-cream/55`) composite ≥4.5:1 at their shipped
+  sizes. Re-verify with `node scripts/audit-mobile.mjs` after palette changes.
 
 ## 2. Typography
 
@@ -67,7 +73,7 @@
 | H3 / card title | `1.25rem` |
 | Body | `1rem (→1.125rem md)`, leading `1.6` |
 | Small / meta | `0.75–0.875rem` |
-| Eyebrow | `0.75rem`, uppercase, tracking `0.22em`, `gold-700` |
+| Eyebrow | `0.75rem`, uppercase, tracking `0.22em`, `gold-700` (`tone="inverse"` → `gold` on navy panels) |
 
 Measure: body copy is capped (`max-w-xl`/`max-w-2xl`, ~60–70ch) for readability.
 Headlines use `text-balance` to avoid orphan words.
@@ -101,12 +107,18 @@ Headlines use `text-balance` to avoid orphan words.
 | `Wordmark` | `shared/wordmark.tsx` | temporary typographic mark + pearl dot |
 | `FoodMedia` | `shared/food-media.tsx` | temporary plated-dish SVG illustration (Cloudinary migration path built in) |
 | `ProductCard` | `shared/product-card.tsx` | preview only — no price/cart UI |
-| `Header` / `MobileNav` / `Footer` | `layout/*` | shell |
+| `Header` / `MobileNav` / `Footer` | `layout/*` | shell; `MobileNav` is a portal-rendered full-screen modal dialog (see §6) |
 
 Rules:
 - Server Components by default; `"use client"` only for interaction.
 - No third-party UI kit; every primitive is ours and themed from tokens.
 - No dead buttons: every control does something real or is not rendered.
+- **`cn` is a plain joiner — it does not merge Tailwind conflicts.** A
+  component's own classes and caller `className` values can fight (both ship;
+  stylesheet order decides). Use props for variation (`Eyebrow` `tone`,
+  `Badge` `tone`, `Button` `variant`/`size`), never className overrides of
+  display/colour. Responsive visibility belongs on a wrapper element
+  (`hidden md:block`), not on a component whose base sets `display`.
 
 ## 5. Motion guidelines
 
@@ -123,11 +135,28 @@ Rules:
 
 ## 6. Responsive behaviour
 
-Reference widths: **360 / 390 / 768 / 1024 / 1440** — verified with
-`npm run screenshots` (also asserts zero horizontal overflow).
+Reference widths: **320 / 360 / 375 / 390 / 430 / 667×375 (landscape) /
+844×390 (landscape) / 768 / 1024 / 1440** — verified with
+`npm run screenshots` (also asserts zero horizontal overflow) and by
+`e2e/mobile.spec.ts` (bounding-box and hit-test assertions).
 
 - Mobile-first CSS; desktop composition is applied over working mobile.
-- Header: desktop inline nav → `md` breakpoint switches to hamburger overlay.
+  Mobile layouts are composed, not shrunk: hero stacks media under copy,
+  grids collapse to one column, the ordering steps stack, the closing panel
+  and footer stack, and the menu chips wrap.
+- Header: desktop inline nav + `Explore Menu` CTA; below `md` the CTA is
+  removed from layout via a `hidden md:block` wrapper and the hamburger
+  (≥44×44, `shrink-0`) is shown via a `md:hidden` wrapper — visibility
+  switching happens on wrappers so display classes can never conflict.
+- **Mobile menu (`MobileNav`)**: a full-viewport modal panel portalled to
+  `document.body` (`role="dialog" aria-modal="true"`, `z-[70]` above the
+  header's `z-50`). It owns its top bar (wordmark + visible X close button),
+  a scrollable link list (`overflow-y-auto`, internal scrolling on short
+  landscape viewports), and a pinned CTA footer with safe-area padding.
+  The portal makes `fixed inset-0` resolve against the viewport regardless
+  of ancestor stacking contexts or `backdrop-filter` containing blocks
+  (the root cause of the Phase 1B navigation bug). z-index scale: content
+  (auto) < header 50 < skip-link 60 < mobile menu 70.
 - Grids: favourites `sm:2 → lg:4`, menu `sm:2 → lg:3 → xl:4`, steps `md:2 → lg:4`.
 - Hero: stacked media below copy on mobile; asymmetric two-column on `lg`.
 - Touch targets ≥44px (h-11 buttons/chips in navigation).
@@ -138,14 +167,23 @@ Reference widths: **360 / 390 / 768 / 1024 / 1440** — verified with
 - Landmarks: `header/nav/main/footer`, one H1 per page, no skipped levels.
 - Skip-to-content link (visible on focus) targeting `#main-content`.
 - Focus: 2px `gold-700` ring + 2px offset (`focus-gold`) on every control.
-- Mobile menu: `aria-expanded`, `aria-controls`, Escape closes, focus moves in
-  and returns to the trigger, body scroll locks, panel unmounts when closed.
+- Mobile menu: a modal dialog (`role="dialog"`, `aria-modal="true"`, labelled
+  "Site navigation"). The hamburger exposes `aria-expanded`/`aria-controls`;
+  a visible ≥44px X inside the panel, Escape, and link selection all close it;
+  focus moves to the X on open, is trapped inside the panel while open
+  (Tab wraps at the boundaries) and returns to the trigger on close; body
+  scroll locks while open and is released on close or when the viewport
+  widens past `md` (no leftover overlay or scroll lock); the panel unmounts
+  when closed and survives repeated open/close cycles.
 - Accordion: buttons expose `aria-expanded`/`aria-controls`; panels are
   `role="region"` labelled by their button and removed from the DOM when closed.
 - Filtering: chips are toggle buttons (`aria-pressed`); result count is an
   `aria-live="polite"` region.
-- Contrast: `ink-muted` on cream ≥ 4.5:1; gold-on-navy only at display sizes;
-  gold text on cream uses `gold-700`.
+- Contrast (WCAG AA, computed from real backgrounds): hero eyebrow
+  `gold-700`/cream 5.4:1; body `ink-muted`/cream 6.2:1; footer `cream/55`/
+  navy 5.5:1; closing-panel `gold`/navy 7.4:1; footer `cream/70`/navy 8.1:1;
+  button text `cream`/`navy` 15:1; focus ring `gold-700`/cream 5.4:1.
+  Automated in `e2e/mobile.spec.ts` ("key text pairs meet WCAG AA contrast").
 - Decorative media/illustrations are `aria-hidden`; meaningful images will get
   descriptive alt text when real photography lands.
 - Reduced motion respected by Motion, smooth scrolling, and `motion-safe` pulses.

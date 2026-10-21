@@ -1,6 +1,9 @@
 # PEARL Signature — Phase Progress
 
 > **Phase 1: Project Foundation, Design System & Interactive Storefront — COMPLETE.**
+> **Phase 1B: Mobile Responsiveness, Navigation & UI Remediation — COMPLETE**
+> (see `docs/PHASE1B_REMEDIATION_REPORT.md`). Phase 1 was not approved as-is;
+> the defects found in manual review were fixed and regression-tested.
 > Phase 2 must not begin without explicit approval from the business owner.
 
 ---
@@ -67,12 +70,81 @@
 ### Testing foundation
 - Vitest (jsdom + RTL) with `vitest.config.mts`, `vitest.setup.ts`
   (explicit `afterEach(cleanup)` + browser-API mocks).
-- Playwright configured with a dev-server harness; 5 smoke tests.
+- Playwright configured with a dev-server harness; smoke tests.
 - `scripts/screenshots.mjs` responsive design-review utility (`npm run screenshots`).
 
 ### Documentation
 - `docs/PROJECT_SPEC.md`, `docs/DESIGN_SYSTEM.md`, `docs/PHASE_PROGRESS.md`,
   `README.md`, project notes appended to `AGENTS.md`.
+
+---
+
+## 1B. Phase 1B — mobile responsiveness, navigation & UI remediation
+
+Phase 1 failed manual review: the mobile menu was unusable, the header
+overflowed at 320px, several gold-on-light text pairs missed WCAG AA, and the
+copy used em dashes throughout. Root causes, fixes and evidence are documented
+in `docs/PHASE1B_REMEDIATION_REPORT.md`; summary:
+
+### Root causes found (with measured evidence)
+1. **Mobile nav collapsed into the header (critical).** `MobileNav` rendered
+   `fixed inset-0` *inside* `<header>`, which applies `backdrop-filter` when
+   open; backdrop-filter creates a containing block for fixed descendants, so
+   the panel's box resolved to the 72px header instead of the viewport
+   (measured `navRect.h = 72` at every width). Its cream background stopped at
+   the header, ~460px of link content painted over the hero (measured
+   `scrollHeight 464 / clientHeight 72`), and the panel covered the header's
+   own trigger (hit-test at the X centre returned the panel), so there was no
+   working close control.
+2. **Header overflow at 320px.** `cn` is a plain joiner (no tailwind-merge),
+   so the header CTA's base `inline-flex` beat the caller's `hidden` in
+   Tailwind v4's cascade: the "Explore Menu" CTA rendered at every width.
+   Row min-width (332px) exceeded the 280px content box → 32px horizontal
+   scroll at 320, and flex-shrink crushed the hamburger to 31–37px at
+   320/360/375/390 (44px only at ≥430).
+3. **Contrast misses.** Eyebrow's base `text-gold-700` silently beat the
+   closing panel's `text-gold` override (dark gold on navy = 3.5:1); the
+   step numbers rendered `gold` on `surface` = 2.1:1; `gold-700` itself was
+   4.34:1 on cream (eyebrows are 12px → AA needs 4.5:1); the unused
+   `secondary` button was 3.9:1.
+4. **Verification gaps.** Open-menu states were never captured, 320px was
+   never tested, and contrast was judged from tokens instead of computed
+   colours — tests passed while the UI was broken.
+
+### Fixes implemented
+- `MobileNav` rewritten as a full-screen modal panel **portalled to
+  `document.body`** with its own top bar (wordmark + visible X), internal
+  scrolling on short landscape viewports, pinned CTA with safe-area padding,
+  focus trap, Escape, body-scroll lock, focus return, and an md-breakpoint
+  guard that closes the panel and releases the lock on resize.
+- Header: CTA/burger visibility switched on wrapper divs (`hidden md:block`,
+  `md:hidden`) so display classes can't conflict; controls `shrink-0`.
+- Tokens: `gold-700` darkened to `#806519` (≥4.5:1 on every light surface it
+  is used on); new `terracotta-800` for the `secondary` button hover;
+  step numbers switched to `gold-700`; `Eyebrow` gained `tone="inverse"`
+  (`gold` on navy) so the closing panel renders 7.4:1 gold instead of 3.5:1.
+- Copy: all customer-facing em dashes removed (60+ occurrences across pages,
+  components, data, footer/wordmark aria-labels and metadata), rewritten as
+  natural sentences.
+- Tests: unit suite expanded 23 → 27; Playwright suite 5 → 21 — mobile-nav
+  behaviour (open/close/focus/lock/repeat/resize), viewport-matrix layout
+  assertions (overflow, 44px targets, collision, hit-testing), WCAG AA
+  contrast pairs from computed styles, and an em-dash scan of every route.
+- `scripts/screenshots.mjs` now captures 320/360/375/390/430/667×375/
+  844×390/768/1024/1440 plus **open-menu states**, asserting zero overflow on
+  every capture; `scripts/audit-mobile.mjs` is the measurement/contrast
+  diagnostic that produced the root-cause evidence.
+
+### Phase 1B verification (all executed)
+| Command | Result |
+| --- | --- |
+| `npx next typegen && npm run typecheck` | ✅ PASS — 0 errors |
+| `npm run lint` | ✅ PASS — 0 errors/warnings |
+| `npm run test` | ✅ PASS — **27/27** (5 files) |
+| `npm run build` | ✅ PASS — `/`, `/about`, `/contact` static; `/menu` Partial Prerender |
+| `npm run test:e2e` | ✅ PASS — **21/21** (smoke + mobile/responsive/contrast/copy) |
+| `npm run screenshots` | ✅ PASS — **45 captures** (40 pages + 5 open-menu), **0 horizontal overflow** |
+| Visual review | ✅ Open-menu and full-page captures inspected at 320–1440 + landscape; detail frames at 320px per section |
 
 ---
 
@@ -120,6 +192,9 @@
 
 - **No backend of any kind** (by design): menu data is typed local preview data
   in `src/data`; presentation is already API-ready (same `Product` shape).
+- The mobile menu is a **full-viewport** panel, so it has no backdrop layer;
+  closing is via the X button, Escape, or a link. (A drawer-with-backdrop is
+  an alternative design if the business prefers it later.)
 - **`npm audit` reports 5 high advisories** in `braces` (via the *dev-only*
   chain `eslint-config-next → @next/eslint-plugin-next → fast-glob → micromatch`).
   Upstream has published no patched `braces` release (3.0.3 is latest and is

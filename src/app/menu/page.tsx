@@ -13,7 +13,7 @@ import { Reveal } from "@/components/ui/reveal";
 export const metadata: Metadata = {
   title: "Menu",
   description:
-    "Browse the PEARL Signature menu — traditional Nigerian soups and classics, pastries, snacks and traditional drinks. Ordering opens soon.",
+    "Browse the PEARL Signature menu, with traditional Nigerian soups and classics, pastries, snacks and drinks. Ordering opens soon.",
 };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -30,11 +30,11 @@ export default function MenuPage({ searchParams }: { searchParams: SearchParams 
             </h1>
             <Badge tone="gold" className="mb-1.5">
               <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-              Ordering opens soon — browse freely
+              Ordering opens soon · browse freely
             </Badge>
           </div>
           <p className="mt-5 max-w-2xl text-base leading-relaxed text-ink-muted md:text-lg">
-            Traditional soups and classics, golden pastries and refreshing drinks — every dish prepared to order with
+            Traditional soups and classics, golden pastries and refreshing drinks, every dish prepared to order with
             authentic recipes. Final pricing will be published when ordering opens.
           </p>
         </Reveal>

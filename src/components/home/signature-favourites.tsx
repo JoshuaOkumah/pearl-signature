@@ -18,7 +18,7 @@ export function SignatureFavourites() {
           <SectionHeading
             eyebrow="Signature favourites"
             title="A taste of what we’re known for"
-            description="A small, lovingly curated selection from the menu — the dishes our kitchen is built around."
+            description="A small, lovingly curated selection of the dishes our kitchen is built around."
           />
         </Reveal>
         <Reveal delay={0.1}>

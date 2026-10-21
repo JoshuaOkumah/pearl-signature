@@ -28,7 +28,7 @@ export function Hero() {
           <Reveal delay={0.16}>
             <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-muted md:text-lg">
               From slow-simmered soups to golden pastries and refreshing traditional drinks, PEARL Signature brings
-              carefully prepared Nigerian favourites to your table — ordered online, made with care.
+              carefully prepared Nigerian favourites to your table, ordered online and made with care.
             </p>
           </Reveal>
           <Reveal delay={0.24}>

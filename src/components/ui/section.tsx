@@ -32,10 +32,26 @@ export function Section({ id, padding = "default", className, containerClassName
 }
 
 
-/** Small-caps gold eyebrow with a rule, used above section headings. */
-export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
+/** Small-caps gold eyebrow with a rule, used above section headings.
+ * `inverse` is for dark panels, where the light champagne gold (not the
+ * text-safe dark gold) is the AA-correct choice. */
+export function Eyebrow({
+  children,
+  tone = "default",
+  className,
+}: {
+  children: ReactNode;
+  tone?: "default" | "inverse";
+  className?: string;
+}) {
   return (
-    <p className={cn("flex items-center gap-3 text-xs font-bold uppercase tracking-[0.22em] text-gold-700", className)}>
+    <p
+      className={cn(
+        "flex items-center gap-3 text-xs font-bold uppercase tracking-[0.22em]",
+        tone === "inverse" ? "text-gold" : "text-gold-700",
+        className,
+      )}
+    >
       <span aria-hidden="true" className="h-px w-8 bg-current opacity-60" />
       <span>{children}</span>
     </p>

@@ -52,21 +52,27 @@ export function Header() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-3">
-          <ButtonLink href="/menu" size="sm" className="hidden md:inline-flex">
-            Explore Menu
-          </ButtonLink>
-          <button
-            ref={triggerRef}
-            type="button"
-            onClick={() => setOpen((value) => !value)}
-            aria-expanded={open}
-            aria-controls="mobile-navigation"
-            aria-label={open ? "Close menu" : "Open menu"}
-            className="focus-gold inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-navy transition-colors hover:border-navy/40 md:hidden"
-          >
-            {open ? <X className="h-5 w-5" aria-hidden="true" /> : <MenuIcon className="h-5 w-5" aria-hidden="true" />}
-          </button>
+        <div className="flex shrink-0 items-center gap-3">
+          {/* Wrapped so the mobile-hidden state can't fight the ButtonLink's
+              own display classes (cn joins without merging). */}
+          <div className="hidden md:block">
+            <ButtonLink href="/menu" size="sm">
+              Explore Menu
+            </ButtonLink>
+          </div>
+          <div className="md:hidden">
+            <button
+              ref={triggerRef}
+              type="button"
+              onClick={() => setOpen((value) => !value)}
+              aria-expanded={open}
+              aria-controls="mobile-navigation"
+              aria-label={open ? "Close menu" : "Open menu"}
+              className="focus-gold inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-navy transition-colors hover:border-navy/40"
+            >
+              {open ? <X className="h-5 w-5" aria-hidden="true" /> : <MenuIcon className="h-5 w-5" aria-hidden="true" />}
+            </button>
+          </div>
         </div>
       </div>
 

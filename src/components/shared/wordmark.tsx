@@ -12,7 +12,7 @@ export function Wordmark({ tone = "navy", className }: { tone?: "navy" | "cream"
   return (
     <Link
       href="/"
-      aria-label="PEARL Signature — home"
+      aria-label="PEARL Signature, home page"
       className={cn("focus-gold inline-flex items-center gap-2 rounded-sm", className)}
     >
       <span

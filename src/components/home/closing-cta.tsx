@@ -15,12 +15,12 @@ export function ClosingCta() {
           <div aria-hidden="true" className="pointer-events-none absolute bottom-12 left-12 h-2 w-2 rounded-full bg-cream/40" />
 
           <div className="relative">
-            <Eyebrow className="justify-center text-gold">Your table is waiting</Eyebrow>
+            <Eyebrow tone="inverse" className="justify-center">Your table is waiting</Eyebrow>
             <h2 className="mx-auto mt-4 max-w-2xl font-display text-3xl font-semibold leading-[1.12] text-balance text-cream md:text-5xl">
               Bring the taste of home to <em className="italic text-gold">your</em> table
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-cream/75 md:text-lg">
-              Explore the full menu of traditional foods, pastries and drinks — ordering opens soon.
+              Explore the full menu of traditional foods, pastries and drinks. Ordering opens soon.
             </p>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
               <ButtonLink href="/menu" variant="accent" size="lg">

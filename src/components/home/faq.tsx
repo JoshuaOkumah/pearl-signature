@@ -11,7 +11,7 @@ export function Faq() {
           <SectionHeading
             eyebrow="Questions, answered"
             title="Good to know"
-            description="Everything we can tell you today — honestly. Details like delivery areas and opening dates will be confirmed before launch."
+            description="Everything we can tell you today, answered honestly. Details like delivery areas and opening dates will be confirmed before launch."
           />
         </Reveal>
         <Reveal delay={0.12}>

@@ -17,7 +17,7 @@ export const products: Product[] = [
     category: "traditional-foods",
     featured: true,
     description:
-      "Ground melon seeds cooked into a rich, nutty soup with leafy greens — a beloved Nigerian table favourite.",
+      "Ground melon seeds cooked into a rich, nutty soup with leafy greens, a beloved favourite at the Nigerian table.",
     theme: { deep: "#6E5320", base: "#C9A24B", accent: "#5C7A58" },
   },
   {
@@ -26,7 +26,7 @@ export const products: Product[] = [
     category: "traditional-foods",
     featured: true,
     description:
-      "A deeply savoury classic — carefully washed bitterleaf simmered with peppers and traditional spices.",
+      "A deeply savoury classic. Carefully washed bitterleaf, simmered with peppers and traditional spices.",
     theme: { deep: "#2E4230", base: "#5C7A58", accent: "#D4AF37" },
   },
   {
@@ -35,7 +35,7 @@ export const products: Product[] = [
     category: "traditional-foods",
     featured: false,
     description:
-      "Fresh leafy greens simmered in a flavourful pepper base — vibrant, hearty and comforting.",
+      "Fresh leafy greens simmered in a flavourful pepper base. Vibrant, hearty and comforting.",
     theme: { deep: "#37522F", base: "#6E8A4A", accent: "#B86A4F" },
   },
   {
@@ -44,7 +44,7 @@ export const products: Product[] = [
     category: "traditional-foods",
     featured: false,
     description:
-      "Tender African breadfruit prepared the traditional way — wholesome, filling and full of character.",
+      "Tender African breadfruit prepared the traditional way. Wholesome, filling and full of character.",
     theme: { deep: "#6E4F33", base: "#C2A276", accent: "#5C7A58" },
   },
   // ── Pastries & Snacks ──────────────────────────────────────────────
@@ -70,7 +70,7 @@ export const products: Product[] = [
     name: "Meat Pie",
     category: "pastries-snacks",
     featured: true,
-    description: "Buttery, flaky pastry with a rich minced-meat filling — a timeless Nigerian favourite.",
+    description: "Buttery, flaky pastry with a rich minced-meat filling, a timeless Nigerian favourite.",
     theme: { deep: "#71471F", base: "#C98F45", accent: "#8A6A52" },
   },
   {
@@ -95,7 +95,7 @@ export const products: Product[] = [
     name: "Zobo",
     category: "drinks",
     featured: true,
-    description: "Chilled hibiscus brew infused with warm spices — bright, refreshing and gently tangy.",
+    description: "Chilled hibiscus brew infused with warm spices. Bright, refreshing and gently tangy.",
     theme: { deep: "#571C2A", base: "#93324A", accent: "#D4AF37" },
   },
   {

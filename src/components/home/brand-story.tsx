@@ -50,13 +50,13 @@ export function BrandStory() {
           <Reveal delay={0.16}>
             <div className="mt-6 space-y-4 text-base leading-relaxed text-ink-muted md:text-lg">
               <p>
-                PEARL Signature began with a simple conviction — that authentic Nigerian food deserves a beautiful
+                PEARL Signature began with a simple conviction: authentic Nigerian food deserves a beautiful
                 home online. Based in Canada, we prepare the dishes we grew up loving the way they deserve to be
                 made: patiently, generously, and without shortcuts.
               </p>
               <p>
                 Every pot of soup is simmered slowly. Every pastry is baked until golden. Every drink is brewed
-                fresh. It is the kind of care you can taste — and the kind of table we are proud to set for you.
+                fresh. It is the kind of care you can taste, and the kind of table we are proud to set for you.
               </p>
             </div>
           </Reveal>

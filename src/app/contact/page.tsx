@@ -24,14 +24,14 @@ const pathways: Pathway[] = [
   {
     icon: BookOpen,
     title: "Browse the menu",
-    description: "See everything we are preparing — traditional foods, pastries, snacks and drinks.",
+    description: "See everything we are preparing, from traditional foods and pastries to snacks and drinks.",
     href: "/menu",
     action: "View the menu",
   },
   {
     icon: MessageCircle,
     title: "Common questions",
-    description: "Delivery, pickup, payment and opening plans — answered honestly in our FAQ.",
+    description: "Delivery, pickup, payment and opening plans, answered honestly in our FAQ.",
     href: "/#faq",
     action: "Read the FAQ",
   },
@@ -74,7 +74,7 @@ export default function ContactPage() {
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-ink-muted md:text-base">
                 We are confirming our official business email, phone line and social profiles, and we will publish
-                them here — and only here — once they are verified. Until then, we would rather say “coming soon”
+                them here, and only here, once they are verified. Until then, we would rather say “coming soon”
                 than give you details that might change.
               </p>
               <p className="mt-4 text-sm leading-relaxed text-ink-muted md:text-base">

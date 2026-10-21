@@ -28,12 +28,13 @@
   --color-ink-muted: #52606e; /* secondary text on cream (AA) */
 
   --color-gold-600: #b4932a; /* gold hover */
-  --color-gold-700: #8f741f; /* text-safe gold on cream */
+  --color-gold-700: #806519; /* text-safe gold on light surfaces (≥4.5:1 on cream, cream-100, gold-100) */
   --color-gold-100: #f6edcf; /* soft gold wash */
 
   --color-leaf-700: #47603f;
   --color-leaf-100: #e7ecdf;
 
+  --color-terracotta-800: #84462f; /* button hover (keeps cream text ≥4.5:1) */
   --color-terracotta-700: #9c553c;
   --color-terracotta-100: #f5e4dc;
 

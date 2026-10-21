@@ -21,11 +21,11 @@ const manrope = Manrope({
 
 export const metadata: Metadata = {
   title: {
-    default: "PEARL Signature — Authentic Nigerian Cuisine, Made Beautifully",
+    default: "PEARL Signature · Authentic Nigerian Cuisine, Made Beautifully",
     template: "%s · PEARL Signature",
   },
   description:
-    "PEARL Signature is a Canadian online kitchen offering authentic Nigerian soups and classics, pastries, snacks and traditional drinks — available to order online for delivery or arranged pickup.",
+    "PEARL Signature is a Canadian online kitchen offering authentic Nigerian soups and classics, pastries, snacks and traditional drinks, available to order online for delivery or arranged pickup.",
 };
 
 export const viewport: Viewport = {
