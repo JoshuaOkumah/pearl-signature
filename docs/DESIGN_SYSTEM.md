@@ -204,3 +204,38 @@ and no fake photography presented as real dishes.
   hero, category cards, product cards, brand story.
 - Temporary logo note: the current wordmark is an interim typographic mark,
   **not** the final official logo. Replace when the P+S monogram is delivered.
+
+## 9. Admin surfaces (Phase 3)
+
+The dashboard at `/admin/**` is an **operational surface**, not a
+marketing page. It reuses the same tokens and primitives so the brand
+reads consistently, but drops the storefront chrome entirely:
+
+- **Chrome:** no marketing Header/Footer (`SiteChrome` suppresses them for
+  `/admin/**`); the admin tree renders its own `AdminShell` — a compact
+  top bar on mobile (wordmark + "Open navigation menu" button opening a
+  labelled drawer, `role="dialog"` "Admin navigation" with backdrop,
+  Escape and focus handling) and a persistent sidebar at `md+` with the
+  owner email, navigation links and Sign out.
+- **Tokens:** cream backgrounds, `surface` cards with `border` hairlines,
+  navy headings (`font-serif` page titles), `ink-muted` secondary text,
+  `Badge` tones for status (leaf = published/active, neutral = draft,
+  terracotta = archived/disabled). Gold stays restrained: focus rings and
+  the wordmark dot only.
+- **Forms:** shared admin field primitives (`TextField`, `TextAreaField`,
+  `SelectField`, `CheckboxField`) with labels carrying "(required)",
+  inline `error` text, `hint` text, and `focus-gold` rings. `useActionState`
+  drives create/update forms; direct `<form action>` mutations surface a
+  `?opError=1` banner. Destructive-leaning actions (disable a populated
+  category) arm a two-step confirm ("Confirm disable" + alert) that
+  disarms whenever the form changes.
+- **Tables/lists:** card-based rows (`ProductTable`, `CategoryManager`)
+  instead of dense tables, so the 320–1440px range needs no horizontal
+  scrolling; honest empty states ("No photos yet.", "Not set") in
+  `ink-muted` text, never invented values.
+- **Motion:** minimal — hover transitions and the drawer only; no scroll
+  reveals on operational content (data must be visible immediately).
+- **Accessibility:** every interactive element keeps the `focus-gold`
+  ring; the drawer is a real modal dialog; forms use fieldsets/legends
+  where grouped; status is never colour-only (text labels accompany
+  badges).

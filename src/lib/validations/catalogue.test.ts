@@ -127,8 +127,9 @@ describe("productDTOSchema", () => {
   });
 
   it("enforces publication and availability vocabularies", () => {
-    expect(productDTOSchema.safeParse({ ...base, status: "archived" }).success).toBe(false);
+    expect(productDTOSchema.safeParse({ ...base, status: "archived" }).success).toBe(true); // Phase 3 archive stays readable in the data layer
     expect(productDTOSchema.safeParse({ ...base, status: "draft" }).success).toBe(true); // data layer may hold drafts
+    expect(productDTOSchema.safeParse({ ...base, status: "retired" }).success).toBe(false);
     expect(productDTOSchema.safeParse({ ...base, availability: "resting" }).success).toBe(false);
     expect(productDTOSchema.safeParse({ ...base, currency: "USD" }).success).toBe(false);
   });

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
 import { MotionProvider } from "@/components/providers/motion-provider";
+import { SiteChrome } from "@/components/layout/site-chrome";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -40,11 +41,11 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           <a href="#main-content" className="skip-link">
             Skip to content
           </a>
-          <Header />
-          <main id="main-content" className="flex-1">
-            {children}
-          </main>
-          <Footer />
+          <SiteChrome header={<Header />} footer={<Footer />}>
+            <main id="main-content" className="flex-1">
+              {children}
+            </main>
+          </SiteChrome>
         </MotionProvider>
       </body>
     </html>

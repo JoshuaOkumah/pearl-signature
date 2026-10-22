@@ -1,8 +1,11 @@
 # PEARL Signature — Product Specification
 
-> Status: **Phase 1 complete** (foundation, design system, interactive storefront).
-> This document records the agreed requirements. It describes planned features
-> without implementing them — see `docs/PHASE_PROGRESS.md` for what exists today.
+> Status: **Phase 1 complete** (foundation, design system, interactive
+> storefront); **Phase 2/2B complete** (catalogue data, search relevance);
+> **Phase 3 complete** (admin authentication, catalogue management, signed
+> uploads). This document records the agreed requirements. It describes
+> planned features without implementing them — see `docs/PHASE_PROGRESS.md`
+> for what exists today.
 
 ---
 
@@ -16,7 +19,7 @@
 | Currency | CAD |
 | Fulfilment | Home delivery and optionally prearranged pickup |
 | Payments | Online payment and cash on arrival |
-| Management | Private admin dashboard (future phase) |
+| Management | Private admin dashboard (`/admin`, implemented in Phase 3) |
 
 PEARL Signature sells authentic Nigerian cuisine — traditional foods, pastries,
 snacks and traditional drinks — through a premium website. Customers order
@@ -68,8 +71,8 @@ category requires a `CategorySlug` entry and data only — no redesign.
 - Payment options = **secure online payment** and **cash on arrival**.
 - Delivery regions, fees, taxes, hours and contact details are **not yet known**
   and must remain configurable/pending — never invented.
-- A private admin dashboard will manage products, categories, orders and
-  fulfilment in a later phase.
+- A private admin dashboard manages products and categories today (Phase 3);
+  orders and fulfilment join it in a later phase.
 
 ## 5. Planned ordering journey
 
@@ -101,12 +104,18 @@ Phase 1 only presents this journey; no transactional behaviour is implemented.
 | Cloudinary | **Display path implemented** (`FoodMedia` → `next/image`, allowlisted host, placeholder fallback). Upload/delete and account provisioning remain later (see `docs/CLOUDINARY_SETUP.md`) |
 | Next 16 Proxy (`proxy.ts`) | Pre-render slug check so unknown/draft product URLs return genuine 404 status codes |
 
+### Added in Phase 3 (implemented, free tiers only)
+| Technology | Status & purpose |
+| --- | --- |
+| Argon2id (`@node-rs/argon2`) | Owner password hashing (OWASP parameters, native Rust binding) |
+| DB-backed sessions | Opaque 256-bit token, SHA-256 at rest, HttpOnly/Secure/SameSite cookie, 7-day TTL |
+| MongoDB rate limiting | Login attempt buckets with TTL indexes (no Redis, no paid service) |
+| Cloudinary signed uploads | Server-signed direct browser uploads + server-side Admin API verification (account/credentials pending the owner, see `docs/CLOUDINARY_SETUP.md`) |
+
 ### Reserved for later phases (NOT implemented yet)
 | Technology | Purpose |
 | --- | --- |
 | Stripe | Online payments |
-| Session-based auth | Private admin authentication (secrets via env vars) |
-| Cloudinary uploads | Signed, server-side image upload/delete (admin flows) |
 
 **Rejected dependencies:** Supabase, Firebase, PostgreSQL — must not be added.
 No paid services, subscriptions or premium dependencies. No secrets in source.
@@ -150,12 +159,26 @@ Commerce × Modern Editorial Design. Full detail lives in `docs/DESIGN_SYSTEM.md
   preview content noindexed.
 - Explicit idempotent seeding tool; 133 unit + 32 e2e tests.
 
+### Phase 3 (implemented)
+- Owner authentication: Argon2id hashing, database-backed sessions with
+  hashed opaque tokens, rate limiting without Redis, audit logging,
+  guarded bootstrap and password-reset CLIs.
+- `/admin` dashboard with real data; `/admin/products` (search, filters,
+  pagination); product create/edit with integer-cent pricing, optional
+  variants, draft/published visibility, archive/restore (never delete);
+  editable slugs with automatic redirects from previous addresses.
+- `/admin/categories`: create/rename with fixed slugs, disable (never
+  delete) with confirmation when products reference the category.
+- Cloudinary signed uploads: server-fixed parameters, direct browser
+  upload, server-side asset verification before attach, orphan cleanup,
+  honest "not configured" state without credentials.
+- Storefront reflects every mutation immediately; Phase 2B search
+  behaviour regression-protected; 328 unit + 50 e2e tests.
+
 ### Upcoming (documented, not implemented)
-- Admin authentication and product/category CRUD (auth-protected).
-- Cloudinary uploads (signed, server-side) as real photography arrives.
 - Shopping cart, checkout, Stripe online payments + cash-on-arrival option.
 - Delivery zones, fees, pickup scheduling (all values supplied by business).
-- Order lifecycle & admin dashboard (auth-protected).
+- Order lifecycle & fulfilment views in the admin dashboard.
 - Customer account/order history, notifications (channels TBD).
 - Verified contact channels, social profiles, operating hours.
 

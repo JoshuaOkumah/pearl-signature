@@ -95,6 +95,19 @@ export const ProductSchema = new Schema(
       set: (value: unknown) => slugify(String(value)),
       match: [SLUG_PATTERN, "Product slug must be URL-safe"],
     },
+    /**
+     * Former slugs (Phase 3): when an owner changes a product address, the
+     * old slug is kept so existing links keep working through a redirect
+     * (resolution lives in src/lib/repositories/catalogue.ts).
+     */
+    previousSlugs: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (value: string[]) => value.length <= 5,
+        message: "At most 5 previous slugs are kept",
+      },
+    },
     shortDescription: {
       type: String,
       default: null,
@@ -149,7 +162,11 @@ export const ProductSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["draft", "published"],
+      // "archived" (Phase 3): retired from sale, never publicly readable,
+      // retained for historical references. Public queries use
+      // `status: "published"` exclusively, so drafts and archived products
+      // are invisible to customers.
+      enum: ["draft", "published", "archived"],
       default: "draft",
     },
     availability: {

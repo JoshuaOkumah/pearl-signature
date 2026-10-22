@@ -98,6 +98,11 @@ async function seed(): Promise<void> {
             sortOrder: index * 10,
             isActive: true,
             createdAt: new Date(),
+            // `timestamps: false` disables BOTH auto-timestamps on upsert, so
+            // updatedAt must be set explicitly. Without it, admin mappers
+            // (which require schema-guaranteed timestamps) would reject these
+            // records and the optimistic-concurrency filter would degrade.
+            updatedAt: new Date(),
           },
         },
         { upsert: true, timestamps: false },
@@ -138,6 +143,9 @@ async function seed(): Promise<void> {
             tags: product.tags,
             sortOrder: product.sortOrder,
             createdAt: new Date(),
+            // See the category block above: `timestamps: false` means both
+            // timestamps are insert-only fields we set ourselves.
+            updatedAt: new Date(),
           },
         },
         { upsert: true, timestamps: false },

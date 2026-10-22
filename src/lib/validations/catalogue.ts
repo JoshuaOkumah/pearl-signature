@@ -84,7 +84,7 @@ export const productDTOSchema = z.object({
   shortDescription: z.string().max(180).nullable(),
   featured: z.boolean(),
   theme: dishThemeSchema,
-  status: z.enum(["draft", "published"]),
+  status: z.enum(["draft", "published", "archived"]),
   availability: z.enum(["available", "unavailable"]),
   currency: z.literal("CAD"),
   // Minimum 1: a configured price is never zero, and unconfigured is null.

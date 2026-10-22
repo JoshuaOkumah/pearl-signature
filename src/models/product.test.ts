@@ -60,7 +60,9 @@ describe("ProductSchema", () => {
 
   it("enforces status and availability vocabularies", () => {
     expect(newProduct({ status: "published" }).validateSync()).toBeUndefined();
-    expect(newProduct({ status: "archived" }).validateSync()).toBeDefined();
+    expect(newProduct({ status: "draft" }).validateSync()).toBeUndefined();
+    expect(newProduct({ status: "archived" }).validateSync()).toBeUndefined(); // Phase 3 archive
+    expect(newProduct({ status: "retired" }).validateSync()).toBeDefined();
     expect(newProduct({ availability: "unavailable" }).validateSync()).toBeUndefined();
     expect(newProduct({ availability: "resting" }).validateSync()).toBeDefined();
     expect(newProduct({ currency: "USD" }).validateSync()).toBeDefined();

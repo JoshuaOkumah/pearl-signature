@@ -6,7 +6,10 @@
 > the defects found in manual review were fixed and regression-tested.
 > **Phase 2: Catalogue Data & Product Experience — IMPLEMENTED, awaiting review**
 > (see `docs/PHASE2_REPORT.md`). **Phase 2B: Title-First Search Relevance
-> & UX Refinement — IMPLEMENTED** (see section 1D). Phase 3 must not begin
+> & UX Refinement — IMPLEMENTED** (see section 1D).
+> **Phase 3: Secure Admin, Catalogue Management & Signed Uploads —
+> IMPLEMENTED, awaiting review** (see `docs/PHASE3_REPORT.md`, section 1E).
+> Phase 4 (cart, checkout, Stripe, orders, deployment) must not begin
 > without explicit approval from the business owner.
 
 ---
@@ -272,6 +275,89 @@ Both search paths (database `buildFilter` and fixtures
 
 ---
 
+## 1E. Phase 3 — secure admin, catalogue management & signed uploads
+
+Full report: `docs/PHASE3_REPORT.md`. Auth & security: `docs/ADMIN_AUTH.md`.
+Day-to-day operations: `docs/ADMIN_OPERATIONS.md`. Upload flow:
+`docs/CLOUDINARY_UPLOADS.md`.
+
+### What shipped
+- **Admin authentication:** Argon2id (`@node-rs/argon2`, split into pure
+  `password-core.ts` + server-only `password.ts`); database-backed sessions
+  with a 256-bit opaque token stored **hashed** (SHA-256) in MongoDB,
+  7-day absolute TTL; `pearl_admin_session` cookie (HttpOnly, Secure in
+  production, SameSite=Lax, Path=/admin); generic credential errors
+  (unknown email / wrong password / disabled account are indistinguishable).
+- **Rate limiting without Redis:** MongoDB buckets keyed by
+  `sha256(address|email|15-min-bucket)` with atomic `$inc` upserts and TTL
+  expiry; fail-closed when the database is unreachable.
+- **Audit log:** login success/failure/rate-limit, logout, password reset,
+  product/category mutations, image attach/update/remove — hashed client
+  addresses, 180-day TTL, never any password/token/secret material.
+- **Guarded operator CLIs:** `npm run admin:bootstrap` (first owner only,
+  hidden confirmed password prompt, explicit `--yes`, prints host/database
+  never credentials, production double-guard) and `npm run admin:reset`
+  (rotates a password **and revokes every live session**). Neither ever
+  runs from a web request or on startup; automation passwords come from
+  the environment, never argv.
+- **Authorization on every mutation:** each Server Action independently
+  re-validates the session (`requireActionAdmin()`); Zod schemas strip
+  unknown keys (no mass assignment); safe ObjectId checks; optimistic
+  concurrency on product/category edits; `safeAdminRedirect` blocks
+  open redirects after login.
+- **Routes:** `/admin/login`, `/admin` (real-data dashboard: product
+  counts by status, unavailable list, category counts, recently updated),
+  `/admin/products` (search, status/category/unavailable filters, sort,
+  pagination), `/admin/products/new`, `/admin/products/[id]/edit`,
+  `/admin/categories`.
+- **Products:** create/edit with integer-cent prices (dollars entered,
+  cents stored), optional variants, draft/published visibility, tags and
+  display order; **archive instead of delete** (reversible, referenced
+  history preserved); slug editable on edit with up to five previous slugs
+  that 308-redirect via `src/proxy.ts` (page-level redirect kept only as
+  fallback).
+- **Categories:** create/rename with **fixed slugs** (public filter links
+  never break), display order, and **disable instead of delete**
+  (confirmation required when products reference the category).
+- **Cloudinary signed uploads:** session-guarded server signature
+  (`signUpload`) fixes folder/overwrite/filename/timestamp; browser posts
+  the file directly to Cloudinary; the server then re-fetches the asset
+  from the Admin API (`verifyUploadedAsset`) and builds the stored image
+  record **only** from that response; ≤5 MB, JPEG/PNG/WebP, ≤10 images per
+  product (atomic guard), orphan cleanup for invalid or excess uploads,
+  reference-counted deletion. Without credentials the edit page shows the
+  honest "not configured" notice; nothing fails silently.
+- **Storefront integration:** every mutation calls `revalidatePath` so
+  the public site reflects changes on the next request; Phase 2B
+  search behaviour preserved (verified end-to-end); product detail pages
+  resolve previous slugs and require the product's category to be active.
+- **Next 16 Cache Components correctness:** every admin page and the
+  dashboard layout call `await connection()` as their first statement, so
+  no prerender/prefetch/shell pass ever executes admin DB reads (this
+  fixed a deterministic 500 after `revalidatePath` purged shells — see
+  PHASE3_REPORT §6). All `/admin/**` routes build as dynamic (`ƒ`).
+- **E2E architecture:** one Playwright config, two projects — `chromium`
+  (storefront, port 3000, owns build+start, fixtures) and `admin`
+  (disposable stack: mongodb-memory-server + real seed + bootstrap +
+  `next start` on port 3001, reuses `.next`).
+
+### Phase 3 verification (all executed)
+| Command | Result |
+| --- | --- |
+| `npx next typegen && npm run typecheck` | ✅ PASS — 0 errors |
+| `npm run lint` | ✅ PASS — 0 errors/warnings |
+| `npm run test` | ✅ PASS — **328/328** (30 files) |
+| `npm run build` | ✅ PASS — all `/admin/**` routes dynamic (`ƒ`); storefront routes unchanged |
+| `npm run test:e2e` | ✅ PASS — **50/50** (39 storefront + **11 admin**), clean server logs (zero prerender noise) |
+| `npm run screenshots` | ✅ PASS — **129 captures** (95 public + **34 admin**: login/dashboard/products/forms/categories/drawer/upload-not-configured at 360–1440), **0 horizontal overflow** |
+| Visual review | ✅ PASS — admin surfaces inspected (focus rings, real seeded counts, honest states, mobile drawer) |
+
+**Pending (not verifiable without owner-supplied credentials):** hosted
+Atlas admin operations and real Cloudinary uploads — both documented
+step-by-step in `docs/ADMIN_AUTH.md` and `docs/CLOUDINARY_UPLOADS.md`.
+
+---
+
 ## 2. Verification results (all executed)
 
 | # | Command | Result |
@@ -306,6 +392,11 @@ Both search paths (database `buildFilter` and fixtures
 
 - Official logo (P+S monogram with pearl detail) — current wordmark is interim.
 - Real product photography — current imagery is clearly temporary illustration.
+- Cloudinary credentials (cloud name, API key, API secret) to enable photo
+  uploads — until supplied, the admin shows the honest "not configured"
+  state and the storefront keeps designed placeholders.
+- Owner sign-in credentials for the production database (created once via
+  `npm run admin:bootstrap`, see `docs/ADMIN_AUTH.md` §6).
 - Prices, portion sizes, customisation options.
 - Delivery regions, fees and schedules; pickup windows and locations.
 - Operating hours, verified business email/phone/social accounts.
@@ -314,11 +405,16 @@ Both search paths (database `buildFilter` and fixtures
 
 ## 4. Known limitations
 
-- **Catalogue reads are DB-backed; upload/admin flows are not.** Phase 2
-  added the read layer only — there is no admin CRUD, no cart/checkout and
-  no image upload yet (Phase 3+). Until `MONGODB_URI` exists, the site runs
-  on labelled preview fixtures (dev/preview) or shows the honest unavailable
-  state (production without configuration).
+- **Admin and catalogue writes are DB-backed; commerce is not.** Phase 3
+  added owner auth, product/category CRUD and signed uploads; cart,
+  checkout, Stripe and order lifecycle remain Phase 4. Until `MONGODB_URI`
+  exists, the site runs on labelled preview fixtures (dev/preview) or shows
+  the honest unavailable state (production without configuration), and the
+  admin requires a real database (the disposable e2e stack uses an in-memory
+  MongoDB).
+- **Cloudinary uploads are implemented but unverified against a real
+  cloud** (no credentials were supplied this phase); the edit page shows
+  the designed "not configured" state until `CLOUDINARY_*` variables exist.
 - Homepage category tiles are local presentation data (menu categories are
   curated copy); the `/menu` page is the database-driven surface.
 - Product detail pages render per request (`connection()` in the segment
@@ -347,15 +443,15 @@ Both search paths (database `buildFilter` and fixtures
 
 ## 5. Next planned phase (requires approval)
 
-**Phase 3 — admin, uploads & commerce (tentative):**
-- Admin authentication (session-based, secrets via env vars) + private
-  product/category CRUD.
-- Cloudinary upload/delete endpoints (signed, server-side only) replacing
-  `FoodMedia` placeholders as real photography arrives (component API stays
-  the migration point).
+**Phase 4 — commerce & deployment (tentative):**
 - Shopping cart, checkout, Stripe + cash-on-arrival option, order lifecycle.
 - Deployment with production env configuration (MONGODB_URI, site URL,
-  Cloudinary cloud name).
+  Cloudinary credentials).
+- Customer-facing order status (no full customer accounts planned unless
+  the business asks for them).
+
+Phase 3 scope (admin auth, catalogue CRUD, signed uploads) is complete and
+awaiting review; see `docs/PHASE3_REPORT.md`.
 
 Cart, checkout, Stripe, sessions and the admin dashboard remain reserved
 for later phases as specified in `docs/PROJECT_SPEC.md`.

@@ -45,8 +45,16 @@ export interface CatalogueCategory {
   sortOrder: number;
 }
 
-/** Publication status: draft products are never publicly readable. */
-export type ProductStatus = "draft" | "published";
+/**
+ * Publication status.
+ *
+ * - `draft`: never publicly readable.
+ * - `published`: publicly readable (subject to availability).
+ * - `archived` (Phase 3): retired from sale; never publicly readable, kept
+ *   in the database so future order history can still reference it. Admin
+ *   surfaces archive instead of hard-deleting products.
+ */
+export type ProductStatus = "draft" | "published" | "archived";
 
 /**
  * Availability indicator. Distinct from publication: a product can be

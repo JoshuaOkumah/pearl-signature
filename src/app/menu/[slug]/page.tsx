@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { loadProductPageData } from "@/lib/server/catalogue-page";
-import { resolveCatalogueSource } from "@/lib/repositories/catalogue";
+import { resolveCatalogueSource, resolvePublicProductSlug } from "@/lib/repositories/catalogue";
 import { excerpt } from "@/lib/format";
 import { absoluteUrl } from "@/lib/site-url";
 import { slugSchema } from "@/lib/validations/catalogue";
@@ -42,9 +42,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const data = await loadProductPageData(slug);
   // Unavailable database: minimal metadata; the page body shows the retry
-  // state. Missing or draft product: 404 via notFound().
+  // state. Missing, draft or archived product: redirect (former slug) or 404.
   if (!data.product.ok) return {};
-  if (!data.product.data) notFound();
+  if (!data.product.data) {
+    await redirectIfFormerSlug(slug); // throws when this is a former address
+    notFound();
+  }
 
   const product = data.product.data;
   const description = excerpt(product.shortDescription ?? product.description);
@@ -65,6 +68,26 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // Preview fixtures are temporary content: never index them as inventory.
     robots: preview ? { index: false, follow: false } : undefined,
   };
+}
+
+/**
+ * If the slug is a FORMER address of a renamed published product,
+ * permanently redirect to the canonical URL (stable public links).
+ * Calls `notFound()` when it is simply an unknown/draft/archived slug.
+ * Infrastructure trouble falls through to the caller's `notFound()`,
+ * matching the proxy's never-404-on-outage rule as closely as possible
+ * at this layer.
+ *
+ * In production the PROXY normally issues this 308 first (see src/proxy.ts):
+ * the postponed shell commits a `200` before this page runs, so a redirect
+ * thrown here would arrive too late. This remains the fallback for
+ * `next dev` and any request that bypasses the proxy.
+ */
+async function redirectIfFormerSlug(slug: string): Promise<void> {
+  const resolution = await resolvePublicProductSlug(slug);
+  if (resolution.ok && resolution.data.kind === "previous") {
+    permanentRedirect(`/menu/${resolution.data.canonical}`);
+  }
 }
 
 /** schema.org Product object — only fields backed by real data. */
@@ -113,8 +136,12 @@ export default async function ProductPage({ params }: PageProps) {
   }
 
   const product = data.product.data;
-  // Unknown or unpublished slug.
-  if (!product) notFound();
+  // Former address of a renamed product: permanent redirect to canonical.
+  // Unknown, draft or archived slug: 404.
+  if (!product) {
+    await redirectIfFormerSlug(slug);
+    notFound();
+  }
 
   const related = data.related?.ok ? data.related.data : [];
   const structuredData = buildStructuredData(product);

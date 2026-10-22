@@ -466,6 +466,71 @@ export async function getPublishedProductBySlug(slug: string): Promise<ReadResul
   }
 }
 
+/* ── slug resolution (Phase 3: stable URLs across admin renames) ────── */
+
+export type SlugResolution =
+  /** The slug is the product's current address: serve normally. */
+  | { kind: "current" }
+  /** The slug is a former address; `canonical` is where to redirect. */
+  | { kind: "previous"; canonical: string }
+  /** No publicly visible product owns this slug (unknown, draft, archived,
+   * or its category is disabled). */
+  | { kind: "missing" };
+
+/**
+ * Resolve a requested product slug against current AND previous slugs.
+ *
+ * Phase 3 lets owners change a product's address; the old slug is kept in
+ * `previousSlugs`, so existing links (bookmarks, messages, search results)
+ * redirect to the canonical URL instead of breaking. Drafts, archived
+ * products and products in a disabled category resolve to `missing` exactly
+ * like unknown slugs, matching the page layer's visibility rules so
+ * unpublished content never leaks through the redirect path.
+ *
+ * Returns `{ ok: false }` on infrastructure trouble so callers can fall
+ * back to the honest unavailable state instead of 404ing valid URLs.
+ */
+export async function resolvePublicProductSlug(
+  slug: string,
+): Promise<ReadResult<SlugResolution>> {
+  const source = resolveCatalogueSource();
+  if (source === "fixtures") {
+    // Fixture slugs never change; only exact published matches exist.
+    const found = fixtureProducts.find((product) => product.slug === slug);
+    return {
+      ok: true,
+      source: "fixtures",
+      data: found && found.status === "published" ? { kind: "current" } : { kind: "missing" },
+    };
+  }
+  if (source === "unavailable") return { ok: false, reason: "unavailable" };
+
+  try {
+    await connectDatabase();
+    const record = await ProductModel.findOne({
+      status: "published",
+      $or: [{ slug }, { previousSlugs: slug }],
+    })
+      .select({ slug: 1, categoryId: 1 })
+      .lean();
+    if (!record) return { ok: true, source: "database", data: { kind: "missing" } };
+    // Same visibility rule as the page layer (getPublishedProductBySlug):
+    // a published product in a DISABLED category is not publicly visible.
+    // Without this check the proxy would pass the request through and the
+    // page would end in notFound() — a soft 404 (200 status) in production,
+    // because the postponed shell commits the status before the page runs.
+    const active = await loadActiveCategoryIndex();
+    if (!active.byId.has(String(record.categoryId))) {
+      return { ok: true, source: "database", data: { kind: "missing" } };
+    }
+    if (record.slug === slug) return { ok: true, source: "database", data: { kind: "current" } };
+    return { ok: true, source: "database", data: { kind: "previous", canonical: record.slug } };
+  } catch (error) {
+    logDatabaseError("resolvePublicProductSlug", error);
+    return { ok: false, reason: "unavailable" };
+  }
+}
+
 /** 6. Featured published products (homepage showcase). */
 export async function getFeaturedProducts(limit = 7): Promise<ReadResult<Product[]>> {
   const result = await getPublishedProducts({ featured: true, page: 1, pageSize: clampPageSize(limit) });

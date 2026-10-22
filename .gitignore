@@ -35,6 +35,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# diagnostic output (build/e2e/screenshot runs)
+/logs/
+e2e-run.log
+
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
