@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Archive, Eye, EyeOff, Pencil } from "lucide-react";
 import type { AdminProductRow } from "@/lib/repositories/admin";
+import { canDeliverImage } from "@/lib/images";
 import { archiveProductAction, setAvailabilityAction } from "@/lib/actions/products";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
@@ -49,24 +50,35 @@ function StatusBadges({ row }: { row: AdminProductRow }) {
 }
 
 function Thumbnail({ row, className }: { row: AdminProductRow; className?: string }) {
-  if (!row.thumbnailUrl) {
+  const image = row.thumbnailUrl ? { secureUrl: row.thumbnailUrl } : null;
+
+  // Same guard as the storefront (FoodMedia): `next/image` throws during
+  // render when a host is missing from the build's image remote-patterns, so
+  // a photo the current build cannot deliver falls back instead of crashing
+  // the whole admin page (delivery is configured at build/server start).
+  if (canDeliverImage(image)) {
     return (
-      <div
-        className={`flex items-center justify-center rounded-lg bg-cream-200 font-sans text-[11px] font-semibold uppercase tracking-wide text-ink-muted ${className ?? ""}`}
-        aria-hidden="true"
-      >
-        No photo
-      </div>
+      <Image
+        src={image.secureUrl}
+        alt=""
+        fill
+        sizes="(max-width: 768px) 56px, 56px"
+        className={`rounded-lg object-cover ${className ?? ""}`}
+      />
     );
   }
   return (
-    <Image
-      src={row.thumbnailUrl}
-      alt=""
-      fill
-      sizes="(max-width: 768px) 56px, 56px"
-      className={`rounded-lg object-cover ${className ?? ""}`}
-    />
+    <div
+      className={`flex items-center justify-center rounded-lg bg-cream-200 font-sans text-[11px] font-semibold uppercase tracking-wide text-ink-muted ${className ?? ""}`}
+      aria-hidden="true"
+      title={
+        image
+          ? "Photos are saved, but this server is not configured to display product images yet."
+          : undefined
+      }
+    >
+      {image ? "Not shown" : "No photo"}
+    </div>
   );
 }
 

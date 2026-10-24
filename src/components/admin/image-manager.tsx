@@ -11,6 +11,7 @@ import {
   saveImagesAction,
 } from "@/lib/actions/images";
 import { MAX_IMAGE_BYTES } from "@/lib/cloudinary/shared";
+import { canDeliverImage } from "@/lib/images";
 import { FormAlert } from "@/components/admin/field";
 
 /**
@@ -230,6 +231,11 @@ export function ImageManager({
   }
 
   const full = rows.length >= MAX_IMAGES;
+  // Photos may be saved while the running build has no delivery configuration
+  // (the `next/image` remote-pattern is decided when the build runs / the
+  // server starts). Such URLs must never reach `next/image` — it throws
+  // during render — and the operator is told why previews are missing.
+  const previewsAvailable = rows.every((row) => canDeliverImage({ secureUrl: row.secureUrl }));
 
   return (
     <section aria-labelledby="images-heading" className="space-y-4">
@@ -311,6 +317,17 @@ export function ImageManager({
         </div>
       )}
 
+      {rows.length > 0 && !previewsAvailable ? (
+        <div className="flex items-start gap-3 rounded-xl border border-border bg-cream-100 px-4 py-3">
+          <AlertTriangle className="mt-0.5 size-4.5 shrink-0 text-gold-700" aria-hidden="true" />
+          <p className="font-sans text-sm text-ink-muted">
+            Photos are saved in Cloudinary, but this server is not configured to display
+            them yet. Nothing is lost: set CLOUDINARY_CLOUD_NAME in the server environment
+            and restart the server (development) or rebuild (production).
+          </p>
+        </div>
+      ) : null}
+
       {rows.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center font-sans text-sm text-ink-muted">
           No photos yet.
@@ -325,13 +342,19 @@ export function ImageManager({
             >
               <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="relative aspect-square w-full shrink-0 overflow-hidden rounded-xl bg-cream-200 sm:size-28">
-                  <Image
-                    src={row.secureUrl}
-                    alt=""
-                    fill
-                    sizes="(max-width: 640px) 100vw, 112px"
-                    className="object-cover"
-                  />
+                  {canDeliverImage({ secureUrl: row.secureUrl }) ? (
+                    <Image
+                      src={row.secureUrl}
+                      alt=""
+                      fill
+                      sizes="(max-width: 640px) 100vw, 112px"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <p className="absolute inset-0 flex items-center justify-center px-2 text-center font-sans text-xs text-ink-muted">
+                      Preview not available
+                    </p>
+                  )}
                 </div>
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className="flex flex-wrap items-center gap-2">

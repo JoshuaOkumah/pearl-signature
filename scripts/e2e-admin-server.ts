@@ -137,6 +137,16 @@ async function main(): Promise<void> {
   // The database wins in source resolution; never allow a fixtures override
   // to leak into the admin server from a developer shell.
   delete serverEnv.CATALOGUE_SOURCE;
+  // Real credentials may exist in the operator's `.env.local`, which `next
+  // start` loads automatically. The disposable stack must never see them:
+  // an "upload" test would otherwise create REAL Cloudinary assets, and the
+  // suite's honest "uploads are not configured" state would silently become
+  // false. Empty strings are never overridden by `.env.local` loading, and
+  // every reader treats "" as unconfigured.
+  serverEnv.CLOUDINARY_CLOUD_NAME = "";
+  serverEnv.CLOUDINARY_API_KEY = "";
+  serverEnv.CLOUDINARY_API_SECRET = "";
+  serverEnv.NEXT_PUBLIC_CLOUDINARY_ENABLED = "";
 
   log(`starting the admin server on http://localhost:${ADMIN_PORT} …`);
   adminServer = spawn(`npx next start --port ${ADMIN_PORT}`, {

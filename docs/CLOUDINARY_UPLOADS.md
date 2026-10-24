@@ -180,7 +180,41 @@ resolves to `not_found` and nothing is written.
 
 ---
 
-## 7. Explicitly out of scope
+## 7. Troubleshooting
+
+**"hostname \"res.cloudinary.com\" is not configured under images"**, or
+photos render as the honest "Not shown" / "Preview not available"
+fallbacks: the running server (or the last production build) started
+**without** `CLOUDINARY_CLOUD_NAME`. The `next/image` remote-pattern and
+the `NEXT_PUBLIC_CLOUDINARY_ENABLED` render flag are both decided when
+`next.config.ts` is evaluated — at `next build` for production, and at
+process start for `next dev` / `next start` (`.env.local` is loaded
+before the config file, so a restart picks it up). Restart the dev
+server, or rebuild and restart for production. Until then nothing
+crashes: the storefront keeps its placeholder art, and the admin shows
+the fallback boxes with an explanation (see `src/lib/images.ts` —
+`canDeliverImage` is the single render gate for `FoodMedia`, the admin
+product table and the image manager).
+
+**A saved photo still will not display although delivery is enabled**:
+the URL's cloud does not match `CLOUDINARY_CLOUD_NAME`. Both the
+remote-pattern and the render guard are scoped to the exact configured
+cloud, so URLs belonging to a different cloud (for example a photo
+attached by editing the database directly instead of uploading through
+the product page) never deliver. Re-upload the photo through the product
+edit page, which stores verified URLs for the configured cloud, or fix
+`CLOUDINARY_CLOUD_NAME` if it is wrong.
+
+**End-to-end tests never touch real Cloudinary**: the disposable admin
+stack (`scripts/e2e-admin-server.ts`) deliberately blanks the Cloudinary
+variables for its `next start` child, because `next start` loads the
+operator's `.env.local` automatically. Without that isolation a test run
+could create real assets and the suite's "uploads are not configured"
+state would silently stop being honest.
+
+---
+
+## 8. Explicitly out of scope
 
 - No video, archive or non-image uploads.
 - No client-side or server-side image *transformations* beyond what
