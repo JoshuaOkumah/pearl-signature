@@ -1,7 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import type { Product } from "@/types";
 import { ButtonLink } from "@/components/ui/button";
-import { Eyebrow } from "@/components/ui/section";
 import { Reveal } from "@/components/ui/reveal";
 import { ProductCard } from "@/components/shared/product-card";
 
@@ -68,14 +67,10 @@ export function SignatureFavouritesShowcase({ featured, total, state }: Signatur
             <div aria-hidden="true" className="pointer-events-none absolute bottom-12 left-12 h-2 w-2 rounded-full bg-cream/40" />
 
             <div className="relative">
-              <Eyebrow tone="inverse" className="justify-center">Your table is waiting</Eyebrow>
-              <h3 className="mt-4 font-display text-2xl font-semibold leading-snug text-balance text-cream sm:text-3xl">
+              <h3 className="font-display text-2xl font-semibold leading-snug text-balance text-cream sm:text-3xl">
                 {total} Nigerian favourites, {" "}
                 <em className="italic text-gold">one beautifully set table.</em>
               </h3>
-              <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-cream/75 sm:text-base">
-                Explore the full menu of traditional foods, pastries and drinks. Ordering opens soon.
-              </p>
             </div>
 
             <ButtonLink href="/menu" variant="accent" size="lg" className="relative">
