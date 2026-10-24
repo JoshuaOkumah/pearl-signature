@@ -9,6 +9,12 @@
  * product forms (with the upload-not-configured notice), categories and
  * the open mobile drawer.
  *
+ * With `CART_BASE_URL` set (Phase 4), it also captures the cart drawer
+ * (empty, populated and price-changed), `/cart` (populated and with an
+ * unresolvable item) and `/checkout` (delivery review, validation errors
+ * and pickup). Point it at the disposable cart server so the basket has
+ * honestly-priced products to show.
+ *
  * Usage:
  *   1. Start the app:        npm run start   (or `npm run dev`)
  *                            For a production server without MongoDB, set
@@ -18,10 +24,15 @@
  *                            For the admin captures, start the disposable
  *                            stack (scripts/e2e-admin-server.ts) and point
  *                            ADMIN_BASE_URL at it.
+ *                            For the cart captures, start
+ *                            scripts/e2e-cart-server.ts and point
+ *                            CART_BASE_URL at it.
  *   2. Capture screenshots:  npm run screenshots
  *
  * Output: ./screenshots/<page>-<width>x<height>.png
  *         ./screenshots/menu-open-<width>x<height>.png
+ *         ./screenshots/cart-drawer[-...]...png, cart-page-...png,
+ *           checkout[-...]...png
  *         ./screenshots/admin-<surface>-<width>x<height>.png
  */
 import { chromium } from "@playwright/test";
@@ -123,6 +134,225 @@ for (const viewport of openMenuViewports) {
   await page.screenshot({ path: file }); // viewport shot: the panel is an overlay
   console.log(`✓ menu-open @ ${viewport.width}x${viewport.height}`);
   await page.close();
+}
+
+/* ── cart & checkout (Phase 4) ───────────────────────────────────────── */
+
+/**
+ * These surfaces need a basket, and honest prices for it, so they are
+ * captured against the disposable CART server (port 3002) which serves the
+ * production build plus `E2E_PURCHASABLE_FIXTURES=1`. Point CART_BASE_URL at
+ * that server (scripts/e2e-cart-server.ts), or the captures are skipped.
+ */
+const cartBaseURL = process.env.CART_BASE_URL;
+
+if (cartBaseURL) {
+  const cartViewports = [
+    { width: 320, height: 700 },
+    { width: 390, height: 844 },
+    { width: 1024, height: 900 },
+    { width: 1440, height: 900 },
+  ];
+
+  const STORAGE_KEY = "pearl-cart-v1";
+
+  /** Two lines: a simple priced product and one priced option of another. */
+  const pricedBasket = [
+    { slug: "e2e-sample-meal", variantName: null, quantity: 2, unitPriceCents: 1250 },
+    { slug: "e2e-portion-pack", variantName: "Large", quantity: 1, unitPriceCents: 1400 },
+  ];
+
+  /** Seeded with a price this customer "saw" earlier, now changed. */
+  const priceChangedBasket = [
+    { slug: "e2e-sample-meal", variantName: null, quantity: 1, unitPriceCents: 1000 },
+  ];
+
+  /** A slug that is well-formed but no longer on the menu. */
+  const unresolvableBasket = [
+    { slug: "e2e-discontinued-item", variantName: null, quantity: 1, unitPriceCents: 900 },
+  ];
+
+  async function seedBasket(page, items) {
+    await page.addInitScript(
+      ({ key, payload }) => window.localStorage.setItem(key, JSON.stringify(payload)),
+      { key: STORAGE_KEY, payload: { version: 1, items } },
+    );
+  }
+
+  /** Wait for reconciliation to finish so no figure is captured mid-flight. */
+  async function settled(page) {
+    await page.locator('[data-testid="cart-line"]').first().waitFor({ timeout: 10_000 }).catch(() => {});
+    // Wait for the persisted lines to hydrate AND their quote to settle. Merely
+    // waiting for a transient “Checking…” node to disappear races if it has not
+    // been mounted yet (notably for an unresolvable-only basket).
+    await page
+      .waitForFunction(
+        () => {
+          const lines = Array.from(document.querySelectorAll('[data-testid="cart-line"]'));
+          if (lines.length === 0) return false;
+          const rowResolving = lines.some((line) => /Loading item|Checking/.test(line.textContent ?? ""));
+          const summaryResolving = /Checking…/.test(document.body.innerText);
+          return !rowResolving && !summaryResolving;
+        },
+        null,
+        { timeout: 10_000 },
+      )
+      .catch(() => {});
+    await page.waitForTimeout(200);
+  }
+
+  for (const viewport of cartViewports) {
+    /* Drawer: empty */
+    {
+      const page = await browser.newPage({ viewport });
+      await page.goto(`${cartBaseURL}/menu`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { level: 1 }).waitFor();
+      await page.getByRole("button", { name: "Open your cart" }).click();
+      await page.getByRole("dialog", { name: "Shopping cart" }).waitFor();
+      await page.waitForTimeout(500);
+
+      await checkOverflow(page, `cart-drawer-empty @ ${viewport.width}`);
+      await page.screenshot({ path: `${outDir}/cart-drawer-empty-${viewport.width}x${viewport.height}.png` });
+      console.log(`✓ cart-drawer-empty @ ${viewport.width}x${viewport.height}`);
+      await page.close();
+    }
+
+    /* Drawer: populated, server-verified */
+    {
+      const page = await browser.newPage({ viewport });
+      await seedBasket(page, pricedBasket);
+      await page.goto(`${cartBaseURL}/menu`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { level: 1 }).waitFor();
+      await page.getByRole("button", { name: "Open your cart" }).click();
+      await page.getByRole("dialog", { name: "Shopping cart" }).waitFor();
+      await settled(page);
+
+      await checkOverflow(page, `cart-drawer @ ${viewport.width}`);
+      await page.screenshot({ path: `${outDir}/cart-drawer-${viewport.width}x${viewport.height}.png` });
+      console.log(`✓ cart-drawer @ ${viewport.width}x${viewport.height}`);
+      await page.close();
+    }
+
+    /* Drawer: a price the customer has not seen before */
+    {
+      const page = await browser.newPage({ viewport });
+      await seedBasket(page, priceChangedBasket);
+      await page.goto(`${cartBaseURL}/menu`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { level: 1 }).waitFor();
+      await page.getByRole("button", { name: "Open your cart" }).click();
+      await page.getByRole("dialog", { name: "Shopping cart" }).waitFor();
+      await settled(page);
+
+      await checkOverflow(page, `cart-drawer-price-change @ ${viewport.width}`);
+      await page.screenshot({
+        path: `${outDir}/cart-drawer-price-change-${viewport.width}x${viewport.height}.png`,
+      });
+      console.log(`✓ cart-drawer-price-change @ ${viewport.width}x${viewport.height}`);
+      await page.close();
+    }
+
+    /* /cart: populated */
+    {
+      const page = await browser.newPage({ viewport });
+      await seedBasket(page, pricedBasket);
+      await page.goto(`${cartBaseURL}/cart`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { name: "Order summary" }).waitFor();
+      await settled(page);
+
+      await checkOverflow(page, `cart-page @ ${viewport.width}`);
+      await page.screenshot({
+        path: `${outDir}/cart-page-${viewport.width}x${viewport.height}.png`,
+        fullPage: true,
+      });
+      console.log(`✓ cart-page @ ${viewport.width}x${viewport.height}`);
+      await page.close();
+    }
+
+    /* /cart: an item that can no longer be resolved */
+    {
+      const page = await browser.newPage({ viewport });
+      await seedBasket(page, unresolvableBasket);
+      await page.goto(`${cartBaseURL}/cart`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { name: "Order summary" }).waitFor();
+      await settled(page);
+
+      await checkOverflow(page, `cart-page-unresolvable @ ${viewport.width}`);
+      await page.screenshot({
+        path: `${outDir}/cart-page-unresolvable-${viewport.width}x${viewport.height}.png`,
+        fullPage: true,
+      });
+      console.log(`✓ cart-page-unresolvable @ ${viewport.width}x${viewport.height}`);
+      await page.close();
+    }
+
+    /* /checkout: review with delivery selected */
+    {
+      const page = await browser.newPage({ viewport });
+      await seedBasket(page, pricedBasket);
+      await page.goto(`${cartBaseURL}/checkout`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { name: "Your order" }).waitFor();
+      await settled(page);
+
+      await checkOverflow(page, `checkout @ ${viewport.width}`);
+      await page.screenshot({
+        path: `${outDir}/checkout-${viewport.width}x${viewport.height}.png`,
+        fullPage: true,
+      });
+      console.log(`✓ checkout @ ${viewport.width}x${viewport.height}`);
+      await page.close();
+    }
+
+    /* /checkout: validation errors after an empty submit attempt */
+    {
+      const page = await browser.newPage({ viewport });
+      await seedBasket(page, pricedBasket);
+      await page.goto(`${cartBaseURL}/checkout`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { name: "Your order" }).waitFor();
+      await settled(page);
+
+      // Touch every required field so its error is raised, exactly as a
+      // customer tabbing through the form would see them.
+      for (const label of [/^Full name/, /^Email address/, /^Phone number/]) {
+        await page.getByLabel(label).click();
+        await page.keyboard.press("Tab");
+      }
+      await page.getByLabel(/^City or town/).click();
+      await page.keyboard.press("Tab");
+      await page.waitForTimeout(300);
+
+      await checkOverflow(page, `checkout-validation @ ${viewport.width}`);
+      await page.screenshot({
+        path: `${outDir}/checkout-validation-${viewport.width}x${viewport.height}.png`,
+        fullPage: true,
+      });
+      console.log(`✓ checkout-validation @ ${viewport.width}x${viewport.height}`);
+      await page.close();
+    }
+
+    /* /checkout: pickup selected, no address asked for */
+    {
+      const page = await browser.newPage({ viewport });
+      await seedBasket(page, pricedBasket);
+      await page.goto(`${cartBaseURL}/checkout`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { name: "Your order" }).waitFor();
+      await settled(page);
+
+      await page.getByRole("radio", { name: /Pickup/ }).click();
+      await page.waitForTimeout(300);
+
+      await checkOverflow(page, `checkout-pickup @ ${viewport.width}`);
+      await page.screenshot({
+        path: `${outDir}/checkout-pickup-${viewport.width}x${viewport.height}.png`,
+        fullPage: true,
+      });
+      console.log(`✓ checkout-pickup @ ${viewport.width}x${viewport.height}`);
+      await page.close();
+    }
+  }
+} else {
+  console.log(
+    "Skipping cart/checkout screenshots (start scripts/e2e-cart-server.ts and set CART_BASE_URL to enable).",
+  );
 }
 
 /* ── admin (Phase 3) ──────────────────────────────────────────────────── */

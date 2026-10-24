@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { categories } from "@/data/categories";
 import { products } from "@/data/products";
+import { renderWithCart } from "@/test/cart-harness";
 import type { CatalogueCategory } from "@/types";
 import { MenuExplorer, pageWindow, type MenuExplorerProps } from "./menu-explorer";
 
@@ -41,7 +42,7 @@ function renderExplorer(overrides: Partial<MenuExplorerProps> = {}) {
     source: "fixtures",
     ...overrides,
   };
-  const view = render(<MenuExplorer {...props} />);
+  const view = renderWithCart(<MenuExplorer {...props} />);
   const rerender = (next: Partial<MenuExplorerProps> = {}) =>
     view.rerender(<MenuExplorer {...props} {...overrides} {...next} />);
   return { ...view, rerender, props };

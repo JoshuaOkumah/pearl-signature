@@ -90,13 +90,13 @@ test.describe("PEARL Signature — catalogue", () => {
     // "favourite", but descriptions are never searched.
     await expect(page.getByText("Nothing here yet")).toBeVisible();
     await expect(page.getByText(/matching “f”/)).toBeVisible();
-    await expect(page.locator('a[href^="/menu/"] h3')).toHaveCount(0);
+    await expect(page.locator('h3 > a[href^="/menu/"]')).toHaveCount(0);
 
     // A longer prefix query finds the soups.
     await search.fill("sou");
     await expect(page).toHaveURL("/menu?search=sou");
     await expect(page.getByText("Showing 3 dishes for “sou”")).toBeVisible();
-    await expect(page.locator('a[href^="/menu/"] h3')).toHaveText([
+    await expect(page.locator('h3 > a[href^="/menu/"]')).toHaveText([
       "Egusi Soup",
       "Bitterleaf Soup",
       "Vegetable Soup",
@@ -108,7 +108,7 @@ test.describe("PEARL Signature — catalogue", () => {
 
     await expect(page.getByText("Showing 3 dishes for “pie”")).toBeVisible();
     // Every card is a pie; ordered by catalogue sort order, never by luck.
-    const cards = page.locator('a[href^="/menu/"] h3');
+    const cards = page.locator('h3 > a[href^="/menu/"]');
     await expect(cards).toHaveText(["Turkey Pie", "Meat Pie", "Chicken Pie"]);
     await expect(page.getByRole("heading", { name: "Egusi Soup" })).toHaveCount(0);
 
@@ -129,7 +129,7 @@ test.describe("PEARL Signature — catalogue", () => {
 
   test("search paginates after ranking, without duplicates across pages", async ({ page }) => {
     await page.goto("/menu?search=pie&pageSize=2");
-    const cards = page.locator('a[href^="/menu/"] h3');
+    const cards = page.locator('h3 > a[href^="/menu/"]');
     await expect(cards).toHaveText(["Turkey Pie", "Meat Pie"]);
 
     await page
@@ -151,7 +151,7 @@ test.describe("PEARL Signature — catalogue", () => {
 
     await expect(page).toHaveURL("/menu?search=pie");
     await expect(page.getByText("Showing 3 dishes for “pie”")).toBeVisible();
-    await expect(page.locator('a[href^="/menu/"] h3')).toHaveText([
+    await expect(page.locator('h3 > a[href^="/menu/"]')).toHaveText([
       "Turkey Pie",
       "Meat Pie",
       "Chicken Pie",

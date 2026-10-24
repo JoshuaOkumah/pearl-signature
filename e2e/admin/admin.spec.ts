@@ -201,7 +201,11 @@ test.describe("PEARL Signature — admin", () => {
     await productRow(page, PRODUCT_NAME).getByRole("button", { name: "Mark unavailable" }).click();
     await expect(productRow(page, PRODUCT_NAME).getByText("Unavailable", { exact: true })).toBeVisible();
     await page.goto(`/menu/${NEW_SLUG}`);
-    await expect(page.getByText("Currently unavailable")).toBeVisible();
+    // Scoped to the revealed content: while React streams the page, the
+    // not-yet-cleared hidden segment briefly holds a second copy of this
+    // badge outside `#main-content`, which a document-wide text lookup
+    // would race against.
+    await expect(page.locator("#main-content").getByText("Currently unavailable")).toBeVisible();
 
     // Archive is a deliberate two-step confirmation.
     await page.goto("/admin/products");

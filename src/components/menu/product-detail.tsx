@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { formatCad } from "@/lib/format";
 import type { Product } from "@/types";
+import { PurchasePanel } from "@/components/cart/purchase-panel";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/ui/section";
 import { Breadcrumbs, type Crumb } from "@/components/shared/breadcrumbs";
@@ -16,13 +16,12 @@ interface ProductDetailProps {
 /**
  * Product detail composition (`/menu/[slug]`).
  *
- * Presentational server component: breadcrumb trail, mobile-first gallery,
- * honest price/availability states, informational portion details (no fake
- * selectors until the cart exists), and same-category related products
- * (the current product is always excluded upstream).
+ * Server component: breadcrumb trail, mobile-first gallery, honest
+ * availability states, the purchasing panel (a client island) and
+ * same-category related products (the current product is always excluded
+ * upstream).
  */
 export function ProductDetail({ product, related }: ProductDetailProps) {
-  const price = formatCad(product.priceCents);
   const unavailable = product.availability === "unavailable";
 
   const crumbs: Crumb[] = [
@@ -60,52 +59,21 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
               <p className="mt-4 text-lg leading-relaxed text-ink-muted">{product.shortDescription}</p>
             ) : null}
 
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              {price ? (
-                <p className="font-display text-3xl font-semibold text-navy">{price}</p>
-              ) : (
-                <p className="rounded-full border border-sand bg-cream-100 px-4 py-2 text-sm font-semibold text-ink-muted">
-                  Price to be confirmed
-                </p>
-              )}
+            <div className="mt-5 flex flex-wrap items-center gap-3">
               {unavailable ? <Badge tone="terracotta">Currently unavailable</Badge> : null}
               {product.featured ? <Badge tone="gold">Signature</Badge> : null}
             </div>
 
-            {price ? (
-              <p className="mt-2 text-sm text-ink-muted">Prices are shown in Canadian dollars.</p>
-            ) : (
-              <p className="mt-2 text-sm text-ink-muted">
-                Final pricing is published when ordering opens. Nothing on this page can be ordered yet.
-              </p>
-            )}
+            {/* Price, options, quantity and add-to-cart live in one client
+                island so the selection state never has to cross the server. */}
+            <div className="mt-6">
+              <PurchasePanel product={product} />
+            </div>
 
             <div className="mt-8">
               <h2 className="font-display text-xl font-semibold text-navy">About this dish</h2>
               <p className="mt-3 text-base leading-relaxed text-ink-muted">{product.description}</p>
             </div>
-
-            {product.variants.length > 0 ? (
-              <div className="mt-8">
-                <h2 className="font-display text-xl font-semibold text-navy">Portions</h2>
-                <ul className="mt-3 divide-y divide-sand rounded-2xl border border-border bg-surface">
-                  {product.variants.map((variant) => (
-                    <li
-                      key={variant.name}
-                      className="flex items-center justify-between gap-4 px-4 py-3 text-sm"
-                    >
-                      <span className="font-semibold text-navy">{variant.name}</span>
-                      <span className="text-ink-muted">
-                        {formatCad(variant.priceCents) ?? "Price to be confirmed"}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-2 text-sm text-ink-muted">
-                  Portions are listed for reference. Selection and ordering arrive in a later release.
-                </p>
-              </div>
-            ) : null}
           </div>
         </div>
       </Section>

@@ -3,6 +3,7 @@ import { Fraunces, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 import { Footer } from "@/components/layout/footer";
 import { Header } from "@/components/layout/header";
+import { CartProvider } from "@/lib/cart/context";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { SiteChrome } from "@/components/layout/site-chrome";
 import "./globals.css";
@@ -41,11 +42,13 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           <a href="#main-content" className="skip-link">
             Skip to content
           </a>
-          <SiteChrome header={<Header />} footer={<Footer />}>
-            <main id="main-content" className="flex-1">
-              {children}
-            </main>
-          </SiteChrome>
+          <CartProvider>
+            <SiteChrome header={<Header />} footer={<Footer />}>
+              <main id="main-content" className="flex-1">
+                {children}
+              </main>
+            </SiteChrome>
+          </CartProvider>
         </MotionProvider>
       </body>
     </html>

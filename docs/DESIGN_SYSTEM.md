@@ -239,3 +239,34 @@ reads consistently, but drops the storefront chrome entirely:
   ring; the drawer is a real modal dialog; forms use fieldsets/legends
   where grouped; status is never colour-only (text labels accompany
   badges).
+
+## 10. Cart and checkout surfaces (Phase 4)
+
+Cart and checkout reuse the storefront shell and tokens, with a restrained
+operational tone. They are review interfaces only: no price is inferred from
+browser storage, and no order/payment action is shown.
+
+- **Header cart control:** accessible name includes the unit count; it opens a
+  body-portalled modal drawer with a visible close control, Escape/backdrop
+  dismissal, focus trap/restore and scroll lock.
+- **Cart rows:** the same `CartLineRow` is used in the drawer, `/cart` and the
+  checkout summary. On narrow screens the quantity and price may wrap rather
+  than create horizontal scrolling; controls retain their 44px targets.
+- **Price states:** only server-quoted integer-cent prices are formatted. While
+  a quote is in flight, rows say “Checking”; on quote failure, prices are
+  withheld and retry is offered. Delivery and tax are “To be confirmed”, not
+  `$0.00`, and no provisional figure is called a total.
+- **Checkout layout:** details and order review use two columns on wide screens
+  and one column on mobile. The summary is not sticky on small screens, so the
+  on-screen keyboard cannot cover the form's next control.
+- **Unconfirmed choices:** delivery/pickup are selectable for review but carry
+  a “Not yet confirmed” notice. No fee, coverage, pickup address, or completion
+  promise is implied.
+- **Interaction and accessibility:** all buttons, links, steppers, option
+  radios and form fields have visible `focus-gold` focus; errors are associated
+  with their fields; quote changes use a polite live region; reduced motion is
+  inherited from `MotionProvider`.
+
+Responsive checks include the cart and checkout at 320, 390, 1024 and 1440px;
+the populated and unresolvable cart states are included in the screenshot
+utility and 320px cart layout is covered by Playwright.

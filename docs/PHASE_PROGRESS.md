@@ -9,8 +9,10 @@
 > & UX Refinement — IMPLEMENTED** (see section 1D).
 > **Phase 3: Secure Admin, Catalogue Management & Signed Uploads —
 > IMPLEMENTED, awaiting review** (see `docs/PHASE3_REPORT.md`, section 1E).
-> Phase 4 (cart, checkout, Stripe, orders, deployment) must not begin
-> without explicit approval from the business owner.
+> **Phase 4: Guest Cart & Checkout Review — IMPLEMENTED, awaiting review**
+> (see `docs/PHASE4_REPORT.md`, section 1F). Order submission, payment,
+> Stripe, inventory reservation and deployment remain out of scope and require
+> separate approval.
 
 ---
 
@@ -358,6 +360,50 @@ step-by-step in `docs/ADMIN_AUTH.md` and `docs/CLOUDINARY_UPLOADS.md`.
 
 ---
 
+## 1F. Phase 4 — guest cart & checkout review foundation
+
+Full report: `docs/PHASE4_REPORT.md`. Cart design: `docs/CART_ARCHITECTURE.md`.
+Checkout validation and manual review: `docs/CHECKOUT_FOUNDATION.md` and
+`docs/MANUAL_TESTING.md`.
+
+### What shipped
+- Versioned guest cart in `localStorage`, keyed by `(slug, variantName)`;
+  bounded line/unit counts, quantity editing/removal, explicit clear
+  confirmation, header control and accessible portalled cart drawer.
+- Read-only `quoteCartAction` is authoritative for current names, option
+  eligibility, availability and integer-cent prices. Quote requests contain
+  no client-supplied prices. Invalid, archived, draft and disabled-category
+  products are safely masked; quote errors withhold prices rather than using
+  stale storage hints.
+- `/cart` editing and `/checkout` review shell; Canadian name/email/phone and
+  conditional delivery fields are locally validated. Details stay in tab
+  memory, no form action exists, and no order is submitted.
+- Delivery, taxes, delivery coverage and pickup arrangements remain “To be
+  confirmed” / “Not yet confirmed”. No fees, total, place-order button,
+  payment, inventory reservation or order record was introduced.
+- Fixture catalogue image validation now drops invalid preview images per
+  image, matching the database path, instead of dropping an otherwise valid
+  product. Preview Cloudinary mismatch is handled hermetically in e2e.
+- 320px cart wrapping and narrow header layout corrected; a dedicated 320px
+  priced/unresolvable cart regression test was added.
+
+### Phase 4 verification (all executed)
+| Command | Result |
+| --- | --- |
+| `npx next typegen && npm run typecheck` | ✅ PASS — 0 errors |
+| `npm run lint` | ✅ PASS — 0 errors/warnings |
+| `npm run test` | ✅ PASS — **496/496** (40 files) |
+| `npm run test:e2e` | ✅ PASS — **79/79** (storefront, cart/checkout, disposable admin) |
+| `npm run screenshots` | ✅ PASS — **161 captures**, 0 horizontal overflow (public, cart/checkout and admin) |
+| Visual review | ✅ PASS — reviewed 320px cart/unresolvable line, 390px checkout/drawer, home and product detail |
+
+### Explicitly not implemented
+Order submission, customer-data transmission/storage, Stripe or cash payment,
+order history/status, inventory reservation, promo codes, delivery pricing or
+coverage, taxes and pickup scheduling. No MongoDB schema changes were made.
+
+---
+
 ## 2. Verification results (all executed)
 
 | # | Command | Result |
@@ -441,17 +487,9 @@ step-by-step in `docs/ADMIN_AUTH.md` and `docs/CLOUDINARY_UPLOADS.md`.
 - Build uses Turbopack (Next 16 default); no PostCSS config (Tailwind v4 via
   `@tailwindcss/turbopack`).
 
-## 5. Next planned phase (requires approval)
+## 5. Next planned phase (requires separate approval)
 
-**Phase 4 — commerce & deployment (tentative):**
-- Shopping cart, checkout, Stripe + cash-on-arrival option, order lifecycle.
-- Deployment with production env configuration (MONGODB_URI, site URL,
-  Cloudinary credentials).
-- Customer-facing order status (no full customer accounts planned unless
-  the business asks for them).
-
-Phase 3 scope (admin auth, catalogue CRUD, signed uploads) is complete and
-awaiting review; see `docs/PHASE3_REPORT.md`.
-
-Cart, checkout, Stripe, sessions and the admin dashboard remain reserved
-for later phases as specified in `docs/PROJECT_SPEC.md`.
+Phase 4 is implemented and awaiting review. Any next phase may add order
+creation, payment, inventory or deployment only after explicit business-owner
+approval and the required business inputs. See `docs/PROJECT_SPEC.md` for
+unresolved details. Do not treat checkout review as an order.

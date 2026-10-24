@@ -22,8 +22,11 @@ interface FoodMediaProps {
    * when the URL is a validated Cloudinary address AND delivery was configured
    * at build time; otherwise the honest placeholder renders instead — missing
    * or unconfigured imagery never breaks a layout.
+   *
+   * Typed as a structural subset so the cart quote (which returns only the
+   * delivery fields, never image metadata) can reuse this exact render path.
    */
-  image?: ProductImage | null;
+  image?: Pick<ProductImage, "secureUrl" | "alt"> | null;
   /** Responsive `sizes` hint for delivered images (avoids oversized downloads). */
   sizes?: string;
   /** Load this image eagerly (detail-page primary image). */

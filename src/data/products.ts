@@ -1,4 +1,5 @@
 import { categoryMap } from "@/data/categories";
+import { e2ePurchasableProducts } from "@/data/e2e-products";
 import type { Product, ProductStatus } from "@/types";
 
 /**
@@ -186,6 +187,10 @@ export const products: Product[] = [
       "An unpublished sample record used to verify that draft products never appear in the public catalogue.",
     theme: { deep: "#46586A", base: "#7C8B9A", accent: "#D4AF37" },
   }),
+
+  // Orderable synthetic records for the disposable cart test server only.
+  // Empty (and therefore invisible) unless E2E_PURCHASABLE_FIXTURES=1.
+  ...e2ePurchasableProducts,
 ];
 
 export function getProduct(slug: string): Product | undefined {

@@ -8,6 +8,8 @@ import { useEffect, useRef, useState } from "react";
 import { navItems } from "@/data/navigation";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/types";
+import { CartButton, CartNotice } from "@/components/cart/header-cart";
+import { CartDrawer } from "@/components/cart/cart-drawer";
 import { Wordmark } from "@/components/shared/wordmark";
 import { ButtonLink } from "@/components/ui/button";
 import { MobileNav } from "./mobile-nav";
@@ -15,9 +17,11 @@ import { MobileNav } from "./mobile-nav";
 export function Header() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [previousPathname, setPreviousPathname] = useState(pathname);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const cartTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Close the mobile menu whenever the route changes — adjusting state
   // during render is the React-recommended alternative to an effect.
@@ -43,7 +47,7 @@ export function Header() {
           : "border-transparent bg-cream",
       )}
     >
-      <div className="mx-auto flex h-18 w-full max-w-6xl items-center justify-between px-5 md:px-8">
+      <div className="mx-auto flex h-18 w-full max-w-6xl items-center justify-between gap-2 px-5 min-[360px]:gap-3 md:px-8">
         <Wordmark />
 
         <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
@@ -52,15 +56,19 @@ export function Header() {
           ))}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 md:gap-3">
+          {/* Cart first on mobile (thumb reach), after the CTA on desktop. */}
+          <span className="order-1 md:order-2">
+            <CartButton triggerRef={cartTriggerRef} onClick={() => setCartOpen(true)} />
+          </span>
           {/* Wrapped so the mobile-hidden state can't fight the ButtonLink's
               own display classes (cn joins without merging). */}
-          <div className="hidden md:block">
+          <div className="order-2 hidden md:order-1 md:block">
             <ButtonLink href="/menu" size="sm">
               Explore Menu
             </ButtonLink>
           </div>
-          <div className="md:hidden">
+          <div className="order-3 md:hidden">
             <button
               ref={triggerRef}
               type="button"
@@ -77,6 +85,8 @@ export function Header() {
       </div>
 
       <MobileNav open={open} onClose={() => setOpen(false)} triggerRef={triggerRef} pathname={pathname} />
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} triggerRef={cartTriggerRef} />
+      <CartNotice />
     </header>
   );
 }

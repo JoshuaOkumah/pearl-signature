@@ -15,9 +15,11 @@ export function Wordmark({ tone = "navy", className }: { tone?: "navy" | "cream"
       aria-label="PEARL Signature, home page"
       className={cn("focus-gold inline-flex items-center gap-2 rounded-sm", className)}
     >
+      {/* Slightly smaller below 360px so the header's cart and menu
+          buttons keep the full 20px gutter on the narrowest phones. */}
       <span
         className={cn(
-          "font-display text-[1.3rem] font-semibold uppercase leading-none tracking-[0.18em]",
+          "font-display text-[1.15rem] font-semibold uppercase leading-none tracking-[0.18em] min-[360px]:text-[1.3rem]",
           tone === "navy" ? "text-navy" : "text-cream",
         )}
       >
@@ -26,7 +28,7 @@ export function Wordmark({ tone = "navy", className }: { tone?: "navy" | "cream"
       <span aria-hidden="true" className="pearl-dot" />
       <span
         className={cn(
-          "-ml-1 font-display text-[1.15rem] italic leading-none",
+          "-ml-1 font-display text-[1rem] italic leading-none min-[360px]:text-[1.15rem]",
           tone === "navy" ? "text-terracotta" : "text-gold",
         )}
       >

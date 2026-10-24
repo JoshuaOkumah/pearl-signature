@@ -1,11 +1,10 @@
 # PEARL Signature — Product Specification
 
-> Status: **Phase 1 complete** (foundation, design system, interactive
-> storefront); **Phase 2/2B complete** (catalogue data, search relevance);
-> **Phase 3 complete** (admin authentication, catalogue management, signed
-> uploads). This document records the agreed requirements. It describes
-> planned features without implementing them — see `docs/PHASE_PROGRESS.md`
-> for what exists today.
+> Status: **Phases 1–4 implemented** (foundation, catalogue, admin, guest
+> cart and checkout review). Phase 4 deliberately stops before order
+> submission, payment, inventory reservation or customer-data transmission.
+> This document records agreed requirements; see `docs/PHASE_PROGRESS.md`
+> for implementation and verification details.
 
 ---
 
@@ -81,7 +80,11 @@ category requires a `CategorySlug` entry and data only — no redesign.
 3. Select delivery or arranged pickup.
 4. Complete the order — paying online or with cash on arrival.
 
-Phase 1 only presents this journey; no transactional behaviour is implemented.
+The current implementation supports browsing, guest-cart editing and a
+checkout review of locally entered details with server-verified item prices.
+It does **not** submit an order, take payment, reserve inventory or send/store
+the customer's details. Fulfilment coverage, costs and pickup arrangements
+remain unconfirmed and are shown as such.
 
 ## 6. Technology decisions
 
@@ -111,6 +114,13 @@ Phase 1 only presents this journey; no transactional behaviour is implemented.
 | DB-backed sessions | Opaque 256-bit token, SHA-256 at rest, HttpOnly/Secure/SameSite cookie, 7-day TTL |
 | MongoDB rate limiting | Login attempt buckets with TTL indexes (no Redis, no paid service) |
 | Cloudinary signed uploads | Server-signed direct browser uploads + server-side Admin API verification (account/credentials pending the owner, see `docs/CLOUDINARY_SETUP.md`) |
+
+### Added in Phase 4 (implemented, no new paid services)
+| Technology | Status & purpose |
+| --- | --- |
+| Browser `localStorage` | Versioned guest-cart persistence; customer-controlled prices are hints only |
+| Next.js Server Action | Read-only cart quote against the public catalogue; returns current eligible names/prices and line issues |
+| Zod 4 | Strict cart-quote and local checkout-form boundaries with explicit quantity and text limits |
 
 ### Reserved for later phases (NOT implemented yet)
 | Technology | Purpose |
@@ -175,10 +185,21 @@ Commerce × Modern Editorial Design. Full detail lives in `docs/DESIGN_SYSTEM.md
 - Storefront reflects every mutation immediately; Phase 2B search
   behaviour regression-protected; 328 unit + 50 e2e tests.
 
+### Phase 4 (implemented, review only)
+- Guest cart at the header drawer and `/cart`; cart lines are identified by
+  product slug plus option, persisted locally, and reconciled against current
+  catalogue data before any price is shown as verified.
+- `/checkout` is a review foundation with local-only field validation. Delivery
+  and pickup choices are explicitly unconfirmed; delivery fees and taxes say
+  “To be confirmed”. There is no Place Order control or submission endpoint.
+- Cart and checkout create no database records and do not reserve inventory.
+  Customer details remain in component state in the current tab and are not
+  transmitted.
+
 ### Upcoming (documented, not implemented)
-- Shopping cart, checkout, Stripe online payments + cash-on-arrival option.
-- Delivery zones, fees, pickup scheduling (all values supplied by business).
-- Order lifecycle & fulfilment views in the admin dashboard.
+- Order creation, Stripe online payments and any cash-on-arrival workflow.
+- Delivery zones, fees, taxes and pickup scheduling (all values supplied by business).
+- Order lifecycle and fulfilment views in the admin dashboard.
 - Customer account/order history, notifications (channels TBD).
 - Verified contact channels, social profiles, operating hours.
 
@@ -207,4 +228,5 @@ These are **known unknowns**. The product must not invent them:
 - Real product photography (current imagery is clearly temporary illustration)
 - Stripe merchant account / currency & tax rules
 - Pickup vs delivery availability per location
+- Whether guests should be allowed to submit orders, once order creation is approved
 - Whether preorders, catering or subscriptions are ever offered

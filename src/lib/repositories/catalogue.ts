@@ -172,17 +172,24 @@ function logSkipped(scope: string, detail: string): void {
   console.error(`[catalogue] ${scope}: ${detail}`);
 }
 
-/**
- * Map a lean database record to the public DTO. Returns null when the record
- * fails validation or is not published (defence in depth on top of the query
- * filter). Invalid image entries are dropped individually so one bad image
- * never hides an otherwise valid product.
- */
-function recordToProduct(record: ProductRecord, category: CategoryEntry): Product | null {
-  if (record.status !== "published") return null;
+/** Loose image shape accepted from database records and fixtures alike. */
+interface RawProductImage {
+  secureUrl?: unknown;
+  publicId?: unknown;
+  alt?: unknown;
+  sortOrder?: unknown;
+  width?: unknown;
+  height?: unknown;
+}
 
-  const images: Product["images"] = [];
-  for (const image of record.images ?? []) {
+/**
+ * Validate image entries one at a time, dropping (and logging) the invalid
+ * ones so a single bad image never hides an otherwise valid product. Shared
+ * by the database and fixture paths so both sources behave identically.
+ */
+function validProductImages(slug: string, images: readonly RawProductImage[]): Product["images"] {
+  const valid: Product["images"] = [];
+  for (const image of images) {
     const parsed = productImageSchema.safeParse({
       secureUrl: image.secureUrl,
       publicId: image.publicId,
@@ -192,14 +199,27 @@ function recordToProduct(record: ProductRecord, category: CategoryEntry): Produc
       height: image.height,
     });
     if (parsed.success) {
-      images.push(parsed.data);
+      valid.push(parsed.data);
     } else {
       logSkipped(
-        `image:${record.slug}`,
+        `image:${slug}`,
         parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "),
       );
     }
   }
+  return valid;
+}
+
+/**
+ * Map a lean database record to the public DTO. Returns null when the record
+ * fails validation or is not published (defence in depth on top of the query
+ * filter). Invalid image entries are dropped individually so one bad image
+ * never hides an otherwise valid product.
+ */
+function recordToProduct(record: ProductRecord, category: CategoryEntry): Product | null {
+  if (record.status !== "published") return null;
+
+  const images = validProductImages(record.slug, record.images ?? []);
 
   const parsed = productDTOSchema.safeParse({
     slug: record.slug,
@@ -234,7 +254,13 @@ function recordToProduct(record: ProductRecord, category: CategoryEntry): Produc
 }
 
 function fixtureToProduct(product: Product): Product | null {
-  const parsed = productDTOSchema.safeParse(product);
+  // Same image policy as the database path: one preview media slot with a
+  // stale cloud reference must not hide the dish itself. Only invalid
+  // images are dropped; the product is validated without them.
+  const parsed = productDTOSchema.safeParse({
+    ...product,
+    images: validProductImages(product.slug, product.images),
+  });
   if (!parsed.success) {
     logSkipped(
       `fixture:${product.slug}`,

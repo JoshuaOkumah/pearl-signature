@@ -1,11 +1,13 @@
-# PEARL Signature — Database Schema (Phase 2 & 3)
+# PEARL Signature — Database Schema (Phase 2, 3 & 4)
 
 Database: **MongoDB** (target: MongoDB Atlas M0 free tier).
 ODM: **Mongoose 9**. Boundary validation: **Zod 4**.
 Six collections: `categories` and `products` (catalogue, Phase 2) plus
 `admins`, `admin_sessions`, `admin_login_attempts` and
-`admin_audit_logs` (administration, Phase 3). No customers, orders or
-carts exist yet — those belong to later phases.
+`admin_audit_logs` (administration, Phase 3). Phase 4 adds no collections or
+indexes: the guest cart is browser-local, quote requests are read-only, and
+checkout details are not transmitted or persisted. There are no customer,
+order, payment or inventory-reservation records.
 
 All indexes below are created by the seed script or an operator command
 (`autoIndex` is **off** on the application connection, so the app never
@@ -142,6 +144,29 @@ is unreachable. This is the no-Redis rate limiter (`docs/ADMIN_AUTH.md` §4).
 | `target` | `{ type, id, label }` | `_id: false`, bounded | Product/category/admin reference, string ids only |
 | `detail` | string | short, operator-authored | Never passwords, tokens or secrets |
 | `createdAt` | date | **TTL index** | Retention: **180 days** (`AUDIT_RETENTION_DAYS`) |
+
+---
+
+## Phase 4 commerce foundation (no database writes)
+
+The guest cart is stored in browser `localStorage` under `pearl-cart-v1`,
+version 1. A line contains `{ slug, variantName, quantity,
+unitPriceCents }`; the last field is a non-authoritative “price last seen”
+hint. Quote requests deliberately omit it and contain only the product slug,
+option name and quantity. The request is Zod-validated and bounded to 30 lines,
+25 units per line and 99 units total before the read-only quote action looks up
+currently published products and active categories.
+
+The quote derives display name, current availability, option eligibility and
+integer-cent price from the catalogue. Draft, archived, disabled-category and
+unknown slugs share the same `not_found` result. The action makes no writes;
+there is no cart collection, order collection, customer record, stock
+reservation, payment intent or audit event for browsing/quoting.
+
+Checkout form values remain in component state for the current tab. Local
+validation does not submit or save the values. Delivery/tax amounts and
+fulfilment details stay unconfirmed until the business supplies them and a
+future approved phase adds order submission.
 
 ---
 
