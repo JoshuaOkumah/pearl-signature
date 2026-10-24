@@ -522,6 +522,39 @@ describe("database-mode reads (mocked models)", () => {
     consoleSpy.mockRestore();
   });
 
+  it("warns and drops only an invalid image while keeping its product", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    stubDatabaseEnv();
+    vi.stubEnv("CLOUDINARY_CLOUD_NAME", "pearl-signature");
+    stubDatabase();
+    vi.mocked(ProductModel.find).mockReturnValue(
+      queryOf([
+        dbRecord({
+          images: [
+            {
+              secureUrl: "https://res.cloudinary.com/old-cloud/image/upload/egusi.jpg",
+              alt: "Egusi Soup",
+              sortOrder: 0,
+            },
+          ] as ProductRecord["images"],
+        }),
+      ]) as never,
+    );
+    vi.mocked(ProductModel.countDocuments).mockResolvedValue(1 as never);
+
+    const result = await getPublishedProducts();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.items).toHaveLength(1);
+      expect(result.data.items[0]?.images).toEqual([]);
+    }
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("image:egusi-soup"));
+    expect(errorSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
   it("skips querying entirely for an unknown category", async () => {
     stubDatabaseEnv();
     stubDatabase();

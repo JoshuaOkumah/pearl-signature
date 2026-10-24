@@ -172,6 +172,13 @@ function logSkipped(scope: string, detail: string): void {
   console.error(`[catalogue] ${scope}: ${detail}`);
 }
 
+function logSkippedImage(scope: string, detail: string): void {
+  // An unusable image is an expected recoverable data condition: the product
+  // remains visible with FoodMedia's placeholder, so do not trigger Next's
+  // development error overlay for it.
+  console.warn(`[catalogue] ${scope}: ${detail}`);
+}
+
 /** Loose image shape accepted from database records and fixtures alike. */
 interface RawProductImage {
   secureUrl?: unknown;
@@ -201,7 +208,7 @@ function validProductImages(slug: string, images: readonly RawProductImage[]): P
     if (parsed.success) {
       valid.push(parsed.data);
     } else {
-      logSkipped(
+      logSkippedImage(
         `image:${slug}`,
         parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "),
       );
