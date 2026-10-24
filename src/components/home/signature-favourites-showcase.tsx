@@ -1,6 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import type { Product } from "@/types";
 import { ButtonLink } from "@/components/ui/button";
+import { Eyebrow } from "@/components/ui/section";
 import { Reveal } from "@/components/ui/reveal";
 import { ProductCard } from "@/components/shared/product-card";
 
@@ -60,12 +61,24 @@ export function SignatureFavouritesShowcase({ featured, total, state }: Signatur
       {/* Closing tile keeps the grid honest and invites exploration */}
       {total !== null ? (
         <Reveal delay={0.3} className="sm:col-span-2">
-          <div className="flex h-full flex-col justify-between gap-8 rounded-3xl bg-navy p-7 shadow-card">
-            <p className="font-display text-2xl font-semibold leading-snug text-cream">
-              {total} Nigerian favourites,{" "}
-              <em className="italic text-gold">one beautifully set table.</em>
-            </p>
-            <ButtonLink href="/menu" variant="outlineLight" className="self-start">
+          <div className="relative flex h-full min-h-72 flex-col items-center justify-center gap-6 overflow-hidden rounded-[2.5rem] bg-navy p-7 text-center shadow-card sm:p-9">
+            <div aria-hidden="true" className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full border-[14px] border-gold/15" />
+            <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 -right-16 h-72 w-72 rounded-full border-[14px] border-terracotta/20" />
+            <div aria-hidden="true" className="pointer-events-none absolute right-10 top-10 h-2.5 w-2.5 rounded-full bg-gold/60" />
+            <div aria-hidden="true" className="pointer-events-none absolute bottom-12 left-12 h-2 w-2 rounded-full bg-cream/40" />
+
+            <div className="relative">
+              <Eyebrow tone="inverse" className="justify-center">Your table is waiting</Eyebrow>
+              <h3 className="mt-4 font-display text-2xl font-semibold leading-snug text-balance text-cream sm:text-3xl">
+                {total} Nigerian favourites, {" "}
+                <em className="italic text-gold">one beautifully set table.</em>
+              </h3>
+              <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-cream/75 sm:text-base">
+                Explore the full menu of traditional foods, pastries and drinks. Ordering opens soon.
+              </p>
+            </div>
+
+            <ButtonLink href="/menu" variant="accent" size="lg" className="relative">
               Browse everything
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </ButtonLink>
