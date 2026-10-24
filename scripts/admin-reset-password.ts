@@ -14,6 +14,8 @@
  *
  * Safety rules:
  *   - Requires an explicit `--yes`; prints host + database, never secrets.
+ *   - MONGODB_URI is read from `.env.local` automatically; explicit
+ *     environment variables always win.
  *   - Passwords are read from a hidden prompt (or the environment for
  *     automation), never from argv, never echoed or logged.
  *   - Every session for the account is deleted, so existing cookies
@@ -26,6 +28,7 @@ import { AdminModel } from "../src/models/admin";
 import { AdminSessionModel } from "../src/models/admin-session";
 import { AuditLogModel } from "../src/models/audit-log";
 import { hashPassword, validatePasswordPolicy } from "../src/lib/auth/password-core";
+import { loadEnvLocal } from "./load-env-local";
 
 interface ResetArgs {
   yes: boolean;
@@ -88,6 +91,7 @@ async function collectPassword(): Promise<string | null> {
 }
 
 async function reset(): Promise<void> {
+  loadEnvLocal(); // .env.local matches what the docs tell operators to use
   const args = parseArgs(process.argv.slice(2));
 
   const uri = process.env.MONGODB_URI?.trim();

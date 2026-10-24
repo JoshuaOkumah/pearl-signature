@@ -12,6 +12,10 @@
  *   npm run seed -- --yes                 apply to the database in MONGODB_URI
  *   npm run seed -- --yes --force-production   required when NODE_ENV=production
  *
+ * Configuration: MONGODB_URI is read from `.env.local` automatically (Next
+ * loads it for the app; this script does the same for operators). Variables
+ * already present in the environment are never overridden.
+ *
  * Safety rules:
  *   - Requires an explicit `--yes` and prints the target host + database
  *     (never credentials) before connecting.
@@ -25,6 +29,7 @@ import { CategoryModel } from "../src/models/category";
 import { ProductModel } from "../src/models/product";
 import { categories } from "../src/data/categories";
 import { products } from "../src/data/products";
+import { loadEnvLocal } from "./load-env-local";
 
 interface SeedArgs {
   yes: boolean;
@@ -50,6 +55,7 @@ export function describeTarget(uri: string): { host: string; database: string } 
 }
 
 async function seed(): Promise<void> {
+  loadEnvLocal(); // .env.local matches what the docs tell operators to use
   const args = parseArgs(process.argv.slice(2));
 
   const uri = process.env.MONGODB_URI?.trim();

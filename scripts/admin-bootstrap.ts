@@ -19,7 +19,8 @@
  * Safety rules:
  *   - Requires an explicit `--yes` and prints the target host + database
  *     (never credentials) before connecting.
- *   - Refuses to run without MONGODB_URI.
+ *   - Refuses to run without MONGODB_URI (read from `.env.local`
+ *     automatically; explicit environment variables always win).
  *   - Refuses to create a second owner account (use
  *     scripts/admin-reset-password.ts to rotate an existing password).
  *   - Passwords are typed into a hidden prompt, validated (minimum 10
@@ -38,6 +39,7 @@ import {
   hashPassword,
   validatePasswordPolicy,
 } from "../src/lib/auth/password-core";
+import { loadEnvLocal } from "./load-env-local";
 
 interface BootstrapArgs {
   yes: boolean;
@@ -118,6 +120,7 @@ async function collectPassword(): Promise<string | null> {
 }
 
 async function bootstrap(): Promise<void> {
+  loadEnvLocal(); // .env.local matches what the docs tell operators to use
   const args = parseArgs(process.argv.slice(2));
 
   const uri = process.env.MONGODB_URI?.trim();
