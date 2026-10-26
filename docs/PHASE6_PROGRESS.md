@@ -142,8 +142,9 @@ literal backticks around `.env.example`. The payment-panel capture was also
 re-taken with the section centred, because a sticky header had covered the top
 card.
 
-Commits: Phase 6A `a9f6963`; the implementation and documentation commits are
-recorded in `docs/PHASE6_REPORT.md`.
+Commits: Phase 6A `a9f6963` (specification and architecture); Phase 6B–6F code
+`06c9865`; documentation `5764b75`. The full record is in
+`docs/PHASE6_REPORT.md` §R. Nothing has been pushed.
 
 ## Remaining blockers
 

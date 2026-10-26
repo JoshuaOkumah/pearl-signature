@@ -757,8 +757,7 @@ payments disabled.
 - Base: `a9f6963` — Phase 6A, specification and architecture.
 - Code commit: `06c9865` — payment implementation, models, route, actions, UI,
   tests, seed indexes, `.env.example`, screenshot script.
-- Documentation commit: `PHASE6_DOCS_COMMIT` — this report and the updated
-  document set.
+- Documentation commit: `5764b75` — this report and the updated document set.
 - Working tree after the final commit: clean.
 - **Push: not performed.** No remote credentials or `gh` authentication exist
   in this environment. Nothing was reset, rebased or discarded.
