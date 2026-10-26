@@ -5,6 +5,7 @@ import { quoteCart } from "@/lib/cart/quote";
 import { checkoutBlockers, matchServiceArea, priceCheckout } from "@/lib/checkout/pricing";
 import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
 import { getCheckoutSettings } from "@/lib/store/config";
+import { notifyOrderEvent } from "@/lib/notifications/dispatch";
 import { OrderModel, type OrderRecord } from "@/models/order";
 import { ProductModel } from "@/models/product";
 import { normalizePostalCode } from "@/lib/validations/checkout";
@@ -259,15 +260,18 @@ export async function createOrder(request: PlaceOrderRequest): Promise<PlaceOrde
       const created = await OrderModel.create({ ...baseDocument, reference });
       const summary = summarizeOrder(created);
 
-      // Post-creation notification dispatch must never be able to fail or
-      // roll back the order: it is fire-and-forget and implemented in
-      // Milestone E (docs/ORDER_NOTIFICATIONS.md).
       void recordAudit({
         event: "order.placed",
         outcome: "success",
         target: { type: "order", id: summary.reference, label: "Order placed" },
         detail: `${request.paymentMethod}, ${method}, ${summary.totalCents} CAD cents`,
       });
+
+      // Enqueue the order-placed notifications (idempotent; stores no
+      // personal data) and attempt delivery in the background. Both steps
+      // swallow their own errors: neither can fail or roll back an order
+      // that is already persisted (docs/ORDER_NOTIFICATIONS.md).
+      await notifyOrderEvent("order.placed", summary.reference);
 
       return { ok: true, order: summary, replayed: false };
     } catch (error) {

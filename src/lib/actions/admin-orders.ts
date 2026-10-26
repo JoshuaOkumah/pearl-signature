@@ -3,6 +3,7 @@
 import { recordAudit } from "@/lib/auth/audit";
 import { requireActionAdmin } from "@/lib/auth/guard";
 import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
+import { notifyOrderEvent } from "@/lib/notifications/dispatch";
 import { ORDER_STATUS_LABELS, transitionRejection } from "@/lib/orders/lifecycle";
 import { OrderModel } from "@/models/order";
 import {
@@ -119,6 +120,12 @@ export async function changeOrderStatusAction(
       target: { type: "order", id: input.reference, label: input.reference },
       detail: `${ORDER_STATUS_LABELS[order.status]} -> ${ORDER_STATUS_LABELS[input.to]}`,
     });
+
+    // Tell the customer about the new status. The enqueue is idempotent
+    // and both it and the background delivery attempt swallow their own
+    // errors, so a notification problem can never fail an operator action
+    // whose write already succeeded (docs/ORDER_NOTIFICATIONS.md).
+    await notifyOrderEvent("order.status_changed", input.reference);
 
     return { ok: true, status: input.to, version: input.expectedVersion + 1 };
   } catch (error) {

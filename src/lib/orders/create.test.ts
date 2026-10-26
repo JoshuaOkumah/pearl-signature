@@ -9,6 +9,7 @@ import { placeOrderRequestSchema, type PlaceOrderRequest } from "@/lib/validatio
 import { AuditLogModel } from "@/models/audit-log";
 import { CategoryModel } from "@/models/category";
 import { OrderAttemptModel } from "@/models/order-attempt";
+import { NotificationOutboxModel } from "@/models/notification-outbox";
 import { OrderModel } from "@/models/order";
 import { ProductModel } from "@/models/product";
 import { StoreConfigModel } from "@/models/store-config";
@@ -200,6 +201,7 @@ beforeAll(async () => {
   // deployments); these tests build them explicitly because the unique
   // indexes ARE the concurrency guarantees under test.
   await OrderModel.createIndexes();
+  await NotificationOutboxModel.createIndexes();
 });
 
 afterAll(async () => {
@@ -214,11 +216,60 @@ beforeEach(async () => {
     OrderModel.deleteMany({}),
     OrderAttemptModel.deleteMany({}),
     AuditLogModel.deleteMany({}),
+    NotificationOutboxModel.deleteMany({}),
     ProductModel.deleteMany({}),
     CategoryModel.deleteMany({}),
   ]);
   await seedCatalogue();
   await seedReadyConfig();
+});
+
+/* ── notification enqueue (Milestone E wiring) ──────────────────────── */
+
+describe("createOrder: notifications", () => {
+  it("enqueues customer and admin outbox entries for the placed order", async () => {
+    const response = await createOrder(makeRequest());
+    expect(response.ok).toBe(true);
+    if (!response.ok) return;
+    const { reference } = response.order;
+
+    const entries = await NotificationOutboxModel.find({ reference }).lean();
+    expect(entries).toHaveLength(2);
+    expect(entries.map((entry) => entry.key).sort()).toEqual(
+      [`order.placed:${reference}:admin`, `order.placed:${reference}:customer`].sort(),
+    );
+    for (const entry of entries) {
+      expect(entry.status).toBe("pending");
+      expect(entry.attempts).toBe(0);
+    }
+    // The queue never stores the customer's address or name.
+    const raw = JSON.stringify(entries);
+    expect(raw).not.toContain("ada.obi@example.com");
+    expect(raw).not.toContain("Ada Obi");
+  });
+
+  it("does not duplicate entries when an idempotent request is replayed", async () => {
+    const request = makeRequest();
+    const first = await createOrder(request);
+    const second = await createOrder(request);
+    expect(first.ok && second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    expect(second.replayed).toBe(true);
+
+    // The replay path returns the existing order without re-notifying.
+    expect(await NotificationOutboxModel.countDocuments({})).toBe(2);
+    expect(
+      await NotificationOutboxModel.countDocuments({ key: `order.placed:${first.order.reference}:customer` }),
+    ).toBe(1);
+  });
+
+  it("enqueues nothing when the order is rejected before insertion", async () => {
+    // A total the customer did not agree to is a price change: no insert.
+    const response = await createOrder(makeRequest({ expectedTotalCents: 1 }));
+    expect(response.ok).toBe(false);
+    expect(await OrderModel.countDocuments({})).toBe(0);
+    expect(await NotificationOutboxModel.countDocuments({})).toBe(0);
+  });
 });
 
 /* ── creation ───────────────────────────────────────────────────────── */

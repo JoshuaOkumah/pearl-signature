@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { connectDatabase } from "@/lib/db/mongoose";
+import { NotificationOutboxModel } from "@/models/notification-outbox";
 import { OrderModel, type OrderRecord } from "@/models/order";
 import type { FulfillmentMethod } from "@/lib/validations/checkout";
 import type { OrderStatus } from "@/lib/validations/order";
@@ -160,6 +161,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await OrderModel.deleteMany({});
+  await NotificationOutboxModel.deleteMany({});
   await mongoose.disconnect();
   await mongod?.stop();
   mongod = null;
@@ -167,6 +169,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await OrderModel.deleteMany({});
+  await NotificationOutboxModel.deleteMany({});
   vi.clearAllMocks();
   vi.mocked(requireActionAdmin).mockResolvedValue({ ok: true, admin: OWNER } as never);
 });
@@ -584,5 +587,76 @@ describe("addOrderNoteAction", () => {
 
     expect(result.ok).toBe(true);
     expect((await freshOrder(order.reference)).notes).toHaveLength(1);
+  });
+});
+
+/* ── notification enqueue (Milestone E wiring) ──────────────────────── */
+
+describe("customer notifications", () => {
+  it("enqueues exactly one customer entry after a successful status change", async () => {
+    const order = await makeOrder();
+
+    const result = await changeOrderStatusAction({ ok: false }, statusForm(order.reference, "confirmed", 1));
+    expect(result.ok).toBe(true);
+
+    const entries = await NotificationOutboxModel.find().lean();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      key: `order.status_changed:${order.reference}:customer`,
+      event: "order.status_changed",
+      recipientRole: "customer",
+      status: "pending",
+      attempts: 0,
+    });
+    // The queue carries no personal data at all.
+    expect(JSON.stringify(entries)).not.toContain("ada.obi@example.com");
+    expect(JSON.stringify(entries)).not.toContain("Ada Obi");
+  });
+
+  it("enqueues a customer entry when the order is cancelled", async () => {
+    const order = await makeOrder();
+
+    const result = await changeOrderStatusAction(
+      { ok: false },
+      statusForm(order.reference, "cancelled", 1, "Customer called to postpone"),
+    );
+    expect(result.ok).toBe(true);
+
+    expect(await NotificationOutboxModel.countDocuments({})).toBe(1);
+    expect(
+      await NotificationOutboxModel.countDocuments({ key: `order.status_changed:${order.reference}:customer` }),
+    ).toBe(1);
+  });
+
+  it("enqueues nothing when the transition is rejected", async () => {
+    const order = await makeOrder();
+
+    const result = await changeOrderStatusAction({ ok: false }, statusForm(order.reference, "preparing", 1));
+
+    expect(result.ok).toBe(false);
+    expect(await NotificationOutboxModel.countDocuments({})).toBe(0);
+  });
+
+  it("enqueues nothing when the action is unauthorized", async () => {
+    vi.mocked(requireActionAdmin).mockResolvedValue({ ok: false, reason: "unauthorized" } as never);
+    const order = await makeOrder();
+
+    const result = await changeOrderStatusAction({ ok: false }, statusForm(order.reference, "confirmed", 1));
+
+    expect(result.ok).toBe(false);
+    expect(await NotificationOutboxModel.countDocuments({})).toBe(0);
+  });
+
+  it("does not enqueue for payment recording or operational notes", async () => {
+    const order = await makeOrder();
+
+    const payment = await recordPaymentAction({ ok: false }, paymentForm(order.reference, 1));
+    const note = await addOrderNoteAction({ ok: false }, noteForm(order.reference, "Handled at the counter"));
+
+    expect(payment.ok).toBe(true);
+    expect(note.ok).toBe(true);
+    // Neither event informs the customer in Phase 5: payment is recorded
+    // by hand at handover, and notes are internal-only.
+    expect(await NotificationOutboxModel.countDocuments({})).toBe(0);
   });
 });

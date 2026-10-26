@@ -29,6 +29,7 @@ import { CategoryModel } from "../src/models/category";
 import { ProductModel } from "../src/models/product";
 import { OrderModel } from "../src/models/order";
 import { OrderAttemptModel } from "../src/models/order-attempt";
+import { NotificationOutboxModel } from "../src/models/notification-outbox";
 import { StoreConfigModel } from "../src/models/store-config";
 import { categories } from "../src/data/categories";
 import { products } from "../src/data/products";
@@ -166,11 +167,13 @@ async function seed(): Promise<void> {
     await CategoryModel.createIndexes();
     await ProductModel.createIndexes();
     // Phase 5: orders (unique reference + idempotency key, listing indexes),
-    // public order rate-limit buckets (unique key + TTL), and the singleton
-    // checkout configuration.
+    // public order rate-limit buckets (unique key + TTL), the singleton
+    // checkout configuration, and the notification outbox (unique key,
+    // dispatch scan index, TTL).
     await OrderModel.createIndexes();
     await OrderAttemptModel.createIndexes();
     await StoreConfigModel.createIndexes();
+    await NotificationOutboxModel.createIndexes();
 
     console.log(
       `[seed] Done. Categories: ${categories.length - categoriesInserted} existing, ` +
