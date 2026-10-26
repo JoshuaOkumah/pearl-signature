@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { SLUG_PATTERN, MAX_SLUG_LENGTH } from "@/lib/validations/catalogue";
+import {
+  ORDER_REFERENCE_PATTERN,
+  ORDER_STATUSES,
+  PAYMENT_STATUSES,
+  type OrderStatus,
+  type PaymentStatus,
+} from "@/lib/validations/order";
 import { slugify } from "@/lib/utils";
 
 /**
@@ -185,6 +192,102 @@ export const adminProductQuerySchema = z.object({
 });
 
 export type AdminProductQuery = z.output<typeof adminProductQuerySchema>;
+
+/* ── admin order list query ─────────────────────────────────────────── */
+
+/**
+ * Server-side order list filters. `search` is a plain operator term (order
+ * reference, customer name or email); it is escaped in the repository
+ * before it ever reaches a regular expression, so a query full of
+ * metacharacters matches literally instead of throwing or matching
+ * everything.
+ */
+export const adminOrderQuerySchema = z.object({
+  search: z.string().trim().max(100).optional().catch(undefined),
+  status: z.enum(ORDER_STATUSES).optional().catch(undefined),
+  payment: z.enum(PAYMENT_STATUSES).optional().catch(undefined),
+  page: z.coerce.number().int().min(1).max(10_000).optional().catch(1),
+  pageSize: z.coerce.number().int().min(1).max(50).optional().catch(ADMIN_DEFAULT_PAGE_SIZE),
+});
+
+export type AdminOrderQuery = z.output<typeof adminOrderQuerySchema>;
+
+/* ── admin order mutations ──────────────────────────────────────────── */
+
+const orderReferenceInput = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(ORDER_REFERENCE_PATTERN, "Not a valid order reference");
+
+/** Optimistic-concurrency token: the `version` the detail page rendered. */
+const expectedVersionInput = z.coerce
+  .number({ message: "Reload the order to get a current version" })
+  .int("Reload the order to get a current version")
+  .min(1, "Reload the order to get a current version")
+  .max(10_000_000, "Reload the order to get a current version");
+
+/**
+ * Status change payload (allowlist). The `to` value is validated against
+ * the lifecycle separately, against the freshly loaded order — this schema
+ * only guarantees the shape, never the legality, of the request.
+ */
+export const orderStatusChangeSchema = z
+  .object({
+    reference: orderReferenceInput,
+    to: z.enum(ORDER_STATUSES, { message: "Unknown order status" }),
+    expectedVersion: expectedVersionInput,
+    reason: z
+      .string()
+      .trim()
+      .max(300, "The reason must be at most 300 characters")
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.to === "cancelled" && !value.reason) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["reason"],
+        message: "Add a reason for cancelling this order",
+      });
+    }
+  });
+
+export type OrderStatusChangeInput = z.output<typeof orderStatusChangeSchema>;
+
+/** Cash on Arrival payment recording: identify the order + its version. */
+export const recordPaymentSchema = z.object({
+  reference: orderReferenceInput,
+  expectedVersion: expectedVersionInput,
+});
+
+export type RecordPaymentInput = z.output<typeof recordPaymentSchema>;
+
+/** Operational note (bounded, append-only, never part of customer copy). */
+export const orderNoteSchema = z.object({
+  reference: orderReferenceInput,
+  body: z
+    .string()
+    .trim()
+    .min(1, "The note cannot be empty")
+    .max(500, "The note must be at most 500 characters"),
+});
+
+export type OrderNoteInput = z.output<typeof orderNoteSchema>;
+
+/** Result shared by every admin order Server Action. */
+export interface AdminOrderActionResult {
+  ok: boolean;
+  error?: string;
+  fieldErrors?: Record<string, string>;
+  /** True when the order changed since the page loaded (reload required). */
+  conflict?: boolean;
+  /** Fresh state after a successful mutation. */
+  status?: OrderStatus;
+  paymentStatus?: PaymentStatus;
+  version?: number;
+}
+
 
 /* ── image association payloads (after Cloudinary verification) ─────── */
 

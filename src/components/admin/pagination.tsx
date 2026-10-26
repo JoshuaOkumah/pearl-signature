@@ -12,10 +12,12 @@ export function Pagination({
   page,
   totalPages,
   buildHref,
+  label = "List pages",
 }: {
   page: number;
   totalPages: number;
   buildHref: (page: number) => string;
+  label?: string;
 }) {
   if (totalPages <= 1) return null;
 
@@ -25,7 +27,7 @@ export function Pagination({
   for (let index = start; index <= end; index += 1) numbers.push(index);
 
   return (
-    <nav aria-label="Product list pages" className="flex flex-wrap items-center justify-between gap-3">
+    <nav aria-label={label} className="flex flex-wrap items-center justify-between gap-3">
       <p className="font-sans text-sm text-ink-muted">
         Page {page} of {totalPages}
       </p>

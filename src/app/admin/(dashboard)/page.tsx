@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import Link from "next/link";
-import { AlertTriangle, FolderTree, Package, PackagePlus } from "lucide-react";
+import { AlertTriangle, ClipboardList, FolderTree, Package, PackagePlus } from "lucide-react";
 import { getDashboardStats } from "@/lib/repositories/admin";
+import { formatCad } from "@/lib/format";
+import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/lib/orders/lifecycle";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 
@@ -11,17 +13,33 @@ export const metadata: Metadata = {
 };
 
 /**
- * `/admin` — operational dashboard (Phase 3).
+ * `/admin` — operational dashboard (Phase 3, extended in Phase 5).
  *
  * Every number comes from live MongoDB counts; nothing is estimated or
- * invented. Sales, revenue and order metrics do not exist in this phase
- * and are not teased anywhere.
+ * invented. Order metrics are real aggregates over `orders` records, and
+ * collected revenue counts ONLY orders marked `paid` — an unpaid Cash on
+ * Arrival order is outstanding money, never revenue in hand.
  */
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   published: "leaf",
   draft: "neutral",
   archived: "terracotta",
+};
+
+const ORDER_TONE: Record<string, BadgeTone> = {
+  placed: "gold",
+  confirmed: "navy",
+  preparing: "navy",
+  ready_for_pickup: "leaf",
+  out_for_delivery: "leaf",
+  completed: "neutral",
+  cancelled: "terracotta",
+};
+
+const PAYMENT_TONE: Record<string, BadgeTone> = {
+  unpaid: "terracotta",
+  paid: "leaf",
 };
 
 function formatDate(iso: string): string {
@@ -37,7 +55,7 @@ function StatCard({
   hint,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   hint?: string;
 }) {
   return (
@@ -95,7 +113,11 @@ export default async function AdminDashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ButtonLink href="/admin/products/new" variant="primary" size="sm">
+          <ButtonLink href="/admin/orders" variant="primary" size="sm">
+            <ClipboardList className="size-4" aria-hidden="true" />
+            View orders
+          </ButtonLink>
+          <ButtonLink href="/admin/products/new" variant="outline" size="sm">
             <PackagePlus className="size-4" aria-hidden="true" />
             Add product
           </ButtonLink>
@@ -141,6 +163,22 @@ export default async function AdminDashboardPage() {
         />
       </section>
 
+      <section aria-label="Order statistics" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+        <StatCard label="Orders" value={stats.orders.total} hint="All time" />
+        <StatCard label="In progress" value={stats.orders.inProgress} hint="Awaiting completion" />
+        <StatCard label="Awaiting payment" value={stats.orders.awaitingPayment} hint="Cash on Arrival" />
+        <StatCard
+          label="Outstanding"
+          value={formatCad(stats.orders.unpaidCents) ?? "-"}
+          hint="Unpaid Cash on Arrival"
+        />
+        <StatCard
+          label="Collected"
+          value={formatCad(stats.orders.collectedCents) ?? "-"}
+          hint="Payments recorded"
+        />
+      </section>
+
       <section aria-label="Recently updated products" className="rounded-2xl border border-border bg-surface">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="font-sans text-base font-bold text-navy">Recently updated</h2>
@@ -171,6 +209,46 @@ export default async function AdminDashboardPage() {
                 ) : null}
                 <span className="ml-auto font-sans text-xs text-ink-muted">
                   Updated {formatDate(product.updatedAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-label="Recent orders" className="rounded-2xl border border-border bg-surface">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="font-sans text-base font-bold text-navy">Recent orders</h2>
+          <Link
+            href="/admin/orders"
+            className="rounded font-sans text-sm font-semibold text-navy underline-offset-2 hover:underline focus-gold"
+          >
+            All orders
+          </Link>
+        </div>
+        {stats.recentOrders.length === 0 ? (
+          <p className="px-5 py-8 text-center font-sans text-sm text-ink-muted">
+            No orders yet. Orders appear here as soon as a customer places one.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {stats.recentOrders.map((order) => (
+              <li key={order.reference} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3.5">
+                <Link
+                  href={`/admin/orders/${order.reference}`}
+                  className="font-sans text-sm font-semibold text-navy underline-offset-2 hover:underline focus-gold rounded"
+                >
+                  {order.reference}
+                </Link>
+                <span className="font-sans text-sm text-navy-700">{order.customerName}</span>
+                <Badge tone={ORDER_TONE[order.status] ?? "neutral"}>
+                  {ORDER_STATUS_LABELS[order.status]}
+                </Badge>
+                <Badge tone={PAYMENT_TONE[order.paymentStatus] ?? "neutral"}>
+                  {PAYMENT_STATUS_LABELS[order.paymentStatus]}
+                </Badge>
+                <span className="ml-auto font-sans text-xs text-ink-muted">
+                  {formatCad(order.totalCents)} · {formatDate(order.placedAtIso)}
                 </span>
               </li>
             ))}

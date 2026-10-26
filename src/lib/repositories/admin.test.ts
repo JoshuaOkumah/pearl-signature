@@ -18,8 +18,14 @@ vi.mock("@/models/product", () => ({
   ProductRecord: {},
 }));
 
+vi.mock("@/models/order", () => ({
+  OrderModel: { find: vi.fn(), countDocuments: vi.fn(), aggregate: vi.fn() },
+  OrderRecord: {},
+}));
+
 import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
 import { CategoryModel } from "@/models/category";
+import { OrderModel } from "@/models/order";
 import { ProductModel } from "@/models/product";
 import {
   CATEGORY_VISIBILITY_POLICY,
@@ -64,6 +70,16 @@ const PRODUCT = {
   createdAt: new Date("2026-09-01T10:00:00.000Z"),
 };
 
+/** Hand-picked order projection as `getDashboardStats` reads it. */
+const ORDER = {
+  reference: "PS-1A2B3C4D5E",
+  customer: { fullName: "Ada Obi" },
+  status: "placed",
+  payment: { status: "unpaid" },
+  money: { totalCents: 4_938 },
+  createdAt: new Date("2026-10-02T10:00:00.000Z"),
+};
+
 interface Chain {
   sort: Mock;
   skip: Mock;
@@ -94,6 +110,9 @@ beforeEach(() => {
   vi.mocked(ProductModel.findById).mockReturnValue({ lean: async () => PRODUCT } as never);
   vi.mocked(ProductModel.countDocuments).mockResolvedValue(1 as never);
   vi.mocked(ProductModel.aggregate).mockResolvedValue([{ _id: CATEGORY_ID, count: 4 }] as never);
+  vi.mocked(OrderModel.find).mockImplementation(() => chain([]) as never);
+  vi.mocked(OrderModel.countDocuments).mockResolvedValue(0 as never);
+  vi.mocked(OrderModel.aggregate).mockResolvedValue([] as never);
 });
 
 describe("parseObjectId", () => {
@@ -296,6 +315,14 @@ describe("getDashboardStats", () => {
       return 0;
     }) as never);
 
+    // Order metrics: money grouped by PAYMENT state, never by lifecycle.
+    vi.mocked(OrderModel.aggregate).mockResolvedValue([
+      { _id: "paid", count: 2, cents: 9_000 },
+      { _id: "unpaid", count: 1, cents: 4_938 },
+    ] as never);
+    vi.mocked(OrderModel.countDocuments).mockResolvedValue(2 as never);
+    vi.mocked(OrderModel.find).mockImplementation(() => chain([ORDER]) as never);
+
     const stats = await getDashboardStats();
     expect(stats).toEqual({
       totalProducts: 4,
@@ -312,6 +339,23 @@ describe("getDashboardStats", () => {
           status: "published",
           availability: "available",
           updatedAt: "2026-10-01T10:00:00.000Z",
+        },
+      ],
+      orders: {
+        total: 3, // 2 paid + 1 unpaid, from the payment-status grouping
+        inProgress: 2,
+        awaitingPayment: 1,
+        unpaidCents: 4_938, // outstanding Cash on Arrival
+        collectedCents: 9_000, // paid ONLY
+      },
+      recentOrders: [
+        {
+          reference: "PS-1A2B3C4D5E",
+          customerName: "Ada Obi",
+          status: "placed",
+          paymentStatus: "unpaid",
+          totalCents: 4_938,
+          placedAtIso: "2026-10-02T10:00:00.000Z",
         },
       ],
     });

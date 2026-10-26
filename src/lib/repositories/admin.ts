@@ -2,14 +2,22 @@ import "server-only";
 import { Types } from "mongoose";
 import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
 import { CategoryModel, type CategoryRecord } from "@/models/category";
+import { OrderModel, type OrderRecord } from "@/models/order";
 import { ProductModel, type ProductRecord } from "@/models/product";
 import { formatCadInput } from "@/lib/validations/admin";
 import { escapeRegExp } from "@/lib/search";
 import {
   ADMIN_DEFAULT_PAGE_SIZE,
+  type AdminOrderQuery,
   type AdminProductQuery,
   type AdminSort,
 } from "@/lib/validations/admin";
+import {
+  ORDER_REFERENCE_PATTERN,
+  type OrderStatus,
+  type PaymentStatus,
+} from "@/lib/validations/order";
+import type { FulfillmentMethod } from "@/lib/validations/checkout";
 import type { ProductStatus } from "@/types";
 
 /**
@@ -74,6 +82,30 @@ export interface DashboardStats {
     status: ProductStatus;
     availability: "available" | "unavailable";
     updatedAt: string;
+  }>;
+  /**
+   * Real order metrics (Phase 5), aggregated from `orders` records only.
+   *
+   * `collectedCents` counts ONLY orders whose payment status is `paid`:
+   * an unpaid Cash on Arrival order is money the store has NOT received,
+   * so it lives in `unpaidCents` (outstanding) and never in collected
+   * revenue.
+   */
+  orders: {
+    total: number;
+    /** Placed → out for delivery (not yet completed or cancelled). */
+    inProgress: number;
+    awaitingPayment: number;
+    unpaidCents: number;
+    collectedCents: number;
+  };
+  recentOrders: Array<{
+    reference: string;
+    customerName: string;
+    status: OrderStatus;
+    paymentStatus: PaymentStatus;
+    totalCents: number;
+    placedAtIso: string;
   }>;
 }
 
@@ -287,20 +319,51 @@ export async function listCategoryOptions(): Promise<
 export async function getDashboardStats(): Promise<DashboardStats | null> {
   return safe("admin-stats", null, async () => {
     await connectDatabase();
-    const [totalProducts, publishedProducts, draftProducts, archivedProducts, unavailableProducts, categories, recent] =
-      await Promise.all([
-        ProductModel.countDocuments({}),
-        ProductModel.countDocuments({ status: "published" }),
-        ProductModel.countDocuments({ status: "draft" }),
-        ProductModel.countDocuments({ status: "archived" }),
-        ProductModel.countDocuments({ availability: "unavailable", status: { $ne: "archived" } }),
-        CategoryModel.find().select({ _id: 1, isActive: 1 }).lean(),
-        ProductModel.find()
-          .sort({ updatedAt: -1 })
-          .limit(5)
-          .select({ name: 1, status: 1, availability: 1, updatedAt: 1 })
-          .lean(),
-      ]);
+    const [
+      totalProducts,
+      publishedProducts,
+      draftProducts,
+      archivedProducts,
+      unavailableProducts,
+      categories,
+      recent,
+      paymentGroups,
+      ordersInProgress,
+      recentOrders,
+    ] = await Promise.all([
+      ProductModel.countDocuments({}),
+      ProductModel.countDocuments({ status: "published" }),
+      ProductModel.countDocuments({ status: "draft" }),
+      ProductModel.countDocuments({ status: "archived" }),
+      ProductModel.countDocuments({ availability: "unavailable", status: { $ne: "archived" } }),
+      CategoryModel.find().select({ _id: 1, isActive: 1 }).lean(),
+      ProductModel.find()
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .select({ name: 1, status: 1, availability: 1, updatedAt: 1 })
+        .lean(),
+      // Money totals grouped by PAYMENT state, so collected revenue can
+      // never include an order the store has not been paid for.
+      OrderModel.aggregate<{ _id: PaymentStatus; count: number; cents: number }>([
+        { $group: { _id: "$payment.status", count: { $sum: 1 }, cents: { $sum: "$money.totalCents" } } },
+      ]),
+      OrderModel.countDocuments({ status: { $nin: ["completed", "cancelled"] } }),
+      OrderModel.find()
+        .sort({ createdAt: -1, _id: -1 })
+        .limit(5)
+        .select({
+          reference: 1,
+          "customer.fullName": 1,
+          status: 1,
+          "payment.status": 1,
+          "money.totalCents": 1,
+          createdAt: 1,
+        })
+        .lean(),
+    ]);
+
+    const paid = paymentGroups.find((group) => group._id === "paid");
+    const unpaid = paymentGroups.find((group) => group._id === "unpaid");
 
     return {
       totalProducts,
@@ -317,6 +380,209 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
         availability: record.availability,
         updatedAt: record.updatedAt!.toISOString(),
       })),
+      orders: {
+        total: (paid?.count ?? 0) + (unpaid?.count ?? 0),
+        inProgress: ordersInProgress,
+        awaitingPayment: unpaid?.count ?? 0,
+        unpaidCents: unpaid?.cents ?? 0,
+        collectedCents: paid?.cents ?? 0,
+      },
+      recentOrders: recentOrders.map((record) => ({
+        reference: record.reference,
+        customerName: record.customer.fullName,
+        status: record.status,
+        paymentStatus: record.payment.status,
+        totalCents: record.money.totalCents,
+        placedAtIso: new Date(record.createdAt).toISOString(),
+      })),
+    };
+  });
+}
+
+/* ── orders (Phase 5) ───────────────────────────────────────────────── */
+
+export interface AdminOrderRow {
+  reference: string;
+  customerName: string;
+  customerEmail: string;
+  method: FulfillmentMethod;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  totalCents: number;
+  itemCount: number;
+  placedAtIso: string;
+}
+
+export interface AdminOrderList {
+  rows: AdminOrderRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface AdminOrderDetail extends AdminOrderRow {
+  phone: string;
+  address: {
+    line1: string;
+    line2: string | null;
+    city: string;
+    province: string;
+    postalCode: string;
+  } | null;
+  instructions: string | null;
+  customerNotes: string | null;
+  serviceAreaLabel: string | null;
+  pickupInstructions: string | null;
+  items: Array<{
+    name: string;
+    variantName: string | null;
+    quantity: number;
+    unitPriceCents: number;
+    lineTotalCents: number;
+  }>;
+  money: {
+    currency: "CAD";
+    subtotalCents: number;
+    deliveryFeeCents: number;
+    taxCents: number;
+    totalCents: number;
+    taxLabel: string | null;
+    taxRateBps: number | null;
+  };
+  payment: {
+    method: "cash_on_arrival";
+    status: PaymentStatus;
+    paidAtIso: string | null;
+    paidByLabel: string | null;
+  };
+  statusHistory: Array<{
+    from: OrderStatus | null;
+    to: OrderStatus;
+    atIso: string;
+    note: string | null;
+  }>;
+  adminNotes: Array<{ body: string; atIso: string }>;
+  cancellationReason: string | null;
+  version: number;
+  updatedAtIso: string;
+}
+
+function orderRowFromRecord(record: OrderRecord): AdminOrderRow {
+  return {
+    reference: record.reference,
+    customerName: record.customer.fullName,
+    customerEmail: record.customer.email,
+    method: record.fulfillment.method,
+    status: record.status,
+    paymentStatus: record.payment.status,
+    totalCents: record.money.totalCents,
+    itemCount: record.items.length,
+    placedAtIso: new Date(record.createdAt).toISOString(),
+  };
+}
+
+/**
+ * Paginated admin order list. Filtering happens in MongoDB (so the count
+ * and pagination are true matches) and the operator's search term is
+ * escaped before it becomes a regular expression — a reference search full
+ * of metacharacters matches literally instead of throwing.
+ */
+export async function listAdminOrders(query: AdminOrderQuery): Promise<AdminOrderList | null> {
+  return safe("admin-list-orders", null, async () => {
+    await connectDatabase();
+
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? ADMIN_DEFAULT_PAGE_SIZE;
+
+    const filter: Record<string, unknown> = {};
+    if (query.search) {
+      const pattern = new RegExp(escapeRegExp(query.search.slice(0, 100)), "i");
+      filter.$or = [
+        { reference: pattern },
+        { "customer.fullName": pattern },
+        { "customer.email": pattern },
+      ];
+    }
+    if (query.status) filter.status = query.status;
+    if (query.payment) filter["payment.status"] = query.payment;
+
+    const [records, total] = await Promise.all([
+      OrderModel.find(filter)
+        .sort({ createdAt: -1, _id: -1 })
+        .skip((page - 1) * pageSize)
+        .limit(pageSize)
+        .lean(),
+      OrderModel.countDocuments(filter),
+    ]);
+
+    const rows = records.map(orderRowFromRecord);
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    return { rows, total, page, pageSize, totalPages };
+  });
+}
+
+/** One order for the detail screen (everything it renders, nothing else). */
+export async function getAdminOrder(reference: string): Promise<AdminOrderDetail | null> {
+  const normalized = reference.trim().toUpperCase();
+  // A malformed reference never reaches a query.
+  if (!ORDER_REFERENCE_PATTERN.test(normalized)) return null;
+
+  return safe("admin-get-order", null, async () => {
+    await connectDatabase();
+    const record = await OrderModel.findOne({ reference: normalized }).lean();
+    if (!record) return null;
+    return {
+      ...orderRowFromRecord(record),
+      phone: record.customer.phone,
+      address: record.fulfillment.address
+        ? {
+            line1: record.fulfillment.address.line1,
+            line2: record.fulfillment.address.line2 ?? null,
+            city: record.fulfillment.address.city,
+            province: record.fulfillment.address.province,
+            postalCode: record.fulfillment.address.postalCode,
+          }
+        : null,
+      instructions: record.fulfillment.instructions ?? null,
+      customerNotes: record.fulfillment.notes ?? null,
+      serviceAreaLabel: record.fulfillment.serviceAreaLabel ?? null,
+      pickupInstructions: record.fulfillment.pickupInstructions ?? null,
+      items: record.items.map((item) => ({
+        name: item.name,
+        variantName: item.variantName ?? null,
+        quantity: item.quantity,
+        unitPriceCents: item.unitPriceCents,
+        lineTotalCents: item.lineTotalCents,
+      })),
+      money: {
+        currency: "CAD",
+        subtotalCents: record.money.subtotalCents,
+        deliveryFeeCents: record.money.deliveryFeeCents,
+        taxCents: record.money.taxCents,
+        totalCents: record.money.totalCents,
+        taxLabel: record.money.taxLabel ?? null,
+        taxRateBps: record.money.taxRateBps ?? null,
+      },
+      payment: {
+        method: record.payment.method,
+        status: record.payment.status,
+        paidAtIso: record.payment.paidAt ? new Date(record.payment.paidAt).toISOString() : null,
+        paidByLabel: record.payment.paidByLabel ?? null,
+      },
+      statusHistory: record.statusHistory.map((event) => ({
+        from: event.from ?? null,
+        to: event.to,
+        atIso: new Date(event.at).toISOString(),
+        note: event.note ?? null,
+      })),
+      adminNotes: record.notes.map((note) => ({
+        body: note.body,
+        atIso: new Date(note.at).toISOString(),
+      })),
+      cancellationReason: record.cancellationReason ?? null,
+      version: record.version,
+      updatedAtIso: new Date(record.updatedAt).toISOString(),
     };
   });
 }
