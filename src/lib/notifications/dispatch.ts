@@ -99,31 +99,46 @@ export async function enqueueOrderNotifications(
   reference: string,
 ): Promise<void> {
   try {
-    await connectDatabase();
-    const now = new Date();
-    for (const role of NOTIFICATION_EVENT_ROLES[event]) {
-      const key = notificationKey(event, reference, role);
-      await NotificationOutboxModel.updateOne(
-        { key },
-        {
-          $setOnInsert: {
-            key,
-            event,
-            reference,
-            recipientRole: role,
-            status: "pending",
-            attempts: 0,
-            lastReason: null,
-            nextAttemptAt: now,
-            sentAt: null,
-          },
-        },
-        { upsert: true },
-      );
-    }
+    await persistOrderNotifications(event, reference);
   } catch (error) {
     logDatabaseError("notification-enqueue", error);
   }
+}
+
+/** Durable variant for webhook acknowledgements: callers must retry the
+ * provider event if the outbox write cannot be committed. Delivery remains
+ * decoupled; only inserting its idempotent queue entry is required. */
+export async function persistOrderNotifications(
+  event: NotificationEvent,
+  reference: string,
+): Promise<void> {
+  await connectDatabase();
+  const now = new Date();
+  for (const role of NOTIFICATION_EVENT_ROLES[event]) {
+    const key = notificationKey(event, reference, role);
+    await NotificationOutboxModel.updateOne(
+      { key },
+      {
+        $setOnInsert: {
+          key,
+          event,
+          reference,
+          recipientRole: role,
+          status: "pending",
+          attempts: 0,
+          lastReason: null,
+          nextAttemptAt: now,
+          sentAt: null,
+        },
+      },
+      { upsert: true },
+    );
+  }
+}
+
+export async function notifyOrderEventDurably(event: NotificationEvent, reference: string): Promise<void> {
+  await persistOrderNotifications(event, reference);
+  void attemptDueNotifications();
 }
 
 /**

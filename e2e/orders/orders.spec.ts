@@ -259,7 +259,10 @@ test("A: a guest order lands in the database and in the owner's queue", async ({
   );
   await expect(page.getByText("E2E test HST")).toBeVisible();
   await expect(page.getByTestId("amount-due")).toHaveText(TOTAL_TWO_MEALS);
-  await expect(page.getByText("Nothing is paid online.")).toBeVisible();
+  await expect(page.getByText("You pay in full when your order is delivered or collected.")).toBeVisible();
+  // No Stripe test configuration exists in this harness, so the online action
+  // must be visibly unavailable rather than silently falling back.
+  await expect(page.locator("#payment-stripe")).toBeDisabled();
 
   await page.locator("#payment-cash").check();
   await page.getByTestId("place-order").click();
@@ -390,9 +393,13 @@ test("C: payment is recorded once and counted honestly", async ({ page, context 
   await page.goto("/admin");
   await expect(orderStat(page, "Orders")).toHaveText("2");
   await expect(orderStat(page, "In progress")).toHaveText("2");
-  await expect(orderStat(page, "Awaiting payment")).toHaveText("1");
-  await expect(orderStat(page, "Collected")).toHaveText(TOTAL_TWO_MEALS);
-  await expect(orderStat(page, "Outstanding")).toHaveText(TOTAL_LARGE);
+  await expect(orderStat(page, "Awaiting cash")).toHaveText("1");
+  await expect(orderStat(page, "Cash collected")).toHaveText(TOTAL_TWO_MEALS);
+  await expect(orderStat(page, "Cash outstanding")).toHaveText(TOTAL_LARGE);
+  await expect(orderStat(page, "Paid online")).toHaveText("0");
+  await expect(orderStat(page, "Gross collected")).toHaveText(TOTAL_TWO_MEALS);
+  await expect(orderStat(page, "Confirmed refunds")).toHaveText("$0.00 CAD");
+  await expect(orderStat(page, "Net collected")).toHaveText(TOTAL_TWO_MEALS);
 });
 
 /* ── D: lifecycle ───────────────────────────────────────────────────── */
@@ -515,9 +522,9 @@ test("D: both lifecycles advance legally and refuse everything else", async ({ p
   await page.goto("/admin");
   await expect(orderStat(page, "Orders")).toHaveText("3");
   await expect(orderStat(page, "In progress")).toHaveText("1");
-  await expect(orderStat(page, "Awaiting payment")).toHaveText("1");
-  await expect(orderStat(page, "Collected")).toHaveText(TOTAL_TWO_MEALS);
-  await expect(orderStat(page, "Outstanding")).toHaveText(TOTAL_ONE_MEAL_PICKUP);
+  await expect(orderStat(page, "Awaiting cash")).toHaveText("1");
+  await expect(orderStat(page, "Cash collected")).toHaveText(TOTAL_TWO_MEALS);
+  await expect(orderStat(page, "Cash outstanding")).toHaveText(TOTAL_ONE_MEAL_PICKUP);
 });
 
 /* ── E: security ────────────────────────────────────────────────────── */
@@ -616,4 +623,18 @@ test("E3: repeated order submissions are rate limited", async ({ page }) => {
   await expect(page.getByTestId("submit-error")).toContainText("Too many order attempts from this connection");
   await expect(page).toHaveURL(/\/checkout/);
   await expect(page.getByTestId("order-confirmation")).toHaveCount(0);
+});
+
+test("online payment stays unavailable without explicit Stripe test configuration and cash remains available", async ({ page }) => {
+  await seedCart(page, [meal(1)]);
+  await page.goto("/checkout");
+  await fillCustomer(page, "delivery");
+
+  const cash = page.locator("#payment-cash");
+  const online = page.locator("#payment-stripe");
+  await expect(cash).toBeEnabled();
+  await expect(online).toBeDisabled();
+  await expect(page.getByText("Online payment is not available yet. Cash on Arrival remains available.")).toBeVisible();
+  await cash.check();
+  await expect(page.getByTestId("place-order")).toBeEnabled();
 });

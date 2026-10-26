@@ -28,8 +28,9 @@ import { Schema, models, model, type InferSchemaType, type Model } from "mongoos
 export const ORDER_RATE_WINDOW_MS = 15 * 60 * 1_000;
 export const ORDER_CREATE_MAX_ATTEMPTS = 10;
 export const ORDER_LOOKUP_MAX_ATTEMPTS = 30;
+export const PAYMENT_CREATE_MAX_ATTEMPTS = 10;
 
-export const ORDER_RATE_SCOPES = ["order.create", "order.lookup"] as const;
+export const ORDER_RATE_SCOPES = ["order.create", "order.lookup", "payment.create"] as const;
 export type OrderRateScope = (typeof ORDER_RATE_SCOPES)[number];
 
 export const OrderAttemptSchema = new Schema(

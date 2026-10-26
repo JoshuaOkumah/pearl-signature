@@ -2,6 +2,7 @@
 
 import { getCheckoutSettings } from "@/lib/store/config";
 import type { CheckoutSettings } from "@/lib/validations/store-config";
+import { stripeReadiness } from "@/lib/payments/stripe";
 
 /**
  * Public checkout settings (Phase 5).
@@ -16,5 +17,9 @@ import type { CheckoutSettings } from "@/lib/validations/store-config";
  * the response never enters a shared cache.
  */
 export async function getCheckoutSettingsAction(): Promise<CheckoutSettings> {
-  return getCheckoutSettings();
+  const settings = await getCheckoutSettings();
+  return {
+    ...settings,
+    onlinePaymentsAvailable: settings.available && settings.onlinePaymentsEnabled && stripeReadiness().ready,
+  };
 }

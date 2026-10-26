@@ -1,4 +1,5 @@
 import type { CheckoutFormValues } from "@/lib/validations/checkout";
+import type { PaymentMethod } from "@/lib/validations/order";
 
 /**
  * Checkout-attempt identity and guest confirmation capabilities (Phase 5).
@@ -64,6 +65,7 @@ function randomHex(bytes: number): string {
 export function checkoutSignature(
   items: ReadonlyArray<{ slug: string; variantName: string | null; quantity: number }>,
   customer: CheckoutFormValues,
+  paymentMethod: PaymentMethod = "cash_on_arrival",
 ): string {
   const lines = items
     .map((item) => [item.slug, item.variantName ?? "", String(item.quantity)] as const)
@@ -83,6 +85,7 @@ export function checkoutSignature(
       customer.deliveryInstructions.trim(),
       customer.notes.trim(),
     ],
+    paymentMethod,
   ]);
 }
 

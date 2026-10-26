@@ -9,6 +9,7 @@ import { ORDER_REFERENCE_PATTERN } from "@/lib/validations/order";
 import { formatCad } from "@/lib/format";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { OrderActions } from "@/components/admin/order-actions";
+import { PaymentReconciliation } from "@/components/admin/payment-reconciliation";
 
 export const metadata: Metadata = {
   title: "Order detail",
@@ -30,7 +31,14 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 
 const PAYMENT_TONE: Record<string, BadgeTone> = {
   unpaid: "terracotta",
+  awaiting_payment: "gold",
+  processing: "gold",
   paid: "leaf",
+  failed: "terracotta",
+  expired: "terracotta",
+  partially_refunded: "gold",
+  refunded: "neutral",
+  review_required: "terracotta",
 };
 
 function formatDateTime(iso: string): string {
@@ -254,12 +262,32 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                 {PAYMENT_STATUS_LABELS[order.paymentStatus]}
               </p>
               <p className="mt-1 font-sans text-sm text-navy-700">
-                {order.payment.status === "paid"
-                  ? `Received ${formatDateTime(order.payment.paidAtIso ?? order.placedAtIso)}${
-                      order.payment.paidByLabel ? ` · recorded by ${order.payment.paidByLabel}` : ""
-                    }`
-                  : "Cash on Arrival: not yet received."}
+                Method: {order.payment.method === "stripe" ? "Online payment (Stripe)" : "Cash on Arrival"}
               </p>
+              {order.payment.amountReceivedCents > 0 ? (
+                <p className="mt-1 font-sans text-sm text-navy-700">
+                  Collected: {formatCad(order.payment.amountReceivedCents)}
+                  {order.payment.paidAtIso ? ` on ${formatDateTime(order.payment.paidAtIso)}` : ""}
+                  {order.payment.paidByLabel ? ` · recorded by ${order.payment.paidByLabel}` : ""}
+                </p>
+              ) : (
+                <p className="mt-1 font-sans text-sm text-ink-muted">
+                  {order.payment.method === "stripe" ? "No payment has been confirmed." : "Cash on Arrival: not yet received."}
+                </p>
+              )}
+              {order.payment.refundedAmountCents > 0 ? (
+                <p className="mt-1 font-sans text-sm text-terracotta-700">
+                  Confirmed refunds: {formatCad(order.payment.refundedAmountCents)}
+                </p>
+              ) : null}
+              {order.payment.method === "stripe" && order.payment.paymentIntentId ? (
+                <p className="mt-1 break-all font-sans text-xs text-ink-muted">PaymentIntent: {order.payment.paymentIntentId}</p>
+              ) : null}
+              {order.payment.requiresReview ? (
+                <p role="alert" className="mt-2 rounded-lg bg-terracotta-700/10 px-3 py-2 font-sans text-sm font-semibold text-terracotta-700">
+                  Payment needs review. Verify the provider record before taking action.
+                </p>
+              ) : null}
             </div>
           </Panel>
 
@@ -269,8 +297,53 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             method={order.method}
             allowed={allowed}
             paymentStatus={order.paymentStatus}
+            paymentMethod={order.payment.method}
+            totalCents={order.money.totalCents}
             version={order.version}
           />
+
+          {order.payment.method === "stripe" ? (
+            <Panel title="Online payment attempts">
+              {order.payment.attempts.length === 0 ? (
+                <p className="font-sans text-sm text-ink-muted">No Checkout Session attempts are recorded.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {order.payment.attempts.map((attempt) => (
+                    <li key={attempt.id} className="rounded-xl bg-cream-100 p-3">
+                      <p className="flex flex-wrap justify-between gap-2 font-sans text-sm font-semibold text-navy">
+                        <span>Attempt {attempt.sequence}: {attempt.status.replaceAll("_", " ")}</span>
+                        <span className="tabular-nums">{formatCad(attempt.amountCents)}</span>
+                      </p>
+                      <p className="mt-1 font-sans text-xs text-ink-muted">Started {formatDateTime(attempt.createdAtIso)}</p>
+                      {attempt.expiresAtIso ? <p className="font-sans text-xs text-ink-muted">Session expiry: {formatDateTime(attempt.expiresAtIso)}</p> : null}
+                      {attempt.checkoutSessionId ? <p className="mt-1 break-all font-sans text-xs text-ink-muted">Checkout Session: {attempt.checkoutSessionId}</p> : null}
+                      {attempt.paymentIntentId ? <p className="break-all font-sans text-xs text-ink-muted">PaymentIntent: {attempt.paymentIntentId}</p> : null}
+                      {attempt.failureCode ? <p className="mt-1 font-sans text-xs text-terracotta-700">Provider state: {attempt.failureCode.replaceAll("_", " ")}</p> : null}
+                      {attempt.succeededAtIso ? <p className="font-sans text-xs text-ink-muted">Confirmed {formatDateTime(attempt.succeededAtIso)}</p> : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {order.payment.refunds.length > 0 ? (
+                <div className="mt-4 border-t border-border pt-4">
+                  <h3 className="font-sans text-sm font-bold text-navy">Provider refund records</h3>
+                  <ul className="mt-2 space-y-2">
+                    {order.payment.refunds.map((refund) => (
+                      <li key={refund.stripeRefundId} className="flex flex-wrap justify-between gap-2 font-sans text-sm">
+                        <span>{refund.status.replaceAll("_", " ")} · {formatDateTime(refund.createdAtIso)}</span>
+                        <span className="tabular-nums">{formatCad(refund.amountCents)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <p className="mt-3 font-sans text-xs text-ink-muted">
+                Refunds are recorded from verified Stripe data only. Cancellation does not issue a refund.
+              </p>
+            </Panel>
+          ) : null}
+
+          {order.payment.method === "stripe" ? <PaymentReconciliation reference={order.reference} /> : null}
 
           <Panel title="Internal notes">
             {order.adminNotes.length === 0 ? (

@@ -11,10 +11,11 @@ This repository contains the public storefront and the private owner
 dashboard. It is a live commercial project — Phase 1 (project foundation,
 design system and interactive storefront), Phase 2 (catalogue data layer
 and product experience), Phase 3 (admin authentication, catalogue
-management and signed uploads), Phase 4 (guest cart and checkout review)
-and Phase 5 (order placement, Cash on Arrival and order management) are
-implemented. Stripe and deployment require later approval (see
-`docs/PHASE_PROGRESS.md`).
+management and signed uploads), Phase 4 (guest cart and checkout review),
+Phase 5 (order placement, Cash on Arrival and order management) and Phase 6
+(Stripe hosted Checkout, verified payment webhooks and reconciliation, test
+mode only) are implemented. Live payments and deployment require later
+approval (see `docs/PHASE_PROGRESS.md`).
 
 ---
 
@@ -34,15 +35,15 @@ implemented. Stripe and deployment require later approval (see
 | Admin auth | Argon2id (`@node-rs/argon2`) + DB-backed sessions (hashed opaque tokens) |
 | Guest cart | Versioned browser `localStorage` + read-only server quote action |
 | Orders | Snapshot documents in MongoDB: unique reference, idempotency key, optimistic concurrency |
-| Payments | Cash on Arrival recorded by the owner (no card data anywhere) |
-| Rate limiting | MongoDB attempt buckets with TTL (login, order placement, confirmation reads) |
+| Payments | Cash on Arrival recorded by the owner; Stripe hosted Checkout for online payment (test mode only, no card data on this site) |
+| Rate limiting | MongoDB attempt buckets with TTL (login, order placement, confirmation reads, payment initiation) |
 | Notifications | Outbox queue with bounded retries; no provider registered yet |
 | Unit tests | Vitest + React Testing Library |
 | E2E tests | Playwright (storefront, cart/checkout, disposable admin stack + disposable orders stack) |
 | Packages | npm |
 
-**Reserved for later phases:** Stripe. No Supabase/Firebase/Postgres; no
-paid services.
+**Reserved for later phases:** live Stripe activation, refund automation, a
+notification provider. No Supabase/Firebase/Postgres; no paid services.
 
 ## Requirements
 
@@ -73,6 +74,24 @@ Catalogue source rules: with `MONGODB_URI` set the site reads MongoDB;
 `CATALOGUE_SOURCE=fixtures` forces the labelled preview catalogue (dev/preview
 only); production without either shows an honest "temporarily unavailable"
 state — never silent fallbacks.
+
+## Environment
+
+Copy `.env.example` to `.env.local` and fill only what you need. The
+application builds and runs with none of it set.
+
+| Variable | Purpose |
+| --- | --- |
+| `MONGODB_URI` | Atlas connection string (server-only) |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Photo delivery and signed uploads |
+| `NEXT_PUBLIC_SITE_URL` | Canonical origin for metadata and payment return URLs |
+| `STRIPE_PAYMENTS_ENABLED` | Explicit server switch, must be exactly `true` to enable online payment |
+| `STRIPE_SECRET_KEY` | Stripe **test** secret key (`sk_test_*`); live keys are rejected |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret (`whsec_*`) |
+
+Online payment also needs the owner switch at `/admin/settings`, and it stays
+off until both are configured. Full setup, webhook registration and the manual
+test-mode pass: `docs/STRIPE_INTEGRATION.md`.
 
 ## Quality & test commands
 
@@ -107,6 +126,7 @@ src/
 │   ├── cart/               # Guest cart editing surface
 │   ├── checkout/           # Checkout review, pricing and order submission
 │   ├── order-confirmation/ # Guest confirmation behind an opaque capability
+│   ├── api/stripe/webhook/ # Signature-verified Stripe event endpoint (POST)
 │   ├── about/page.tsx
 │   ├── contact/page.tsx
 │   ├── admin/              # Owner dashboard: login, products, categories, orders, settings
@@ -126,15 +146,17 @@ src/
 ├── data/                   # Labelled preview fixtures (dev/preview only)
 ├── models/                 # Mongoose schemas (autoIndex off): category, product,
 │                           # admin, admin-session, login-attempt, audit-log,
-│                           # order, order-attempt, notification-outbox, store-config
+│                           # order, order-attempt, notification-outbox, store-config,
+│                           # payment-attempt, stripe-event, payment-refund
 ├── lib/
 │   ├── db/                 # Server-only Mongoose connection (cached, HMR-safe)
 │   ├── auth/               # Password (Argon2id), sessions, guards, rate limit, audit
 │   ├── cloudinary/         # Signed uploads + server-side asset verification
-│   ├── actions/            # Server Actions: login, catalogue, images, cart quote, orders
+│   ├── actions/            # Server Actions: login, catalogue, images, cart quote, orders, payments
 │   ├── cart/               # Guest cart store, quote reconciliation, limits, pricing rules
 │   ├── checkout/           # Order pricing, checkout readiness, attempt keys
 │   ├── orders/             # Order creation, lifecycle rules, public rate limiting
+│   ├── payments/           # Stripe readiness, Checkout sessions, verified events, reconciliation
 │   ├── notifications/      # Outbox dispatch, templates, provider registry seam
 │   ├── repositories/       # Catalogue read layer + admin list/dashboard queries
 │   ├── store/              # Owner-managed fulfilment, fee and tax configuration
@@ -250,11 +272,43 @@ management (see `docs/PHASE5_REPORT.md`, `docs/ORDER_ARCHITECTURE.md`,
   sit in a tested outbox that stays honestly `pending` until a provider is
   chosen.
 
+**Phase 6 — implemented in Stripe test mode, awaiting review:** online payment,
+verified webhooks and reconciliation (see `docs/PHASE6_REPORT.md`,
+`docs/STRIPE_INTEGRATION.md`, `docs/PAYMENT_LIFECYCLE.md` and
+`docs/PAYMENT_RECONCILIATION.md`):
+
+- Checkout now offers **Cash on arrival** or **Online payment**. The online
+  choice is visibly disabled with an honest message until a complete Stripe
+  test-mode configuration exists **and** the owner turns it on in
+  `/admin/settings`.
+- Payment is a hosted Stripe Checkout Session for the immutable order snapshot
+  total in CAD cents. No card form, no card data, and no browser-supplied
+  amount, fee, tax, currency or status is accepted.
+- A durable attempt with a stable idempotency key is written before the Stripe
+  call, so an ambiguous timeout cannot produce a second chargeable session;
+  retries reuse a valid open session and replace only a provider-confirmed
+  expired or failed one.
+- `/api/stripe/webhook` verifies the signature over the raw body and records
+  every event durably before changing financial state. Duplicate and
+  out-of-order events cannot corrupt a paid order; a completed but unpaid
+  session becomes `processing`, not `paid`; a late payment after cancellation
+  is retained, flagged for review and never resurrects the order.
+- Refunds are recorded from verified provider events only. No refund is
+  initiated, offered or automated, and cancelling an order is not a refund.
+- The admin shows payment detail, attempt history, provider refunds and a
+  dry-run-first reconciliation control whose apply step requires a second
+  confirmation and is audited. The dashboard separates online settlement,
+  cash collection, outstanding, pending, failed, refunds, gross and net.
+- 713 Vitest tests (52 files) and 88 Playwright tests pass; the new orders test
+  proves online payment stays unavailable without explicit test configuration.
+  A genuine Stripe test-mode payment has **not** been executed in this
+  environment; the operator steps are in `docs/STRIPE_INTEGRATION.md` §11.
+
 Hosted Atlas and real Cloudinary verification remain pending owner-supplied
 credentials. Prices, delivery areas, pickup arrangements, business hours and
 contact details remain pending until supplied by the business
-(`docs/BUSINESS_CONFIGURATION.md` carries the pre-launch checklist). Stripe
-and deployment require explicit approval for a later phase.
+(`docs/BUSINESS_CONFIGURATION.md` carries the pre-launch checklist). Live
+Stripe activation and deployment require explicit approval for a later phase.
 
 ## Documentation
 
@@ -262,12 +316,18 @@ and deployment require explicit approval for a later phase.
 | --- | --- |
 | `docs/PROJECT_SPEC.md` | Business requirements, features, unresolved details |
 | `docs/DESIGN_SYSTEM.md` | Colours, typography, spacing, motion, a11y, imagery |
-| `docs/PHASE_PROGRESS.md` | Phase 1–5 results, verification log and approval boundary |
+| `docs/PHASE_PROGRESS.md` | Phase 1–6 results, verification log and approval boundary |
 | `docs/PHASE1B_REMEDIATION_REPORT.md` | Root causes, fixes, verification and evidence for the mobile remediation |
 | `docs/PHASE2_REPORT.md` | Phase 2 implementation report (sections A–L) |
 | `docs/PHASE3_REPORT.md` | Phase 3 implementation report (sections A–M) |
 | `docs/PHASE4_REPORT.md` | Phase 4 implementation report (sections A–O) |
 | `docs/PHASE5_REPORT.md` | Phase 5 implementation report (sections A–O) |
+| `docs/PHASE6_SPEC.md` | Phase 6 requirements snapshot |
+| `docs/PHASE6_PROGRESS.md` | Phase 6 milestones, integration map and verification log |
+| `docs/PHASE6_REPORT.md` | Phase 6 implementation report (sections A–S) |
+| `docs/STRIPE_INTEGRATION.md` | Stripe configuration, readiness gates, session shape and test-mode pass |
+| `docs/PAYMENT_LIFECYCLE.md` | Payment states, event mapping, monotonicity and refund foundations |
+| `docs/PAYMENT_RECONCILIATION.md` | Dry-run/apply reconciliation, safety properties and limits |
 | `docs/ORDER_ARCHITECTURE.md` | Order placement pipeline, request contract, idempotency and rate limits |
 | `docs/ORDER_LIFECYCLE.md` | Status graph, method-aware rules, refusals and concurrency |
 | `docs/CASH_ON_ARRIVAL.md` | Payment recording, dashboard accounting rules and exclusions |

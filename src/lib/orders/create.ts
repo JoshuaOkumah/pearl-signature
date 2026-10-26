@@ -6,6 +6,7 @@ import { checkoutBlockers, matchServiceArea, priceCheckout } from "@/lib/checkou
 import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
 import { getCheckoutSettings } from "@/lib/store/config";
 import { notifyOrderEvent } from "@/lib/notifications/dispatch";
+import { stripeReadiness } from "@/lib/payments/stripe";
 import { OrderModel, type OrderRecord } from "@/models/order";
 import { ProductModel } from "@/models/product";
 import { normalizePostalCode } from "@/lib/validations/checkout";
@@ -130,6 +131,9 @@ export async function createOrder(request: PlaceOrderRequest): Promise<PlaceOrde
   if (readiness.length > 0) {
     return { ok: false, reason: "blocked", blocker: readiness[0] };
   }
+  if (request.paymentMethod === "stripe" && (!settings.onlinePaymentsEnabled || !stripeReadiness().ready)) {
+    return { ok: false, reason: "payment_unavailable" };
+  }
 
   // 2. Authoritative re-quote of the cart against the live catalogue.
   const quoteResponse = await quoteCart({ items: request.items });
@@ -246,6 +250,7 @@ export async function createOrder(request: PlaceOrderRequest): Promise<PlaceOrde
     payment: {
       method: request.paymentMethod,
       status: "unpaid" as const,
+      provider: request.paymentMethod === "stripe" ? "stripe" as const : "none" as const,
     },
     status: "placed" as const,
     statusHistory: [{ from: null, to: "placed" as const, at: now, adminId: null, note: null }],

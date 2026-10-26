@@ -35,6 +35,7 @@ export const AUDIT_EVENTS = [
   "order.status_changed",
   "order.payment_recorded",
   "order.note_added",
+  "payment.reconciled",
 ] as const;
 
 export type AuditEvent = (typeof AUDIT_EVENTS)[number];

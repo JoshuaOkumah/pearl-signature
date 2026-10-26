@@ -3,6 +3,8 @@ import { Types } from "mongoose";
 import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
 import { CategoryModel, type CategoryRecord } from "@/models/category";
 import { OrderModel, type OrderRecord } from "@/models/order";
+import { PaymentAttemptModel } from "@/models/payment-attempt";
+import { PaymentRefundModel } from "@/models/payment-refund";
 import { ProductModel, type ProductRecord } from "@/models/product";
 import { formatCadInput } from "@/lib/validations/admin";
 import { escapeRegExp } from "@/lib/search";
@@ -15,6 +17,7 @@ import {
 import {
   ORDER_REFERENCE_PATTERN,
   type OrderStatus,
+  type PaymentMethod,
   type PaymentStatus,
 } from "@/lib/validations/order";
 import type { FulfillmentMethod } from "@/lib/validations/checkout";
@@ -86,12 +89,8 @@ export interface DashboardStats {
   /**
    * Real order metrics (Phase 5), aggregated from `orders` records only.
    *
-   * `collectedCents` counts ONLY orders whose payment status is `paid`:
-   * an unpaid Cash on Arrival order is money the store has NOT received,
-   * so it lives in `unpaidCents` (outstanding) and never in collected
-   * revenue. A CANCELLED order is no longer money anyone owes, so it is
-   * excluded from the outstanding figures (while staying in the all-time
-   * order count, and in collected revenue if it really was paid).
+    * Collections derive from the amount recorded on each order once, not
+    * from attempt rows. Verified refunds are presented separately from gross.
    */
   orders: {
     total: number;
@@ -100,12 +99,21 @@ export interface DashboardStats {
     awaitingPayment: number;
     unpaidCents: number;
     collectedCents: number;
+    paidOnlineOrders: number;
+    paidOnlineCents: number;
+    cashCollectedCents: number;
+    grossCollectedCents: number;
+    refundedCents: number;
+    netCollectedCents: number;
+    pendingOnlineOrders: number;
+    failedOnlineOrders: number;
   };
   recentOrders: Array<{
     reference: string;
     customerName: string;
     status: OrderStatus;
     paymentStatus: PaymentStatus;
+    paymentMethod: PaymentMethod;
     totalCents: number;
     placedAtIso: string;
   }>;
@@ -350,18 +358,46 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
       // longer money anyone owes, so it must never appear in the
       // outstanding figures even though it still counts as an order.
       OrderModel.aggregate<{
-        _id: { payment: PaymentStatus | null; cancelled: boolean };
+        _id: { method: PaymentMethod | null; payment: PaymentStatus | null; cancelled: boolean };
         count: number;
         cents: number;
+        refundedCents: number;
       }>([
         {
           $group: {
             _id: {
+              method: "$payment.method",
               payment: "$payment.status",
               cancelled: { $eq: ["$status", "cancelled"] },
             },
             count: { $sum: 1 },
-            cents: { $sum: "$money.totalCents" },
+            cents: {
+              $sum: {
+                $cond: [
+                  { $in: ["$payment.status", ["paid", "partially_refunded", "refunded"]] },
+                  {
+                    $cond: [
+                      { $gt: [{ $ifNull: ["$payment.amountReceivedCents", 0] }, 0] },
+                      "$payment.amountReceivedCents",
+                      "$money.totalCents",
+                    ],
+                  },
+                  {
+                    $cond: [
+                      {
+                        $and: [
+                          { $eq: ["$payment.method", "cash_on_arrival"] },
+                          { $eq: ["$payment.status", "unpaid"] },
+                        ],
+                      },
+                      "$money.totalCents",
+                      0,
+                    ],
+                  },
+                ],
+              },
+            },
+            refundedCents: { $sum: { $ifNull: ["$payment.refundedAmountCents", 0] } },
           },
         },
       ]),
@@ -374,18 +410,28 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
           "customer.fullName": 1,
           status: 1,
           "payment.status": 1,
+          "payment.method": 1,
           "money.totalCents": 1,
           createdAt: 1,
         })
         .lean(),
     ]);
 
-    // Group keys are `{ payment, cancelled }` (see the aggregation above).
-    const paidGroups = paymentGroups.filter((group) => group._id.payment === "paid");
+    // Group keys are `{ method, payment, cancelled }`.
+    const paidGroups = paymentGroups.filter((group) => ["paid", "partially_refunded", "refunded"].includes(group._id.payment ?? ""));
+    const paidOnlineGroups = paidGroups.filter((group) => group._id.method === "stripe");
+    const paidCashGroups = paidGroups.filter((group) => !group._id.method || group._id.method === "cash_on_arrival");
+    const refundedCents = paidGroups.reduce((total, group) => total + (group.refundedCents ?? 0), 0);
     // Unpaid AND not cancelled: a cancelled order is nobody's outstanding
     // cash any more, however it ended.
     const outstandingGroups = paymentGroups.filter(
-      (group) => group._id.payment === "unpaid" && !group._id.cancelled,
+      (group) => (!group._id.method || group._id.method === "cash_on_arrival") && group._id.payment === "unpaid" && !group._id.cancelled,
+    );
+    const pendingOnlineGroups = paymentGroups.filter(
+      (group) => group._id.method === "stripe" && ["awaiting_payment", "processing", "unpaid"].includes(group._id.payment ?? ""),
+    );
+    const failedOnlineGroups = paymentGroups.filter(
+      (group) => group._id.method === "stripe" && ["failed", "expired"].includes(group._id.payment ?? ""),
     );
     const countOf = (groups: typeof paymentGroups): number =>
       groups.reduce((total, group) => total + group.count, 0);
@@ -413,12 +459,21 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
         awaitingPayment: countOf(outstandingGroups),
         unpaidCents: centsOf(outstandingGroups),
         collectedCents: centsOf(paidGroups),
+        paidOnlineOrders: countOf(paidOnlineGroups),
+        paidOnlineCents: centsOf(paidOnlineGroups),
+        cashCollectedCents: centsOf(paidCashGroups),
+        grossCollectedCents: centsOf(paidGroups),
+        refundedCents,
+        netCollectedCents: centsOf(paidGroups) - refundedCents,
+        pendingOnlineOrders: countOf(pendingOnlineGroups),
+        failedOnlineOrders: countOf(failedOnlineGroups),
       },
       recentOrders: recentOrders.map((record) => ({
         reference: record.reference,
         customerName: record.customer.fullName,
         status: record.status,
         paymentStatus: record.payment.status,
+        paymentMethod: record.payment.method ?? "cash_on_arrival",
         totalCents: record.money.totalCents,
         placedAtIso: new Date(record.createdAt).toISOString(),
       })),
@@ -435,6 +490,7 @@ export interface AdminOrderRow {
   method: FulfillmentMethod;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod;
   totalCents: number;
   itemCount: number;
   placedAtIso: string;
@@ -478,10 +534,37 @@ export interface AdminOrderDetail extends AdminOrderRow {
     taxRateBps: number | null;
   };
   payment: {
-    method: "cash_on_arrival";
+    method: PaymentMethod;
     status: PaymentStatus;
+    provider: "none" | "stripe";
     paidAtIso: string | null;
     paidByLabel: string | null;
+    amountReceivedCents: number;
+    refundedAmountCents: number;
+    stripeSessionId: string | null;
+    paymentIntentId: string | null;
+    requiresReview: boolean;
+    reconciliationStatus: "not_checked" | "matched" | "mismatch" | "error";
+    lastReconciledAtIso: string | null;
+    attempts: Array<{
+      id: string;
+      sequence: number;
+      status: string;
+      amountCents: number;
+      checkoutSessionId: string | null;
+      paymentIntentId: string | null;
+      failureCode: string | null;
+      createdAtIso: string;
+      expiresAtIso: string | null;
+      succeededAtIso: string | null;
+      reconciliationStatus: string;
+    }>;
+    refunds: Array<{
+      stripeRefundId: string;
+      amountCents: number;
+      status: string;
+      createdAtIso: string;
+    }>;
   };
   statusHistory: Array<{
     from: OrderStatus | null;
@@ -503,6 +586,7 @@ function orderRowFromRecord(record: OrderRecord): AdminOrderRow {
     method: record.fulfillment.method,
     status: record.status,
     paymentStatus: record.payment.status,
+    paymentMethod: record.payment.method,
     totalCents: record.money.totalCents,
     itemCount: record.items.length,
     placedAtIso: new Date(record.createdAt).toISOString(),
@@ -559,6 +643,10 @@ export async function getAdminOrder(reference: string): Promise<AdminOrderDetail
     await connectDatabase();
     const record = await OrderModel.findOne({ reference: normalized }).lean();
     if (!record) return null;
+    const [attempts, refunds] = await Promise.all([
+      PaymentAttemptModel.find({ orderId: String(record._id) }).sort({ sequence: -1 }).limit(5).lean(),
+      PaymentRefundModel.find({ orderId: String(record._id) }).sort({ providerCreatedAt: -1 }).limit(10).lean(),
+    ]);
     return {
       ...orderRowFromRecord(record),
       phone: record.customer.phone,
@@ -594,8 +682,35 @@ export async function getAdminOrder(reference: string): Promise<AdminOrderDetail
       payment: {
         method: record.payment.method,
         status: record.payment.status,
+        provider: record.payment.provider ?? "none",
         paidAtIso: record.payment.paidAt ? new Date(record.payment.paidAt).toISOString() : null,
         paidByLabel: record.payment.paidByLabel ?? null,
+        amountReceivedCents: record.payment.amountReceivedCents ?? (record.payment.status === "paid" ? record.money.totalCents : 0),
+        refundedAmountCents: record.payment.refundedAmountCents ?? 0,
+        stripeSessionId: record.payment.stripeSessionId ?? null,
+        paymentIntentId: record.payment.paymentIntentId ?? null,
+        requiresReview: record.payment.requiresReview ?? false,
+        reconciliationStatus: record.payment.reconciliationStatus ?? "not_checked",
+        lastReconciledAtIso: record.payment.lastReconciledAt ? new Date(record.payment.lastReconciledAt).toISOString() : null,
+        attempts: attempts.map((attempt) => ({
+          id: String(attempt._id),
+          sequence: attempt.sequence,
+          status: attempt.status,
+          amountCents: attempt.amountCents,
+          checkoutSessionId: attempt.checkoutSessionId ?? null,
+          paymentIntentId: attempt.paymentIntentId ?? null,
+          failureCode: attempt.failureCode ?? null,
+          createdAtIso: new Date(attempt.createdAt).toISOString(),
+          expiresAtIso: attempt.expiresAt ? new Date(attempt.expiresAt).toISOString() : null,
+          succeededAtIso: attempt.succeededAt ? new Date(attempt.succeededAt).toISOString() : null,
+          reconciliationStatus: attempt.reconciliationStatus,
+        })),
+        refunds: refunds.map((refund) => ({
+          stripeRefundId: refund.stripeRefundId,
+          amountCents: refund.amountCents,
+          status: refund.status,
+          createdAtIso: new Date(refund.providerCreatedAt).toISOString(),
+        })),
       },
       statusHistory: record.statusHistory.map((event) => ({
         from: event.from ?? null,

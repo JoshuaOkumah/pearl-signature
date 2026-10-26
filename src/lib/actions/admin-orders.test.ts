@@ -518,6 +518,18 @@ describe("recordPaymentAction (Cash on Arrival)", () => {
       error: "That order could not be found. Reload the page and try again.",
     });
   });
+
+  it("never lets the manual Cash on Arrival action record a Stripe order", async () => {
+    const order = await makeOrder({ payment: { method: "stripe", provider: "stripe", status: "unpaid" } });
+    const result = await recordPaymentAction({ ok: false }, paymentForm(order.reference, 1));
+    expect(result).toEqual({
+      ok: false,
+      error: "Online payments are recorded from verified Stripe events, not by hand.",
+    });
+    const stored = await freshOrder(order.reference);
+    expect(stored.payment.status).toBe("unpaid");
+    expect(stored.payment.amountReceivedCents).toBe(0);
+  });
 });
 
 /* ── operational notes ──────────────────────────────────────────────── */

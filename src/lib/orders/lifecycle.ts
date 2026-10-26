@@ -1,5 +1,5 @@
 import type { FulfillmentMethod } from "@/lib/validations/checkout";
-import type { OrderStatus } from "@/lib/validations/order";
+import { PAYMENT_STATUS_LABELS, type OrderStatus } from "@/lib/validations/order";
 
 /**
  * Order lifecycle rules (Phase 5, Milestones C/D) — pure and isomorphic.
@@ -56,10 +56,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: "Cancelled",
 };
 
-export const PAYMENT_STATUS_LABELS: Record<"unpaid" | "paid", string> = {
-  unpaid: "Unpaid",
-  paid: "Paid",
-};
+export { PAYMENT_STATUS_LABELS };
 
 /** A terminal state accepts no further transitions. */
 export function isTerminalStatus(status: OrderStatus): boolean {

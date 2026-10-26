@@ -24,6 +24,7 @@ import { CheckboxField, FormAlert, SelectField, TextAreaField, TextField } from 
 
 export interface SettingsFormValues {
   orderIntakeEnabled: boolean;
+  onlinePaymentsEnabled: boolean;
   deliveryEnabled: boolean;
   serviceAreas: Array<{
     label: string;
@@ -159,6 +160,23 @@ export function StoreSettingsForm({ initial }: { initial: SettingsFormValues }) 
             label="Accept orders from customers"
             hint="Requires at least one fulfilment method and a confirmed tax treatment."
             defaultChecked={initial.orderIntakeEnabled}
+          />
+        </div>
+      </section>
+
+      <section aria-label="Online payments" className="rounded-2xl border border-border bg-surface p-5">
+        <h2 className="font-sans text-base font-bold text-navy">Online payment</h2>
+        <p className="mt-1 font-sans text-sm text-ink-muted">
+          This business switch is off by default. Online payment is offered only when Stripe test-mode
+          configuration is complete. Live Stripe payments are disabled in this release.
+        </p>
+        <div className="mt-4">
+          <CheckboxField
+            id="online-payments-enabled"
+            name="onlinePaymentsEnabled"
+            label="Offer Stripe online payment"
+            hint="This does not enable live payments. Cash on Arrival remains a separate choice."
+            defaultChecked={initial.onlinePaymentsEnabled}
           />
         </div>
       </section>

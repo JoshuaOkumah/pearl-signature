@@ -7,6 +7,7 @@ import {
   ORDER_REFERENCE_PATTERN,
   ORDER_STATUSES,
   PAYMENT_METHODS,
+  PAYMENT_PROVIDERS,
   PAYMENT_STATUSES,
 } from "@/lib/validations/order";
 
@@ -60,7 +61,7 @@ import {
  * is isomorphic and must never import mongoose.
  */
 export { ORDER_STATUSES, PAYMENT_METHODS, PAYMENT_STATUSES };
-export type { OrderStatus, PaymentMethod, PaymentStatus } from "@/lib/validations/order";
+export type { OrderStatus, PaymentMethod, PaymentStatus, PaymentProvider } from "@/lib/validations/order";
 
 const OrderItemSchema = new Schema(
   {
@@ -257,8 +258,35 @@ export const OrderSchema = new Schema(
         {
           method: { type: String, enum: PAYMENT_METHODS, required: true, default: "cash_on_arrival" },
           status: { type: String, enum: PAYMENT_STATUSES, required: true, default: "unpaid" },
+          provider: { type: String, enum: PAYMENT_PROVIDERS, required: true, default: "none" },
           /** When an admin recorded that payment was received. */
           paidAt: { type: Date, default: null },
+          amountReceivedCents: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
+            max: 99_999_999,
+            validate: { validator: Number.isInteger, message: "Received amount must be whole cents" },
+          },
+          refundedAmountCents: {
+            type: Number,
+            required: true,
+            default: 0,
+            min: 0,
+            max: 99_999_999,
+            validate: { validator: Number.isInteger, message: "Refund amount must be whole cents" },
+          },
+          stripeSessionId: { type: String, default: null, maxlength: 255 },
+          paymentIntentId: { type: String, default: null, maxlength: 255 },
+          requiresReview: { type: Boolean, required: true, default: false },
+          reconciliationStatus: {
+            type: String,
+            enum: ["not_checked", "matched", "mismatch", "error"],
+            required: true,
+            default: "not_checked",
+          },
+          lastReconciledAt: { type: Date, default: null },
           /** The admin who recorded it. */
           paidByAdminId: { type: String, default: null, maxlength: 64 },
           paidByLabel: { type: String, default: null, maxlength: 160 },

@@ -163,6 +163,9 @@ export async function recordPaymentAction(
     const order = await OrderModel.findOne({ reference: input.reference }).lean();
     if (!order) return NOT_FOUND;
     if (order.version !== input.expectedVersion) return CONFLICT;
+    if (order.payment.method !== "cash_on_arrival") {
+      return { ok: false, error: "Online payments are recorded from verified Stripe events, not by hand." };
+    }
     if (order.payment.status === "paid") {
       return { ok: false, conflict: true, error: "Payment has already been recorded for this order." };
     }
@@ -173,6 +176,8 @@ export async function recordPaymentAction(
       {
         $set: {
           "payment.status": "paid",
+          "payment.amountReceivedCents": order.money.totalCents,
+          "payment.provider": "none",
           "payment.paidAt": new Date(),
           "payment.paidByAdminId": adminId,
           "payment.paidByLabel": guard.admin.email,

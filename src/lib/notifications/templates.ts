@@ -1,7 +1,7 @@
 import { formatCad } from "@/lib/format";
 import { ORDER_STATUS_LABELS } from "@/lib/orders/lifecycle";
 import type { FulfillmentMethod } from "@/lib/validations/checkout";
-import type { OrderStatus } from "@/lib/validations/order";
+import type { OrderStatus, PaymentMethod, PaymentStatus } from "@/lib/validations/order";
 
 /**
  * Notification events and message copy (Phase 5, Milestone E).
@@ -28,7 +28,14 @@ import type { OrderStatus } from "@/lib/validations/order";
  */
 
 /** Events that ever enter the outbox, in the order they can occur. */
-export const NOTIFICATION_EVENTS = ["order.placed", "order.status_changed"] as const;
+export const NOTIFICATION_EVENTS = [
+  "order.placed",
+  "order.status_changed",
+  "payment.confirmed",
+  "payment.failed",
+  "payment.requires_attention",
+  "payment.refund_review",
+] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
 /** Who a message is written for. One order can notify both roles. */
@@ -43,6 +50,10 @@ export type NotificationRecipientRole = (typeof NOTIFICATION_RECIPIENT_ROLES)[nu
 export const NOTIFICATION_EVENT_ROLES: Record<NotificationEvent, readonly NotificationRecipientRole[]> = {
   "order.placed": ["customer", "admin"],
   "order.status_changed": ["customer"],
+  "payment.confirmed": ["customer"],
+  "payment.failed": ["customer"],
+  "payment.requires_attention": ["admin"],
+  "payment.refund_review": ["admin"],
 };
 
 /**
@@ -68,6 +79,8 @@ export interface NotificationOrderFacts {
   method: FulfillmentMethod;
   totalCents: number;
   customerName: string;
+  paymentMethod?: PaymentMethod;
+  paymentStatus?: PaymentStatus;
 }
 
 export interface NotificationMessage {
@@ -123,6 +136,34 @@ export function buildNotification(
         `Fulfilment: ${fulfilment}`,
         `Status: ${status}`,
       ].join("\n"),
+    };
+  }
+
+  if (event === "payment.confirmed") {
+    return {
+      subject: `Payment received for order ${order.reference}`,
+      text: [`Hello ${order.customerName},`, "", `Payment for order ${order.reference} has been confirmed.`, `Total: ${total}`].join("\n"),
+    };
+  }
+
+  if (event === "payment.failed") {
+    return {
+      subject: `Payment not completed for order ${order.reference}`,
+      text: [`Hello ${order.customerName},`, "", `Payment for order ${order.reference} was not completed. You can return to your order to try again.`, `Total: ${total}`].join("\n"),
+    };
+  }
+
+  if (event === "payment.refund_review") {
+    return {
+      subject: `Payment review required for order ${order.reference}`,
+      text: [`Order ${order.reference} was cancelled after an online payment was confirmed.`, "", "Review the Stripe payment and determine the appropriate refund action. No refund was initiated automatically."].join("\n"),
+    };
+  }
+
+  if (event === "payment.requires_attention") {
+    return {
+      subject: `Payment needs review for order ${order.reference}`,
+      text: [`The payment provider reported a payment that needs review for order ${order.reference}.`, "", "Verify the payment in Stripe before taking any financial action."].join("\n"),
     };
   }
 

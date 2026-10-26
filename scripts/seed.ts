@@ -31,6 +31,9 @@ import { OrderModel } from "../src/models/order";
 import { OrderAttemptModel } from "../src/models/order-attempt";
 import { NotificationOutboxModel } from "../src/models/notification-outbox";
 import { StoreConfigModel } from "../src/models/store-config";
+import { PaymentAttemptModel } from "../src/models/payment-attempt";
+import { StripeEventModel } from "../src/models/stripe-event";
+import { PaymentRefundModel } from "../src/models/payment-refund";
 import { categories } from "../src/data/categories";
 import { products } from "../src/data/products";
 import { loadEnvLocal } from "./load-env-local";
@@ -174,6 +177,11 @@ async function seed(): Promise<void> {
     await OrderAttemptModel.createIndexes();
     await StoreConfigModel.createIndexes();
     await NotificationOutboxModel.createIndexes();
+    // Phase 6: durable provider attempts and event/refund references. These
+    // unique indexes are required for concurrency and event idempotency.
+    await PaymentAttemptModel.createIndexes();
+    await StripeEventModel.createIndexes();
+    await PaymentRefundModel.createIndexes();
 
     console.log(
       `[seed] Done. Categories: ${categories.length - categoriesInserted} existing, ` +

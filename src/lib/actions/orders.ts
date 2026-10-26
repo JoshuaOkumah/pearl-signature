@@ -5,13 +5,19 @@ import { headers } from "next/headers";
 import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
 import { createOrder } from "@/lib/orders/create";
 import { consumeOrderRateLimit } from "@/lib/orders/rate-limit";
+import { startStripeCheckout } from "@/lib/payments/service";
+import { stripeReadiness } from "@/lib/payments/stripe";
+import { getCheckoutSettings } from "@/lib/store/config";
 import { OrderModel, type OrderRecord } from "@/models/order";
+import { PaymentAttemptModel, type PaymentAttemptRecord } from "@/models/payment-attempt";
 import {
   orderConfirmationRequestSchema,
   placeOrderRequestSchema,
+  startPaymentRequestSchema,
   type OrderConfirmationResponse,
   type OrderConfirmationView,
   type PlaceOrderResponse,
+  type StartPaymentActionResponse,
 } from "@/lib/validations/order";
 import { ORDER_RATE_WINDOW_MS } from "@/models/order-attempt";
 
@@ -67,6 +73,16 @@ export async function placeOrderAction(payload: unknown): Promise<PlaceOrderResp
   return createOrder(parsed.data);
 }
 
+/** Initialize or safely reuse a hosted Stripe session for an existing order. */
+export async function startStripeCheckoutAction(payload: unknown): Promise<StartPaymentActionResponse> {
+  const now = Date.now();
+  const limit = await consumeOrderRateLimit("payment.create", await clientAddress(), now);
+  if (!limit.allowed) return { ok: false, reason: "rate_limited" };
+  const parsed = startPaymentRequestSchema.safeParse(payload);
+  if (!parsed.success) return { ok: false, reason: "invalid" };
+  return startStripeCheckout(parsed.data.reference, parsed.data.accessKey);
+}
+
 /* ── guest confirmation read ────────────────────────────────────────── */
 
 /**
@@ -104,7 +120,26 @@ export async function loadOrderConfirmationAction(
     }).lean()) as OrderRecord | null;
 
     if (!order) return { ok: false, reason: "not_found" };
-    return { ok: true, order: toConfirmationView(order) };
+    const attemptsPromise: Promise<PaymentAttemptRecord[]> = order.payment.method === "stripe"
+      ? PaymentAttemptModel.find({ orderId: String(order._id) })
+            .sort({ sequence: -1, _id: -1 })
+            .limit(5)
+            .select({ status: 1, createdAt: 1, expiresAt: 1, failureCode: 1 })
+            .lean()
+            .exec() as Promise<PaymentAttemptRecord[]>
+      : Promise.resolve([]);
+    const [attempts, settings] = await Promise.all([
+      attemptsPromise,
+      order.payment.method === "stripe" ? getCheckoutSettings() : Promise.resolve(null),
+    ]);
+    return {
+      ok: true,
+      order: toConfirmationView(
+        order,
+        attempts,
+        settings?.onlinePaymentsEnabled === true && stripeReadiness().ready,
+      ),
+    };
   } catch (error) {
     logDatabaseError("order-confirmation", error);
     return { ok: false, reason: "unavailable" };
@@ -116,7 +151,11 @@ function hashConfirmationKey(key: string): string {
   return createHash("sha256").update(key, "utf8").digest("hex");
 }
 
-function toConfirmationView(order: OrderRecord): OrderConfirmationView {
+function toConfirmationView(
+  order: OrderRecord,
+  attempts: Array<{ status: string; createdAt: Date; expiresAt?: Date | null; failureCode?: string | null }>,
+  onlineEnabled: boolean,
+): OrderConfirmationView {
   return {
     reference: order.reference,
     status: order.status,
@@ -144,6 +183,22 @@ function toConfirmationView(order: OrderRecord): OrderConfirmationView {
     payment: {
       method: order.payment.method,
       status: order.payment.status,
+      provider: order.payment.provider ?? (order.payment.method === "stripe" ? "stripe" : "none"),
+      amountReceivedCents: order.payment.amountReceivedCents ?? (order.payment.status === "paid" ? order.money.totalCents : 0),
+      refundedAmountCents: order.payment.refundedAmountCents ?? 0,
+      requiresReview: order.payment.requiresReview ?? false,
+      reconciliationStatus: order.payment.reconciliationStatus ?? "not_checked",
+      lastReconciledAtIso: order.payment.lastReconciledAt ? new Date(order.payment.lastReconciledAt).toISOString() : null,
+      paidAtIso: order.payment.paidAt ? new Date(order.payment.paidAt).toISOString() : null,
+      attempts: attempts.map((attempt) => ({
+        status: attempt.status as OrderConfirmationView["payment"]["attempts"][number]["status"],
+        createdAtIso: new Date(attempt.createdAt).toISOString(),
+        expiresAtIso: attempt.expiresAt ? new Date(attempt.expiresAt).toISOString() : null,
+        failureCode: attempt.failureCode ?? null,
+      })),
+      retryAvailable:
+        order.payment.method === "stripe" && onlineEnabled && order.status !== "cancelled" && order.status !== "completed" &&
+        !["paid", "partially_refunded", "refunded", "review_required"].includes(order.payment.status),
     },
   };
 }

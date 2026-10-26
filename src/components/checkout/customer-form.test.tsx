@@ -32,6 +32,8 @@ const SYNTHETIC_SETTINGS: CheckoutSettingsState = {
     pickupInstructions: "Collect from the test kitchen door.",
     tax: { mode: "zero", rateBps: null, base: null, label: null },
     customerNote: null,
+    onlinePaymentsEnabled: false,
+    onlinePaymentsAvailable: false,
   },
 };
 

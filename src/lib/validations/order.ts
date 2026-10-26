@@ -45,11 +45,36 @@ export const ORDER_STATUSES = [
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
-export const PAYMENT_METHODS = ["cash_on_arrival"] as const;
+export const PAYMENT_METHODS = ["cash_on_arrival", "stripe"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
-export const PAYMENT_STATUSES = ["unpaid", "paid"] as const;
+export const PAYMENT_STATUSES = [
+  "unpaid",
+  "awaiting_payment",
+  "processing",
+  "paid",
+  "failed",
+  "expired",
+  "partially_refunded",
+  "refunded",
+  "review_required",
+] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+export const PAYMENT_PROVIDERS = ["none", "stripe"] as const;
+export type PaymentProvider = (typeof PAYMENT_PROVIDERS)[number];
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  unpaid: "Unpaid",
+  awaiting_payment: "Awaiting payment",
+  processing: "Processing",
+  paid: "Paid",
+  failed: "Payment failed",
+  expired: "Session expired",
+  partially_refunded: "Partially refunded",
+  refunded: "Refunded",
+  review_required: "Review required",
+};
 
 /** Public reference, e.g. `PS-1A2B3C4D5E`. */
 export const ORDER_REFERENCE_PATTERN = /^PS-[0-9A-F]{10}$/;
@@ -107,6 +132,7 @@ export type PlaceOrderResponse =
     }
   | { ok: false; reason: "price_changed"; totals: OrderTotals; taxLabel: string | null }
   | { ok: false; reason: "conflict" }
+  | { ok: false; reason: "payment_unavailable" }
   | { ok: false; reason: "unavailable" };
 
 export interface PlacedOrderSummary {
@@ -153,6 +179,20 @@ export interface OrderConfirmationView {
   payment: {
     method: PaymentMethod;
     status: PaymentStatus;
+    provider: PaymentProvider;
+    amountReceivedCents: number;
+    refundedAmountCents: number;
+    requiresReview: boolean;
+    reconciliationStatus: "not_checked" | "matched" | "mismatch" | "error";
+    lastReconciledAtIso: string | null;
+    paidAtIso: string | null;
+    attempts: Array<{
+      status: "creating" | "open" | "processing" | "succeeded" | "failed" | "expired" | "uncertain";
+      createdAtIso: string;
+      expiresAtIso: string | null;
+      failureCode: string | null;
+    }>;
+    retryAvailable: boolean;
   };
 }
 
@@ -175,3 +215,14 @@ export const orderConfirmationRequestSchema = z.object({
 });
 
 export type OrderConfirmationRequest = z.output<typeof orderConfirmationRequestSchema>;
+
+export const startPaymentRequestSchema = z.object({
+  reference: z.string().trim().toUpperCase().regex(ORDER_REFERENCE_PATTERN, "Malformed reference"),
+  accessKey: z.string().trim().toLowerCase().regex(/^[0-9a-f]{64}$/, "Malformed access key"),
+});
+
+export type StartPaymentRequest = z.output<typeof startPaymentRequestSchema>;
+
+export type StartPaymentActionResponse =
+  | { ok: true; url: string; reused: boolean }
+  | { ok: false; reason: "invalid" | "rate_limited" | "not_found" | "unavailable" | "not_payable" | "already_paid" | "payment_pending" | "payment_unavailable" | "attempt_limit" | "conflict" };

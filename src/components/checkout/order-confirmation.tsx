@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AlertCircle, Banknote, CheckCircle2, Clock, MapPin, Truck } from "lucide-react";
-import { loadOrderConfirmationAction } from "@/lib/actions/orders";
+import { AlertCircle, Banknote, CheckCircle2, Clock, CreditCard, Loader2, MapPin, Truck } from "lucide-react";
+import { loadOrderConfirmationAction, startStripeCheckoutAction } from "@/lib/actions/orders";
 import { confirmationKeyFor } from "@/lib/checkout/attempt";
 import { formatCad } from "@/lib/format";
 import type { OrderConfirmationResponse, OrderConfirmationView, OrderStatus } from "@/lib/validations/order";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 
 /**
  * Order confirmation (Phase 5).
@@ -75,20 +75,33 @@ function ConfirmationLoader({ reference }: { reference: string }) {
     if (!accessKey) return;
 
     let cancelled = false;
-    loadOrderConfirmationAction({ reference, accessKey })
-      .then((response: OrderConfirmationResponse) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let checks = 0;
+    const load = async (): Promise<void> => {
+      try {
+        const response: OrderConfirmationResponse = await loadOrderConfirmationAction({ reference, accessKey });
         if (cancelled) return;
-        if (response.ok) setState({ kind: "ready", order: response.order });
-        else if (response.reason === "rate_limited") setState({ kind: "rate_limited" });
+        if (response.ok) {
+          setState({ kind: "ready", order: response.order });
+          if (
+            checks < 4 && response.order.payment.method === "stripe" &&
+            ["awaiting_payment", "processing"].includes(response.order.payment.status)
+          ) {
+            checks += 1;
+            timer = setTimeout(() => void load(), 1_500);
+          }
+        } else if (response.reason === "rate_limited") setState({ kind: "rate_limited" });
         else if (response.reason === "unavailable") setState({ kind: "unavailable" });
         else setState({ kind: "not_found" });
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setState({ kind: "unavailable" });
-      });
+      }
+    };
+    void load();
 
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, [reference, accessKey]);
 
@@ -104,7 +117,21 @@ function ConfirmationLoader({ reference }: { reference: string }) {
     return <Notice state={state.kind} reference={reference} />;
   }
 
-  return <Confirmation order={state.order} />;
+  return (
+    <Confirmation
+      order={state.order}
+      reference={reference}
+      accessKey={accessKey ?? ""}
+      onRefresh={async () => {
+        setState({ kind: "loading" });
+        const response = await loadOrderConfirmationAction({ reference, accessKey });
+        if (response.ok) setState({ kind: "ready", order: response.order });
+        else if (response.reason === "rate_limited") setState({ kind: "rate_limited" });
+        else if (response.reason === "unavailable") setState({ kind: "unavailable" });
+        else setState({ kind: "not_found" });
+      }}
+    />
+  );
 }
 
 /* ── notices ────────────────────────────────────────────────────────── */
@@ -169,8 +196,45 @@ function Notice({ state, reference }: { state: NoticeKind; reference: string }) 
 
 /* ── the confirmation itself ────────────────────────────────────────── */
 
-function Confirmation({ order }: { order: OrderConfirmationView }) {
+function Confirmation({
+  order,
+  reference,
+  accessKey,
+  onRefresh,
+}: {
+  order: OrderConfirmationView;
+  reference: string;
+  accessKey: string;
+  onRefresh: () => Promise<void>;
+}) {
   const cancelled = order.status === "cancelled";
+  const [retrying, setRetrying] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  async function retryStripePayment(): Promise<void> {
+    if (retrying) return;
+    setRetrying(true);
+    setPaymentError(null);
+    try {
+      const result = await startStripeCheckoutAction({ reference, accessKey });
+      if (result.ok) {
+        window.location.assign(result.url);
+        return;
+      }
+      if (result.reason === "payment_pending") {
+        await onRefresh();
+        setPaymentError("We are checking the payment status. Please check this order again shortly.");
+      } else if (result.reason === "already_paid") {
+        await onRefresh();
+      } else {
+        setPaymentError("Secure payment could not be started. Your order details are saved. Please try again later.");
+      }
+    } catch {
+      setPaymentError("Secure payment could not be started. Your order details are saved. Please try again later.");
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6" data-testid="order-confirmation">
@@ -257,14 +321,18 @@ function Confirmation({ order }: { order: OrderConfirmationView }) {
 
         <section aria-label="Payment" className="rounded-3xl border border-border bg-surface p-5">
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-navy">
-            <Banknote className="h-4 w-4 text-gold-700" aria-hidden="true" />
-            Cash on arrival
+            {order.payment.method === "stripe" ? (
+              <CreditCard className="h-4 w-4 text-gold-700" aria-hidden="true" />
+            ) : (
+              <Banknote className="h-4 w-4 text-gold-700" aria-hidden="true" />
+            )}
+            {order.payment.method === "stripe" ? "Online payment" : "Cash on arrival"}
           </h2>
-          {order.payment.status === "paid" ? (
+          {order.payment.method === "cash_on_arrival" && order.payment.status === "paid" ? (
             <p className="mt-2 text-sm font-semibold leading-relaxed text-leaf-700">
               Payment has been received. Thank you.
             </p>
-          ) : (
+          ) : order.payment.method === "cash_on_arrival" ? (
             <>
               <p className="mt-2 text-sm leading-relaxed text-ink-muted">
                 Nothing has been paid online. Payment of{" "}
@@ -278,7 +346,39 @@ function Confirmation({ order }: { order: OrderConfirmationView }) {
                 is received.
               </p>
             </>
+          ) : order.payment.status === "paid" ? (
+            <p className="mt-2 text-sm font-semibold leading-relaxed text-leaf-700">
+              Payment received. Thank you for your order.
+            </p>
+          ) : order.payment.status === "partially_refunded" || order.payment.status === "refunded" ? (
+            <p className="mt-2 text-sm leading-relaxed text-navy-700">
+              {formatCad(order.payment.refundedAmountCents)} has been confirmed as refunded by the payment provider.
+            </p>
+          ) : order.payment.status === "awaiting_payment" || order.payment.status === "processing" ? (
+            <>
+              <p className="mt-2 text-sm leading-relaxed text-ink-muted">We&apos;re confirming your payment. Your order details are saved.</p>
+              <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => void onRefresh()}>
+                Check payment status
+              </Button>
+            </>
+          ) : order.payment.status === "failed" || order.payment.status === "expired" ? (
+            <p className="mt-2 text-sm leading-relaxed text-terracotta-700">Your payment wasn&apos;t completed. You can try again.</p>
+          ) : order.payment.status === "review_required" ? (
+            <p className="mt-2 text-sm leading-relaxed text-ink-muted">Your payment needs a manual review. Your order details are saved.</p>
+          ) : (
+            <p className="mt-2 text-sm leading-relaxed text-ink-muted">Payment has not been started.</p>
           )}
+          {order.payment.method === "stripe" && order.payment.status !== "paid" && order.payment.status !== "refunded" && order.payment.status !== "partially_refunded" && order.payment.status !== "review_required" ? (
+            <>
+              <p className="mt-2 text-sm leading-relaxed text-ink-muted">Order total: <strong className="text-navy">{formatCad(order.money.totalCents)}</strong></p>
+              {order.payment.retryAvailable ? (
+                <Button type="button" variant="primary" size="sm" className="mt-3" disabled={retrying} onClick={() => void retryStripePayment()}>
+                  {retrying ? <><Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" /> Connecting securely…</> : "Continue to Secure Payment"}
+                </Button>
+              ) : null}
+              {paymentError ? <p role="alert" className="mt-3 text-sm text-terracotta-700">{paymentError}</p> : null}
+            </>
+          ) : null}
         </section>
       </div>
 

@@ -45,6 +45,7 @@ function parseForm(formData: FormData): { input: StoreConfigFormInput } | { fiel
 
   const parsed = storeConfigFormSchema.safeParse({
     orderIntakeEnabled: formData.get("orderIntakeEnabled") === "on" || formData.get("orderIntakeEnabled") === "true",
+    onlinePaymentsEnabled: formData.get("onlinePaymentsEnabled") === "on" || formData.get("onlinePaymentsEnabled") === "true",
     deliveryEnabled: formData.get("deliveryEnabled") === "on" || formData.get("deliveryEnabled") === "true",
     serviceAreas: labels.map((label, index) => ({
       label,
@@ -76,6 +77,7 @@ function parseForm(formData: FormData): { input: StoreConfigFormInput } | { fiel
 function writableFields(input: StoreConfigFormInput) {
   return {
     orderIntakeEnabled: input.orderIntakeEnabled,
+    payments: { onlineEnabled: input.onlinePaymentsEnabled },
     delivery: {
       enabled: input.deliveryEnabled,
       serviceAreas: input.serviceAreas.map((area) => ({
@@ -102,6 +104,7 @@ function writableFields(input: StoreConfigFormInput) {
 function summarize(input: StoreConfigFormInput): string {
   const parts = [
     `intake ${input.orderIntakeEnabled ? "on" : "off"}`,
+    `online payments ${input.onlinePaymentsEnabled ? "on" : "off"}`,
     input.deliveryEnabled
       ? `delivery ${input.serviceAreas.length} area${input.serviceAreas.length === 1 ? "" : "s"}`
       : "delivery off",

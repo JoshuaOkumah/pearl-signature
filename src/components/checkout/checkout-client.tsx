@@ -11,7 +11,7 @@ import {
   Loader2,
   ShieldCheck,
 } from "lucide-react";
-import { placeOrderAction } from "@/lib/actions/orders";
+import { placeOrderAction, startStripeCheckoutAction } from "@/lib/actions/orders";
 import { clearOrderedLines } from "@/lib/cart/store";
 import { isCartEmpty } from "@/lib/cart/core";
 import { quoteIssueCopy } from "@/lib/cart/issues";
@@ -26,7 +26,7 @@ import {
 } from "@/lib/checkout/attempt";
 import { checkoutBlockers, priceCheckout, type PriceBlocker } from "@/lib/checkout/pricing";
 import { formatCad } from "@/lib/format";
-import type { PlaceOrderResponse } from "@/lib/validations/order";
+import type { PaymentMethod, PlaceOrderResponse, StartPaymentActionResponse } from "@/lib/validations/order";
 import { normalizePostalCode } from "@/lib/validations/checkout";
 import { cn } from "@/lib/utils";
 import { CartLineRow } from "@/components/cart/cart-line-row";
@@ -101,7 +101,7 @@ export function CheckoutClient() {
   const settingsState = useCheckoutSettings();
   const router = useRouter();
 
-  const [paymentSelected, setPaymentSelected] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState(false);
   const [review, setReview] = useState<ReviewState>(() => emptyReview("initial"));
@@ -119,7 +119,10 @@ export function CheckoutClient() {
 
   // The intent signature drives idempotency: changing the basket or the
   // customer's details starts a new attempt, an unchanged intent reuses one.
-  const signature = useMemo(() => checkoutSignature(items, form.values), [items, form.values]);
+  const signature = useMemo(
+    () => checkoutSignature(items, form.values, paymentMethod ?? "cash_on_arrival"),
+    [items, form.values, paymentMethod],
+  );
 
   // Review notices (price change, blocker, error) belong to ONE intent. When
   // the intent changes they are discarded by derivation rather than by an
@@ -204,7 +207,7 @@ export function CheckoutClient() {
       updateReview({ submitError: "Check your details above before placing the order." });
       return;
     }
-    if (!paymentSelected) {
+    if (!paymentMethod) {
       updateReview({ submitError: "Choose how you would like to pay before placing the order." });
       return;
     }
@@ -220,7 +223,7 @@ export function CheckoutClient() {
       expectedTotalCents,
       items,
       customer: form.values,
-      paymentMethod: "cash_on_arrival" as const,
+      paymentMethod,
     });
 
     setSubmitting(true);
@@ -236,10 +239,33 @@ export function CheckoutClient() {
 
       if (response.ok) {
         saveConfirmation(response.order.reference, attempt.confirmationKey);
-        clearAttempt();
-        clearOrderedLines(items);
-        setPlaced(true);
-        router.push(`/order-confirmation?ref=${response.order.reference}`);
+        if (paymentMethod === "cash_on_arrival") {
+          clearAttempt();
+          clearOrderedLines(items);
+          setPlaced(true);
+          router.push(`/order-confirmation?ref=${response.order.reference}`);
+          return;
+        }
+
+        const payment: StartPaymentActionResponse = await startStripeCheckoutAction({
+          reference: response.order.reference,
+          accessKey: attempt.confirmationKey,
+        });
+        if (payment.ok) {
+          clearAttempt();
+          clearOrderedLines(items);
+          setPlaced(true);
+          window.location.assign(payment.url);
+          return;
+        }
+        const messages: Record<string, string> = {
+          payment_pending: "Your order is saved. We are checking the payment session before offering another attempt.",
+          payment_unavailable: "Online payment is not available right now. Your order is saved. You can retry here or choose Cash on Arrival.",
+          already_paid: "This order has already been paid. Open your order confirmation to review it.",
+          attempt_limit: "Online payment could not be retried for this order. Please contact the store using its verified contact details.",
+          rate_limited: "Too many payment attempts were made. Please wait a little while before trying again.",
+        };
+        updateReview({ submitError: messages[payment.reason] ?? "Your order is saved, but secure payment could not be started. Please try again." });
         return;
       }
 
@@ -261,6 +287,9 @@ export function CheckoutClient() {
               Math.round(response.retryAfterSeconds / 60),
             )} minute${Math.round(response.retryAfterSeconds / 60) === 1 ? "" : "s"} and try again.`,
           });
+          break;
+        case "payment_unavailable":
+          updateReview({ submitError: "Online payment is not available right now. Choose Cash on Arrival or try again later." });
           break;
         case "cart_issue":
           updateReview({ submitError: FAILURE_COPY.cart_issue });
@@ -367,9 +396,10 @@ export function CheckoutClient() {
                 </div>
               ) : null}
 
-              <PaymentPanel
-                selected={paymentSelected}
-                onSelect={setPaymentSelected}
+          <PaymentPanel
+                selected={paymentMethod}
+                onSelect={setPaymentMethod}
+                onlinePaymentsAvailable={settings?.onlinePaymentsAvailable === true}
                 totalCents={preview?.ok ? preview.totals.totalCents : null}
                 submitting={submitting}
                 canSubmit={canSubmit}
@@ -501,6 +531,7 @@ function CheckoutTotals({
 function PaymentPanel({
   selected,
   onSelect,
+  onlinePaymentsAvailable,
   totalCents,
   submitting,
   canSubmit,
@@ -510,8 +541,9 @@ function PaymentPanel({
   error,
   onSubmit,
 }: {
-  selected: boolean;
-  onSelect: (value: boolean) => void;
+  selected: PaymentMethod | null;
+  onSelect: (value: PaymentMethod) => void;
+  onlinePaymentsAvailable: boolean;
   totalCents: number | null;
   submitting: boolean;
   canSubmit: boolean;
@@ -537,9 +569,9 @@ function PaymentPanel({
             id="payment-cash"
             type="radio"
             name="payment-method"
-            checked={selected}
-            onChange={() => onSelect(true)}
-            className="h-4 w-4 shrink-0 accent-[#1a2530]"
+            checked={selected === "cash_on_arrival"}
+            onChange={() => onSelect("cash_on_arrival")}
+            className="h-4 w-4 shrink-0 accent-navy"
           />
           <span className="flex items-center gap-2 text-base font-semibold text-navy">
             <Banknote className="h-4 w-4 text-gold-700" aria-hidden="true" />
@@ -547,14 +579,44 @@ function PaymentPanel({
           </span>
         </span>
         <span className="text-sm leading-relaxed text-ink-muted">
-          Nothing is paid online. You pay in full when your order is delivered or collected. Your
-          order is confirmed as soon as it is placed; payment is still due.
+          You pay in full when your order is delivered or collected. Your order is recorded when it is placed; payment is still due.
+        </span>
+      </label>
+
+      <label
+        htmlFor="payment-stripe"
+        className={cn(
+          "mt-3 flex cursor-pointer flex-col gap-2 rounded-2xl border p-4 transition-colors",
+          "focus-within:ring-2 focus-within:ring-gold-700 focus-within:ring-offset-2",
+          selected === "stripe" ? "border-navy bg-cream-100" : "border-border",
+          !onlinePaymentsAvailable && "cursor-not-allowed opacity-70",
+        )}
+      >
+        <span className="flex items-center gap-3">
+          <input
+            id="payment-stripe"
+            type="radio"
+            name="payment-method"
+            checked={selected === "stripe"}
+            disabled={!onlinePaymentsAvailable || submitting}
+            onChange={() => onSelect("stripe")}
+            className="h-4 w-4 shrink-0 accent-navy focus-gold"
+          />
+          <span className="flex items-center gap-2 text-base font-semibold text-navy">
+            <ShieldCheck className="h-4 w-4 text-gold-700" aria-hidden="true" />
+            Online payment
+          </span>
+        </span>
+        <span className="text-sm leading-relaxed text-ink-muted">
+          {onlinePaymentsAvailable
+            ? "Continue to Stripe's secure hosted payment page. Your order total is fixed before you leave this site."
+            : "Online payment is not available yet. Cash on Arrival remains available."}
         </span>
       </label>
 
       {totalCents !== null ? (
         <p className="mt-3 text-sm text-ink-muted">
-          Amount due on arrival:{" "}
+          {selected === "stripe" ? "Amount to pay online: " : "Amount due on arrival: "}
           <strong className="font-bold text-navy" data-testid="amount-due">
             {formatCad(totalCents)}
           </strong>
@@ -587,7 +649,7 @@ function PaymentPanel({
               Placing your order…
             </>
           ) : (
-            "Place order"
+            selected === "stripe" ? "Continue to Secure Payment" : "Place order"
           )}
         </Button>
         <p role="status" className="mt-2 text-center text-xs text-ink-muted">

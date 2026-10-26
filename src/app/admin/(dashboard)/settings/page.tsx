@@ -9,6 +9,7 @@ import {
 } from "@/lib/validations/store-config";
 import { formatCadInput } from "@/lib/validations/admin";
 import { checkoutBlockers } from "@/lib/checkout/pricing";
+import { stripeReadiness } from "@/lib/payments/stripe";
 import { StoreSettingsForm, type SettingsFormValues } from "@/components/admin/store-settings-form";
 
 export const metadata: Metadata = {
@@ -35,6 +36,7 @@ const BLOCKER_COPY: Record<string, string> = {
 function emptyValues(): SettingsFormValues {
   return {
     orderIntakeEnabled: false,
+    onlinePaymentsEnabled: false,
     deliveryEnabled: false,
     serviceAreas: [],
     pickupEnabled: false,
@@ -83,10 +85,12 @@ export default async function StoreSettingsPage() {
   const record = result.record;
   const settings = normalizeCheckoutSettings(record);
   const blockers = checkoutBlockers(settings);
+  const stripeStatus = stripeReadiness();
 
   const values: SettingsFormValues = {
     ...emptyValues(),
     orderIntakeEnabled: record.orderIntakeEnabled === true,
+    onlinePaymentsEnabled: record.payments?.onlineEnabled === true,
     deliveryEnabled: record.delivery?.enabled === true,
     serviceAreas: (record.delivery?.serviceAreas ?? []).map((area) => ({
       label: area.label,
@@ -137,6 +141,27 @@ export default async function StoreSettingsPage() {
         <p className="mt-3 font-sans text-xs leading-relaxed text-ink-muted">
           Order intake only opens when you switch it on here, and only after delivery or pickup and the
           tax treatment are confirmed.
+        </p>
+      </section>
+
+      <section aria-label="Stripe readiness" className="rounded-2xl border border-border bg-surface p-5">
+        <h2 className="font-sans text-base font-bold text-navy">Stripe readiness</h2>
+        {stripeStatus.ready ? (
+          <p className="mt-2 font-sans text-sm text-leaf-700">Stripe test-mode configuration is ready. Live payment keys are rejected in this release.</p>
+        ) : (
+          <p className="mt-2 font-sans text-sm text-ink-muted">
+            {stripeStatus.reason === "disabled"
+              ? "Stripe is not enabled on this server. The required environment switch is off."
+              : stripeStatus.reason === "live_key_rejected"
+                ? "A live Stripe key is not accepted in this release. Use test-mode configuration only."
+                : stripeStatus.reason === "invalid_site_url"
+                  ? "Configure the existing canonical site URL before test Checkout can be initialized."
+                  : "Stripe test credentials or the webhook secret are not configured. Online payment remains unavailable."}
+          </p>
+        )}
+        <p className="mt-2 font-sans text-xs text-ink-muted">
+          Environment variable names are documented in .env.example; secret values are never shown
+          here.
         </p>
       </section>
 

@@ -60,6 +60,9 @@ export interface CheckoutSettings {
   pickupInstructions: string | null;
   tax: PublicTaxSettings;
   customerNote: string | null;
+  onlinePaymentsEnabled: boolean;
+  /** Effective server-approved availability, never inferred from browser state. */
+  onlinePaymentsAvailable: boolean;
 }
 
 /** Everything the customer cannot order until the owner resolves. */
@@ -79,6 +82,8 @@ export const UNAVAILABLE_CHECKOUT_SETTINGS: CheckoutSettings = Object.freeze({
   pickupInstructions: null,
   tax: { mode: "unconfigured", rateBps: null, base: null, label: null } satisfies PublicTaxSettings,
   customerNote: null,
+  onlinePaymentsEnabled: false,
+  onlinePaymentsAvailable: false,
 });
 
 /**
@@ -94,6 +99,8 @@ export const EMPTY_CHECKOUT_SETTINGS: CheckoutSettings = Object.freeze({
   pickupInstructions: null,
   tax: { mode: "unconfigured", rateBps: null, base: null, label: null } satisfies PublicTaxSettings,
   customerNote: null,
+  onlinePaymentsEnabled: false,
+  onlinePaymentsAvailable: false,
 });
 
 /* ── admin form schema ──────────────────────────────────────────────── */
@@ -176,6 +183,7 @@ export function basisPointsToPercent(bps: number | null): string {
 export const storeConfigFormSchema = z
   .object({
     orderIntakeEnabled: z.boolean(),
+    onlinePaymentsEnabled: z.boolean().default(false),
     deliveryEnabled: z.boolean(),
     serviceAreas: z
       .array(serviceAreaInputSchema)
@@ -342,5 +350,7 @@ export function normalizeCheckoutSettings(raw: unknown): CheckoutSettings {
       typeof record.customerNote === "string" && record.customerNote.trim() !== ""
         ? record.customerNote
         : null,
+    onlinePaymentsEnabled: (record.payments as Record<string, unknown> | undefined)?.onlineEnabled === true,
+    onlinePaymentsAvailable: false,
   };
 }

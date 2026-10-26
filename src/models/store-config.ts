@@ -87,6 +87,15 @@ export const StoreConfigSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    payments: {
+      type: new Schema(
+        {
+          onlineEnabled: { type: Boolean, default: false },
+        },
+        { _id: false },
+      ),
+      default: () => ({}),
+    },
     delivery: {
       type: new Schema(
         {

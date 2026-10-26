@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Banknote, StickyNote } from "lucide-react";
+import { formatCad } from "@/lib/format";
 import {
   addOrderNoteAction,
   changeOrderStatusAction,
@@ -11,7 +12,7 @@ import {
 import { ORDER_STATUS_LABELS } from "@/lib/orders/lifecycle";
 import type { AdminOrderActionResult } from "@/lib/validations/admin";
 import type { FulfillmentMethod } from "@/lib/validations/checkout";
-import { MAX_ORDER_NOTES, type OrderStatus, type PaymentStatus } from "@/lib/validations/order";
+import { MAX_ORDER_NOTES, type OrderStatus, type PaymentMethod, type PaymentStatus } from "@/lib/validations/order";
 import { ConfirmSubmit } from "@/components/admin/confirm-submit";
 import { FormAlert } from "@/components/admin/field";
 
@@ -69,6 +70,8 @@ export function OrderActions({
   method,
   allowed,
   paymentStatus,
+  paymentMethod,
+  totalCents,
   version,
 }: {
   reference: string;
@@ -76,6 +79,8 @@ export function OrderActions({
   method: FulfillmentMethod;
   allowed: OrderStatus[];
   paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod;
+  totalCents: number;
   version: number;
 }) {
   const router = useRouter();
@@ -199,9 +204,17 @@ export function OrderActions({
       {/* ── payment ───────────────────────────────────────────────── */}
       <Section
         title="Payment"
-        description="Cash on Arrival is recorded by hand once the money is physically received."
+        description={paymentMethod === "stripe"
+          ? "Online payment status is updated only from verified Stripe events."
+          : "Cash on Arrival is recorded by hand once the money is physically received."}
       >
-        {paymentStatus === "paid" ? (
+        {paymentMethod === "stripe" ? (
+          <p className="font-sans text-sm text-ink-muted">
+            {paymentStatus === "paid" || paymentStatus === "partially_refunded" || paymentStatus === "refunded"
+              ? `Verified online payment recorded for ${formatCad(totalCents)}.`
+              : "No manual collection control is available for an online payment."}
+          </p>
+        ) : paymentStatus === "paid" ? (
           <p className="font-sans text-sm text-leaf-700">
             Payment for this order has been recorded.
           </p>

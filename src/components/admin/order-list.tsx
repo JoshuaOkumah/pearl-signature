@@ -25,7 +25,14 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 
 const PAYMENT_TONE: Record<string, BadgeTone> = {
   unpaid: "terracotta",
+  awaiting_payment: "gold",
+  processing: "gold",
   paid: "leaf",
+  failed: "terracotta",
+  expired: "terracotta",
+  partially_refunded: "gold",
+  refunded: "neutral",
+  review_required: "terracotta",
 };
 
 function formatDateTime(iso: string): string {
@@ -48,6 +55,7 @@ function StatusBadges({ row }: { row: AdminOrderRow }) {
       <Badge tone={PAYMENT_TONE[row.paymentStatus] ?? "neutral"}>
         {PAYMENT_STATUS_LABELS[row.paymentStatus]}
       </Badge>
+      <Badge tone="neutral">{row.paymentMethod === "stripe" ? "Online" : "Cash on Arrival"}</Badge>
     </span>
   );
 }

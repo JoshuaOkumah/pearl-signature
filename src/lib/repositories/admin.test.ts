@@ -318,8 +318,8 @@ describe("getDashboardStats", () => {
     // Order metrics: money grouped by PAYMENT state and a cancelled flag,
     // never by lifecycle alone.
     vi.mocked(OrderModel.aggregate).mockResolvedValue([
-      { _id: { payment: "paid", cancelled: false }, count: 2, cents: 9_000 },
-      { _id: { payment: "unpaid", cancelled: false }, count: 1, cents: 4_938 },
+      { _id: { method: "cash_on_arrival", payment: "paid", cancelled: false }, count: 2, cents: 9_000, refundedCents: 0 },
+      { _id: { method: "cash_on_arrival", payment: "unpaid", cancelled: false }, count: 1, cents: 4_938, refundedCents: 0 },
     ] as never);
     vi.mocked(OrderModel.countDocuments).mockResolvedValue(2 as never);
     vi.mocked(OrderModel.find).mockImplementation(() => chain([ORDER]) as never);
@@ -348,6 +348,14 @@ describe("getDashboardStats", () => {
         awaitingPayment: 1,
         unpaidCents: 4_938, // outstanding Cash on Arrival
         collectedCents: 9_000, // paid ONLY
+        paidOnlineOrders: 0,
+        paidOnlineCents: 0,
+        cashCollectedCents: 9_000,
+        grossCollectedCents: 9_000,
+        refundedCents: 0,
+        netCollectedCents: 9_000,
+        pendingOnlineOrders: 0,
+        failedOnlineOrders: 0,
       },
       recentOrders: [
         {
@@ -355,6 +363,7 @@ describe("getDashboardStats", () => {
           customerName: "Ada Obi",
           status: "placed",
           paymentStatus: "unpaid",
+          paymentMethod: "cash_on_arrival",
           totalCents: 4_938,
           placedAtIso: "2026-10-02T10:00:00.000Z",
         },

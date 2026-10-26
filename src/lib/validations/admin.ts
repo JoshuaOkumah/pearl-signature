@@ -263,6 +263,13 @@ export const recordPaymentSchema = z.object({
 
 export type RecordPaymentInput = z.output<typeof recordPaymentSchema>;
 
+/** A deliberately explicit provider reconciliation request. Dry-run is the
+ * default; applying changes must be a separate deliberate request. */
+export const reconcilePaymentSchema = z.object({
+  reference: orderReferenceInput,
+  apply: z.enum(["true", "false"]).default("false"),
+});
+
 /** Operational note (bounded, append-only, never part of customer copy). */
 export const orderNoteSchema = z.object({
   reference: orderReferenceInput,

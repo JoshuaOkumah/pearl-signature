@@ -4,6 +4,7 @@ import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
 import {
   ORDER_CREATE_MAX_ATTEMPTS,
   ORDER_LOOKUP_MAX_ATTEMPTS,
+  PAYMENT_CREATE_MAX_ATTEMPTS,
   ORDER_RATE_WINDOW_MS,
   ORDER_RATE_SCOPES,
   OrderAttemptModel,
@@ -36,6 +37,7 @@ import {
 const LIMITS: Record<OrderRateScope, number> = {
   "order.create": ORDER_CREATE_MAX_ATTEMPTS,
   "order.lookup": ORDER_LOOKUP_MAX_ATTEMPTS,
+  "payment.create": PAYMENT_CREATE_MAX_ATTEMPTS,
 };
 
 export interface OrderRateLimitResult {

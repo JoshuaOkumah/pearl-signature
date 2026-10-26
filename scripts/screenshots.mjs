@@ -526,6 +526,25 @@ if (ordersBaseURL && adminEmail && adminPassword) {
     console.log(`✓ checkout-ready @ ${viewport.width}x${viewport.height}`);
   }
 
+  // Phase 6: the payment choice itself, including the honest unavailable
+  // online-payment state when no Stripe test configuration is present.
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1440, height: 900 },
+  ]) {
+    await buyer.setViewportSize(viewport);
+    const payment = buyer.locator('section[aria-label="Payment and submission"]');
+    await payment.waitFor();
+    // Centre the panel first: an element screenshot scrolls just enough to
+    // reveal it, which leaves the sticky site header covering the top card.
+    await payment.evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await checkOverflow(buyer, `checkout-payment @ ${viewport.width}`);
+    await payment.screenshot({
+      path: `${outDir}/checkout-payment-${viewport.width}x${viewport.height}.png`,
+    });
+    console.log(`✓ checkout-payment @ ${viewport.width}x${viewport.height}`);
+  }
+
   // The same review with pickup selected: no address is asked for and the
   // store's pickup instructions appear instead.
   for (const viewport of [
@@ -613,6 +632,8 @@ if (ordersBaseURL && adminEmail && adminPassword) {
     { name: "admin-order-detail", path: `/admin/orders/${reference}`, heading: reference },
     // The dashboard again, this time with real order records behind the metrics.
     { name: "admin-dashboard-orders", path: "/admin", heading: "Dashboard" },
+    // Phase 6: the owner's payment switch and the honest Stripe readiness state.
+    { name: "admin-settings-payments", path: "/admin/settings", heading: "Settings" },
   ];
 
   for (const surface of orderSurfaces) {

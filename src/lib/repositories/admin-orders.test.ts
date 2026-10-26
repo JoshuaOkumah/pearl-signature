@@ -5,9 +5,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { MongoMemoryServer } from "mongodb-memory-server";
 import { connectDatabase } from "@/lib/db/mongoose";
 import { OrderModel, type OrderRecord } from "@/models/order";
+import { PaymentAttemptModel } from "@/models/payment-attempt";
 import { adminOrderQuerySchema } from "@/lib/validations/admin";
 import type { FulfillmentMethod } from "@/lib/validations/checkout";
-import type { OrderStatus, PaymentStatus } from "@/lib/validations/order";
+import type { OrderStatus, PaymentMethod, PaymentStatus } from "@/lib/validations/order";
 import { getAdminOrder, getDashboardStats, listAdminOrders } from "./admin";
 
 /**
@@ -29,6 +30,8 @@ interface SeedOptions {
   reference?: string;
   status?: OrderStatus;
   paymentStatus?: PaymentStatus;
+  paymentMethod?: PaymentMethod;
+  refundedCents?: number;
   totalCents?: number;
   method?: FulfillmentMethod;
   name?: string;
@@ -92,8 +95,11 @@ async function seedOrder(options: SeedOptions = {}): Promise<OrderRecord> {
       taxRateBps: null,
     },
     payment: {
-      method: "cash_on_arrival",
+      method: options.paymentMethod ?? "cash_on_arrival",
       status: options.paymentStatus ?? "unpaid",
+      provider: options.paymentMethod === "stripe" ? "stripe" : "none",
+      amountReceivedCents: options.paymentStatus === "paid" || options.paymentStatus === "partially_refunded" || options.paymentStatus === "refunded" ? total : 0,
+      refundedAmountCents: options.refundedCents ?? 0,
       paidAt: options.paymentStatus === "paid" ? new Date() : null,
       paidByAdminId: options.paymentStatus === "paid" ? "64b0f00000000000000000aa" : null,
       paidByLabel: options.paymentStatus === "paid" ? "owner@pearl-e2e.test" : null,
@@ -111,6 +117,7 @@ beforeAll(async () => {
   process.env.MONGODB_URI = mongod.getUri("pearl_admin_order_queries_test");
   await connectDatabase();
   await OrderModel.createIndexes();
+  await PaymentAttemptModel.createIndexes();
 });
 
 afterAll(async () => {
@@ -122,6 +129,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await OrderModel.deleteMany({});
+  await PaymentAttemptModel.deleteMany({});
 });
 
 /* ── list + search + filters + pagination ───────────────────────────── */
@@ -332,6 +340,14 @@ describe("getDashboardStats order metrics", () => {
       awaitingPayment: 3,
       unpaidCents: 6_000,
       collectedCents: 9_000, // paid ONLY: the 6000 in unpaid orders is absent
+      paidOnlineOrders: 0,
+      paidOnlineCents: 0,
+      cashCollectedCents: 9_000,
+      grossCollectedCents: 9_000,
+      refundedCents: 0,
+      netCollectedCents: 9_000,
+      pendingOnlineOrders: 0,
+      failedOnlineOrders: 0,
     });
     expect(stats!.orders.unpaidCents + stats!.orders.collectedCents).toBe(15_000);
   });
@@ -352,6 +368,14 @@ describe("getDashboardStats order metrics", () => {
       awaitingPayment: 1, // the cancelled unpaid order is not awaiting anything
       unpaidCents: 1_413, // the 7000 cancelled total is NOT outstanding
       collectedCents: 4_425, // paid includes the paid-then-cancelled 900
+      paidOnlineOrders: 0,
+      paidOnlineCents: 0,
+      cashCollectedCents: 4_425,
+      grossCollectedCents: 4_425,
+      refundedCents: 0,
+      netCollectedCents: 4_425,
+      pendingOnlineOrders: 0,
+      failedOnlineOrders: 0,
     });
   });
 
@@ -363,8 +387,42 @@ describe("getDashboardStats order metrics", () => {
       awaitingPayment: 0,
       unpaidCents: 0,
       collectedCents: 0,
+      paidOnlineOrders: 0,
+      paidOnlineCents: 0,
+      cashCollectedCents: 0,
+      grossCollectedCents: 0,
+      refundedCents: 0,
+      netCollectedCents: 0,
+      pendingOnlineOrders: 0,
+      failedOnlineOrders: 0,
     });
     expect(stats!.recentOrders).toHaveLength(0);
+  });
+
+  it("separates online, cash, pending, failed and verified refund totals without summing attempts twice", async () => {
+    const onlinePaid = await seedOrder({ paymentMethod: "stripe", paymentStatus: "partially_refunded", totalCents: 4_938, refundedCents: 1_000 });
+    await seedOrder({ paymentMethod: "cash_on_arrival", paymentStatus: "paid", totalCents: 2_000 });
+    await seedOrder({ paymentMethod: "stripe", paymentStatus: "processing", totalCents: 1_500 });
+    await seedOrder({ paymentMethod: "stripe", paymentStatus: "failed", totalCents: 1_200 });
+
+    // Multiple attempts are history, not multiple collected orders.
+    await PaymentAttemptModel.create([
+      { orderId: String(onlinePaid._id), orderReference: onlinePaid.reference, sequence: 1, amountCents: 4_938, currency: "CAD", provider: "stripe", status: "failed", active: false, providerIdempotencyKey: `pearl_${randomBytes(24).toString("hex")}` },
+      { orderId: String(onlinePaid._id), orderReference: onlinePaid.reference, sequence: 2, amountCents: 4_938, currency: "CAD", provider: "stripe", status: "succeeded", active: false, providerIdempotencyKey: `pearl_${randomBytes(24).toString("hex")}` },
+    ]);
+
+    const stats = await getDashboardStats();
+    expect(stats?.orders).toMatchObject({
+      total: 4,
+      paidOnlineOrders: 1,
+      paidOnlineCents: 4_938,
+      cashCollectedCents: 2_000,
+      grossCollectedCents: 6_938,
+      refundedCents: 1_000,
+      netCollectedCents: 5_938,
+      pendingOnlineOrders: 1,
+      failedOnlineOrders: 1,
+    });
   });
 
   it("lists the five most recent orders, newest first", async () => {

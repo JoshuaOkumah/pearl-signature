@@ -39,7 +39,14 @@ const ORDER_TONE: Record<string, BadgeTone> = {
 
 const PAYMENT_TONE: Record<string, BadgeTone> = {
   unpaid: "terracotta",
+  awaiting_payment: "gold",
+  processing: "gold",
   paid: "leaf",
+  failed: "terracotta",
+  expired: "terracotta",
+  partially_refunded: "gold",
+  refunded: "neutral",
+  review_required: "terracotta",
 };
 
 function formatDate(iso: string): string {
@@ -53,15 +60,30 @@ function StatCard({
   label,
   value,
   hint,
+  money = false,
 }: {
   label: string;
   value: number | string;
   hint?: string;
+  money?: boolean;
 }) {
+  // A formatted amount is split so the digits stay large and the currency
+  // stays small: a wrapped "$21.13 / CAD" at heading size reads as a defect.
+  const amount =
+    money && typeof value === "string" && value.endsWith(" CAD") ? value.slice(0, -4) : null;
   return (
     <div className="rounded-2xl border border-border bg-surface p-5">
       <p className="font-sans text-sm font-semibold text-ink-muted">{label}</p>
-      <p className="mt-1 font-serif text-3xl font-semibold text-navy">{value}</p>
+      {amount === null ? (
+        <p className="mt-1 font-serif text-3xl font-semibold text-navy">{value}</p>
+      ) : (
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5 font-serif font-semibold text-navy">
+          <span className="text-3xl tabular-nums">{amount}</span>{" "}
+          <span className="font-sans text-xs font-semibold uppercase tracking-wide text-ink-muted">
+            CAD
+          </span>
+        </p>
+      )}
       {hint ? <p className="mt-1 font-sans text-xs text-ink-muted">{hint}</p> : null}
     </div>
   );
@@ -163,19 +185,54 @@ export default async function AdminDashboardPage() {
         />
       </section>
 
-      <section aria-label="Order statistics" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+      <section aria-label="Order statistics" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
         <StatCard label="Orders" value={stats.orders.total} hint="All time" />
         <StatCard label="In progress" value={stats.orders.inProgress} hint="Awaiting completion" />
-        <StatCard label="Awaiting payment" value={stats.orders.awaitingPayment} hint="Cash on Arrival" />
+        <StatCard label="Awaiting cash" value={stats.orders.awaitingPayment} hint="Cash on Arrival" />
         <StatCard
-          label="Outstanding"
+          label="Cash outstanding"
           value={formatCad(stats.orders.unpaidCents) ?? "-"}
-          hint="Unpaid Cash on Arrival"
+          hint="Not collected yet"
+          money
         />
         <StatCard
-          label="Collected"
-          value={formatCad(stats.orders.collectedCents) ?? "-"}
-          hint="Payments recorded"
+          label="Paid online"
+          value={stats.orders.paidOnlineOrders}
+          hint={formatCad(stats.orders.paidOnlineCents) ?? "-"}
+        />
+        <StatCard
+          label="Cash collected"
+          value={formatCad(stats.orders.cashCollectedCents) ?? "-"}
+          hint="Admin-recorded Cash on Arrival"
+          money
+        />
+        <StatCard
+          label="Online pending"
+          value={stats.orders.pendingOnlineOrders}
+          hint="Not counted as collected"
+        />
+        <StatCard
+          label="Online failed or expired"
+          value={stats.orders.failedOnlineOrders}
+          hint="Can require a customer retry"
+        />
+        <StatCard
+          label="Gross collected"
+          value={formatCad(stats.orders.grossCollectedCents) ?? "-"}
+          hint="Before confirmed refunds, not profit"
+          money
+        />
+        <StatCard
+          label="Confirmed refunds"
+          value={formatCad(stats.orders.refundedCents) ?? "-"}
+          hint="Verified provider records"
+          money
+        />
+        <StatCard
+          label="Net collected"
+          value={formatCad(stats.orders.netCollectedCents) ?? "-"}
+          hint="Gross collected less confirmed refunds"
+          money
         />
       </section>
 
@@ -247,6 +304,7 @@ export default async function AdminDashboardPage() {
                 <Badge tone={PAYMENT_TONE[order.paymentStatus] ?? "neutral"}>
                   {PAYMENT_STATUS_LABELS[order.paymentStatus]}
                 </Badge>
+                <Badge tone="neutral">{order.paymentMethod === "stripe" ? "Online" : "Cash on Arrival"}</Badge>
                 <span className="ml-auto font-sans text-xs text-ink-muted">
                   {formatCad(order.totalCents)} · {formatDate(order.placedAtIso)}
                 </span>
