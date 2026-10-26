@@ -91,6 +91,39 @@ See `docs/CASH_ON_ARRIVAL.md`. Summary: the form carries only the reference
 and the version token, a second record is refused even with a current token,
 and recording payment never changes the lifecycle status.
 
+The Cash on Arrival control is offered **only** for cash orders. A Stripe order
+refuses it with "Online payments are recorded from verified Stripe events, not
+by hand." An online payment can only become `paid` through a signature-verified
+Stripe event or the audited reconciliation action.
+
+## 6b. Online payments (Stripe)
+
+A Stripe order shows the same payment block plus:
+
+- the collected amount and time, once verified;
+- confirmed refunds, when Stripe has reported any;
+- the PaymentIntent reference;
+- a **Payment needs review** warning when provider and local facts disagree or
+  when a cancelled order received a late payment;
+- **Online payment attempts**: sequence, state, amount, session and intent ids,
+  expiry, normalized failure code and confirmation time;
+- **Provider refund records**: one line per verified refund;
+- **Stripe reconciliation**: a read-only check first, then a separately
+  confirmed apply that is written to the audit log.
+
+Operating rules:
+
+1. Never mark an online order paid by hand. Use reconciliation after checking
+   Stripe, and only when the amounts agree.
+2. A cancellation does not refund. If a cancelled order shows a paid amount,
+   review it in Stripe and decide there; this application has no refund button.
+3. **Review required** is not a money state. Read the attempt details and the
+   Stripe dashboard before doing anything.
+4. Pending, failed and expired online orders are not revenue; the dashboard
+   keeps them in their own counters.
+5. Full procedures: `docs/PAYMENT_RECONCILIATION.md` and
+   `docs/STRIPE_INTEGRATION.md`.
+
 ## 7. Notes
 
 Notes append without bumping `version`, so an operator writing context
@@ -99,14 +132,29 @@ per order, each 500 characters.
 
 ## 8. Dashboard metrics
 
-Five cards under `Order statistics`, aggregated from real order records in
-one round trip: Orders, In progress, Awaiting payment, Outstanding,
-Collected. Definitions are in `docs/BUSINESS_CONFIGURATION.md` and are
-enforced by `src/lib/repositories/admin.ts`.
+Eleven cards under `Order statistics`, aggregated from real order records in
+one round trip:
 
-The rule worth repeating: an unpaid Cash on Arrival order counts toward
-outstanding money and never toward collected revenue, and a cancelled unpaid
-order drops out of outstanding money while still counting as an order.
+| Card | Meaning |
+| --- | --- |
+| Orders | All orders ever placed |
+| In progress | Orders not completed and not cancelled |
+| Awaiting cash | Unpaid Cash on Arrival orders |
+| Cash outstanding | Money still owed on cash orders |
+| Paid online | Count of online-paid orders, with the online amount as a hint |
+| Cash collected | Admin-recorded cash receipts |
+| Online pending | Online orders awaiting settlement (not collected) |
+| Online failed or expired | Online attempts needing a customer retry |
+| Gross collected | Online plus cash collected, before refunds, not profit |
+| Confirmed refunds | Verified provider refunds |
+| Net collected | Gross collected less confirmed refunds |
+
+The rules worth repeating: an unpaid Cash on Arrival order counts toward
+outstanding money and never toward collected revenue; a cancelled unpaid order
+drops out of outstanding money while still counting as an order; a pending,
+failed or expired online payment counts as zero collected; and refunds reduce
+net collected only after the provider confirms them. Definitions are enforced
+by `src/lib/repositories/admin.ts`.
 
 ## 9. Responsiveness and accessibility
 
@@ -119,8 +167,12 @@ screen reader hears the outcome of an action without hunting for it.
 
 ## 10. What was verified
 
-Playwright scenarios C, D and E in `e2e/orders/orders.spec.ts` cover
-payment recording and double-recording refusal, both lifecycles, an illegal
-transition injected into the live form, a stale version token, cancellation
-without a reason, signed-out page access and a signed-out action. Results
-are recorded in `docs/PHASE5_REPORT.md`.
+Playwright scenarios C, D and E in `e2e/orders/orders.spec.ts` cover payment
+recording and double-recording refusal, both lifecycles, an illegal transition
+injected into the live form, a stale version token, cancellation without a
+reason, signed-out page access and a signed-out action (see
+`docs/PHASE5_REPORT.md`). Phase 6 adds a ninth test proving that online payment
+stays visibly unavailable without explicit Stripe test configuration while cash
+ordering keeps working; the payment state machine, idempotency, webhook
+verification and reconciliation are covered by Vitest against a real MongoDB
+with an injected provider (see `docs/PHASE6_REPORT.md`).

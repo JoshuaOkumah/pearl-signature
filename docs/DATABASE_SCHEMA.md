@@ -1,13 +1,15 @@
-# PEARL Signature — Database Schema (Phase 2, 3, 4 & 5)
+# PEARL Signature — Database Schema (Phase 2, 3, 4, 5 & 6)
 
 Database: **MongoDB** (target: MongoDB Atlas M0 free tier).
 ODM: **Mongoose 9**. Boundary validation: **Zod 4**.
-Six collections: `categories` and `products` (catalogue, Phase 2) plus
-`admins`, `admin_sessions`, `admin_login_attempts` and
-`admin_audit_logs` (administration, Phase 3). Phase 4 adds no collections or
-indexes: the guest cart is browser-local, quote requests are read-only, and
-checkout details are not transmitted or persisted. There are no customer,
-order, payment or inventory-reservation records.
+Six catalogue and administration collections: `categories` and `products`
+(Phase 2) plus `admins`, `admin_sessions`, `admin_login_attempts` and
+`admin_audit_logs` (Phase 3). Phase 4 adds no collections: the guest cart is
+browser-local and quote requests are read-only. Phase 5 adds `orders`,
+`store_configs`, `order_attempts` and `notification_outbox`. Phase 6 adds
+`payment_attempts`, `stripe_events` and `payment_refunds` and extends the
+`orders.payment` subdocument; it introduces no customer, card or
+payment-method records.
 
 All indexes below are created by the seed script or an operator command
 (`autoIndex` is **off** on the application connection, so the app never
@@ -167,7 +169,7 @@ Four new collections. Full field-level prose lives in
 | `fulfillment` | `{ method, address, instructions, notes, serviceAreaLabel, pickupInstructions }` | embedded | `address` is null for pickup; area label and pickup instructions are snapshots |
 | `items` | OrderItem[] | 1–30, `_id: false` | name, variant, quantity (1–99), `unitPriceCents`, `lineTotalCents`, image reference: **all frozen at purchase** |
 | `money` | `{ currency, subtotalCents, deliveryFeeCents, taxCents, totalCents, taxLabel, taxRateBps }` | embedded, integer cents | Schema validator enforces `subtotal + fee + tax === total` |
-| `payment` | `{ method, status, paidAt, paidByAdminId, paidByLabel }` | embedded | `method` enum has one member (`cash_on_arrival`); `status` is `unpaid` or `paid` |
+| `payment` | `{ method, status, provider, paidAt, paidByAdminId, paidByLabel, amountReceivedCents, refundedAmountCents, stripeSessionId, paymentIntentId, requiresReview, reconciliationStatus, lastReconciledAt }` | embedded | See the payment subdocument table below |
 | `status` | enum | default `placed` | The seven lifecycle states |
 | `statusHistory` | StatusEvent[] | ≤ 40 | `{ from, to, at, adminId, note }`; placement row has `from: null` |
 | `cancellationReason` | string \| null | ≤ 300 | Required by the action, not the schema |
@@ -179,6 +181,26 @@ Indexes: unique `reference`, unique `idempotencyKey`, `createdAt` desc,
 `{ status, createdAt }`, `{ payment.status, createdAt }`. Created
 deliberately by `scripts/seed.ts` and the test harness (`autoIndex` is off).
 
+#### `orders.payment` (Phase 6)
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `method` | enum | `cash_on_arrival` | `cash_on_arrival` \| `stripe` |
+| `status` | enum | `unpaid` | `unpaid`, `awaiting_payment`, `processing`, `paid`, `failed`, `expired`, `partially_refunded`, `refunded`, `review_required` |
+| `provider` | enum | `none` | `none` \| `stripe` |
+| `amountReceivedCents` | integer | `0` | Written once from the verified attempt amount; 0 means nothing verified |
+| `refundedAmountCents` | integer | `0` | Sum of `succeeded` refund rows; never exceeds the received amount |
+| `stripeSessionId` | string \| null | `null` | Checkout Session for the current attempt |
+| `paymentIntentId` | string \| null | `null` | PaymentIntent recorded from the session or event |
+| `requiresReview` | boolean | `false` | Set by a mismatch, a duplicate settlement or a late payment after cancellation |
+| `reconciliationStatus` | enum | `not_checked` | `not_checked` \| `matched` \| `mismatch` \| `error` |
+| `lastReconciledAt` | date \| null | `null` | |
+| `paidAt`, `paidByAdminId`, `paidByLabel` | mixed | `null` | `paidBy*` remain Cash on Arrival attribution only |
+
+Documents created before Phase 6 lack the newer keys and read back with these
+defaults; no migration is required, and an old `paid` cash order still reports
+its full total as collected.
+
 ### `store_configs`
 
 Single singleton document, `_id: "checkout"`.
@@ -189,6 +211,7 @@ Single singleton document, `_id: "checkout"`.
 | `delivery` | `{ enabled, serviceAreas[] }` | Each area: label, 1–13 province codes, FSA prefixes, `feeCents` (integer, 0–999 999) |
 | `pickup` | `{ enabled, instructions }` | Enabling pickup requires instructions |
 | `tax` | `{ mode, rateBps, base, label }` | `unconfigured` \| `zero` \| `rate`; a rate without rate and base reads back as `unconfigured` |
+| `payments` | `{ onlineEnabled }` | Default **false**; the owner switch for Stripe online payment. Independent of order intake and never inferred from environment variables |
 | `createdAt` / `updatedAt` | date | timestamps |
 
 A malformed service area or tax block is dropped or downgraded on read,
@@ -202,16 +225,17 @@ never rendered with a wrong value.
 | `count` | number | Atomic upsert `$inc`; counted per attempt, not per success |
 | `expiresAt` | date | **TTL index**; 15-minute windows (`ORDER_RATE_WINDOW_MS`) |
 
-Limits: 10 attempts per window for `order.create`, 30 for `order.lookup`.
-Separate from `admin_login_attempts` so neither budget can consume the
-other. Fail-closed when unreadable.
+Limits: 10 attempts per window for `order.create`, 30 for `order.lookup`, and
+10 for `payment.create` (Checkout initialization). Separate from
+`admin_login_attempts` so neither budget can consume the other. Fail-closed
+when unreadable. Verified webhooks are never rate limited.
 
 ### `notification_outbox`
 
 | Field | Type | Notes |
 | --- | --- | --- |
 | `key` | string, unique | `${event}:${reference}:${recipientRole}` |
-| `event` | enum | `order.placed`, `order.status_changed` |
+| `event` | enum | `order.placed`, `order.status_changed`, `payment.confirmed`, `payment.failed`, `payment.requires_attention`, `payment.refund_review` |
 | `reference` | string | Order reference only |
 | `recipientRole` | enum | `customer`, `admin` |
 | `status` | enum | `pending`, `sent`, `failed` |
@@ -223,6 +247,85 @@ other. Fail-closed when unreadable.
 
 No email, name, address or message body is ever stored: recipients resolve
 at dispatch time.
+
+---
+
+## Phase 6 payment collections
+
+Three collections, all written only by server-side payment code. Prose:
+`docs/PAYMENT_LIFECYCLE.md`, `docs/STRIPE_INTEGRATION.md`,
+`docs/PAYMENT_RECONCILIATION.md`. No card data, payment-method token or full
+provider payload is stored anywhere.
+
+### `payment_attempts`
+
+One row per provider attempt. Created **before** the Stripe call, so an
+ambiguous timeout is always recoverable.
+
+| Field | Type | Rules | Notes |
+| --- | --- | --- | --- |
+| `orderId` | string | required, ≤ 64 | Order `_id` as a string |
+| `orderReference` | string | required, ≤ 20 | Denormalized for lookups |
+| `sequence` | integer | required, ≥ 1 | Unique per order |
+| `amountCents` | integer | required, 1–99 999 999 | Must equal the order snapshot total |
+| `currency` | enum | `CAD` | Only Canadian dollars |
+| `provider` | enum | `stripe` | |
+| `status` | enum | `creating`, `open`, `processing`, `succeeded`, `failed`, `expired`, `uncertain` | |
+| `active` | boolean | required | At most one active row per order |
+| `providerIdempotencyKey` | string | required, **unique**, ≤ 255 | `pearl_<48 hex>`; persisted before the provider call |
+| `checkoutSessionId` | string \| null | ≤ 255 | Unique when present |
+| `paymentIntentId` | string \| null | ≤ 255 | Unique when present |
+| `expiresAt`, `providerCreatedAt`, `succeededAt`, `lastReconciledAt` | date \| null | | |
+| `failureCode` | string \| null | ≤ 80 | Normalized code, never provider text |
+| `reconciliationStatus` | enum | `not_checked`, `matched`, `mismatch`, `error` | |
+| `createdAt` / `updatedAt` | date | timestamps | |
+
+Indexes: unique `providerIdempotencyKey`; unique `{ orderId, sequence }`;
+**partial unique** `{ orderId }` where `active: true`; **partial unique**
+`checkoutSessionId` and `paymentIntentId` where the field is a string;
+`{ orderReference, createdAt desc }`.
+
+### `stripe_events`
+
+Durable webhook ledger. The row is written before any financial state change,
+and the unique event id is what makes replay safe. There is deliberately no TTL:
+financial event ids are reconciliation evidence.
+
+| Field | Type | Rules | Notes |
+| --- | --- | --- | --- |
+| `eventId` | string | required, **unique**, ≤ 255 | Stripe event id |
+| `type` | string | required, ≤ 100 | Event type |
+| `objectId` | string | required, ≤ 255 | Provider object id, or `unsupported` |
+| `livemode` | boolean | required, default false | Live events are quarantined |
+| `eventCreatedAt` | date | required | Provider timestamp |
+| `status` | enum | `received`, `processed`, `retry`, `quarantined` | |
+| `orderReference` | string \| null | ≤ 20 | Set once associated |
+| `attempts` | integer | ≥ 0 | Delivery/processing attempts |
+| `processedAt` | date \| null | | |
+| `lastErrorCode` | string \| null | ≤ 80 | Normalized, PII-free |
+
+Indexes: unique `eventId`; `{ status, createdAt }`;
+`{ orderReference, eventCreatedAt desc }`.
+
+### `payment_refunds`
+
+Verified provider refund records. Written from trusted events or audited
+reconciliation only; this application never creates a refund.
+
+| Field | Type | Rules | Notes |
+| --- | --- | --- | --- |
+| `orderId`, `orderReference`, `attemptId` | string | required | Which order and attempt |
+| `stripeRefundId` | string | required, **unique**, ≤ 255 | Provider refund id |
+| `stripePaymentIntentId` | string | required, ≤ 255 | |
+| `amountCents` | integer | required, 1–99 999 999 | Whole cents |
+| `currency` | enum | `CAD` | |
+| `status` | enum | `pending`, `succeeded`, `failed`, `canceled` | Only `succeeded` rows count toward totals |
+| `providerCreatedAt` | date | required | |
+| `reconciledAt` | date \| null | | |
+| `createdAt` / `updatedAt` | date | timestamps | |
+
+Indexes: unique `stripeRefundId`; `{ orderId, createdAt desc }`;
+`{ attemptId, createdAt desc }`.
 
 ---
 
@@ -281,6 +384,9 @@ blocker and refuses submission rather than assuming a fee or a tax rate.
 - Slug lookups go through `getPublishedProductBySlug`, which the page layer
   **and** `src/proxy.ts` (real 404 status codes) share, so there is exactly
   one implementation of every rule.
+- Payment collections are never read by a public page. They are reachable only
+  from the webhook handler, the authorized admin order detail and the audited
+  reconciliation action.
 
 ## ID serialisation
 

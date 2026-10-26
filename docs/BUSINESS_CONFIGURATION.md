@@ -1,9 +1,9 @@
 # PEARL Signature - Business Configuration
 
-Phase 5, Milestone A. Everything a business must decide before a customer can
-place a real order lives in one owner-managed document: the `store_configs`
-singleton (`_id: "checkout"`). Nothing about fulfilment, fees or tax is
-hardcoded anywhere in the codebase.
+Phase 5 (extended in Phase 6). Everything a business must decide before a
+customer can place a real order lives in one owner-managed document: the
+`store_configs` singleton (`_id: "checkout"`). Nothing about fulfilment, fees,
+tax or payment availability is hardcoded anywhere in the codebase.
 
 ## 1. The configuration surface
 
@@ -13,6 +13,12 @@ hardcoded anywhere in the codebase.
 | Delivery | `delivery.enabled`, service areas (label, provinces, postal prefixes, fee) | Delivery unavailable, or `area_unsupported` for an unserved address |
 | Pickup | `pickup.enabled`, pickup instructions | Pickup unavailable; enabling pickup without instructions is a validation error |
 | Tax | mode (`unconfigured`, `zero`, `rate`), rate in basis points, base (`merchandise` or `with_delivery`), label | `tax_unconfigured` blocks submission |
+| Online payment | `payments.onlineEnabled` (default **false**) | Online payment unavailable; Cash on Arrival stays available |
+
+Online payment additionally requires a complete Stripe test-mode environment
+(`STRIPE_PAYMENTS_ENABLED`, an `sk_test_*` key, a `whsec_*` webhook secret and
+the canonical site URL). The switch alone cannot enable it, and environment
+values alone cannot enable it either. See `docs/STRIPE_INTEGRATION.md` §3.
 
 Service areas: up to 20, each with 1 to 13 Canadian province or territory
 codes, optional three-character forward sortation area prefixes (empty means
@@ -67,7 +73,14 @@ before saving:
   accepting orders`.
 
 Reads are defensive: a corrupt tax block resolves to `unconfigured` (which
-blocks) rather than to a silent $0 tax.
+blocks) rather than to a silent $0 tax. A corrupt or missing payment block
+resolves to `onlineEnabled: false`, so a damaged document can never enable
+online payment.
+
+The settings page also shows a **Stripe readiness** panel that states, in plain
+language, whether the server environment is ready, disabled, missing
+configuration, using a rejected live key or missing a canonical URL. It never
+echoes a key or a secret.
 
 ## 4. Snapshots, not live settings
 
@@ -121,6 +134,16 @@ decision; none can be filled in by a developer.
 - [ ] Cash on Arrival confirmed as the accepted method for launch.
 - [ ] The person who records payments on arrival is identified and has an
       admin account.
+- [ ] Decide whether online payment should be offered at all. If yes: a Stripe
+      account exists, test-mode keys and a webhook secret are configured, the
+      webhook endpoint is registered, and the owner switch is turned on only
+      after the test-mode pass in `docs/STRIPE_INTEGRATION.md` §11.
+- [ ] Decide who reviews payments flagged **Review required**, and how quickly.
+- [ ] Decide the refund policy. This application never refunds automatically,
+      so the policy must describe what an operator does in Stripe.
+- [ ] Confirm that no live Stripe key is present while the store is still being
+      reviewed: live keys are rejected by the readiness gate, but they must not
+      be introduced at all before the live activation decision.
 
 **Notifications**
 
@@ -135,3 +158,6 @@ decision; none can be filled in by a developer.
       data removed or clearly identified.
 - [ ] Prices on the real catalogue confirmed by the business (the preview
       fixtures are unpriced on purpose).
+- [ ] If online payment is offered: one test-mode payment completed end to end,
+      its dashboard figures reconciled against Stripe, and a refund recorded
+      correctly. Live keys are a separate, explicit decision.

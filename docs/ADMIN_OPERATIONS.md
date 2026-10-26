@@ -1,8 +1,9 @@
-# PEARL Signature — Admin Operations Guide (Phase 3)
+# PEARL Signature — Admin Operations Guide (Phase 3–6)
 
 > Day-to-day operating instructions for the owner dashboard at `/admin`.
 > This guide assumes the owner account already exists (see
-> `docs/ADMIN_AUTH.md` §6 for the bootstrap command).
+> `docs/ADMIN_AUTH.md` §6 for the bootstrap command). Order and payment
+> operations are covered in depth in `docs/ADMIN_ORDER_OPERATIONS.md`.
 
 ---
 
@@ -31,11 +32,16 @@ invented numbers:
 - Total, published, draft and unavailable (published but missing a price
   or category) product counts.
 - Active and disabled category counts.
+- Order and money cards: orders, in progress, awaiting cash, cash outstanding,
+  paid online, cash collected, online pending, online failed or expired, gross
+  collected, confirmed refunds and net collected.
 - Recently updated products (last five edits with the edit date).
 
 Use the unavailable count as the operational to-do list: a product that is
 "published" but missing a price or category is invisible to customers in
-some views and must be completed.
+some views and must be completed. Use **Online pending** and **Online failed or
+expired** as the payment to-do list, and **Net collected** (not gross) when
+thinking about money kept.
 
 ---
 
@@ -127,6 +133,21 @@ searchable immediately.
 
 ---
 
+## 6b. Orders and online payments
+
+Order placement, the lifecycle, Cash on Arrival recording, Stripe payment
+status, reconciliation and refund records are documented in
+`docs/ADMIN_ORDER_OPERATIONS.md`. The rules an owner must not break:
+
+- Cash on Arrival is recorded by hand; online payment is recorded only from
+  verified Stripe events.
+- Cancelling an order never refunds it.
+- A payment marked **Review required** needs a Stripe check before any action.
+- Reconciliation has a read-only check first; applying changes requires a
+  second confirmation and is audited.
+
+---
+
 ## 7. Troubleshooting
 
 | Symptom | Cause | Action |
@@ -136,3 +157,7 @@ searchable immediately.
 | Save reports "changed elsewhere" | Optimistic-concurrency guard fired | Reload the record and reapply the edit |
 | Photos cannot be added | Cloudinary not configured on this deployment | Expected; see §5 |
 | A published product does not appear | Missing price or category (unavailable) | Fix from the dashboard's unavailable count |
+| Online payment is greyed out at checkout | Stripe test configuration incomplete, or the online payment switch is off | Check the Stripe readiness panel at `/admin/settings`; see `docs/STRIPE_INTEGRATION.md` §3 |
+| A Stripe order has no manual payment control | Correct: online payments are never recorded by hand | Use reconciliation after checking Stripe |
+| An order shows **Review required** | Provider and local facts disagree, or a cancelled order received a late payment | Read the attempts, check Stripe, then reconcile or decide on a refund in Stripe |
+| **Paid online** disagrees with Stripe | A webhook may have been missed | Open the order, run the read-only reconciliation check |

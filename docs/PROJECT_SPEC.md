@@ -131,11 +131,20 @@ remain unconfirmed and are shown as such.
 | Notification outbox | `notification_outbox` queue with idempotent keys, bounded retries and a provider-registry seam; no provider is wired yet |
 | Owner-managed `store_configs` singleton | Delivery areas and fees, pickup instructions, tax treatment and order intake: no fee, rate or address is hardcoded |
 
+### Added in Phase 6 (implemented, test mode only)
+| Technology | Status & purpose |
+| --- | --- |
+| Stripe Node SDK (`stripe`) | Hosted Checkout Session creation, signature verification and server-side provider reads; test mode only, live keys rejected |
+| MongoDB `payment_attempts` collection | One durable row per provider attempt: sequence, amount, idempotency key, session/intent ids, reconciliation state |
+| MongoDB `stripe_events` collection | Durable webhook ledger keyed by Stripe event id; `received`, `processed`, `retry`, `quarantined` |
+| MongoDB `payment_refunds` collection | Verified provider refund records keyed by `stripeRefundId`; foundation for refund reporting, no refunds are initiated |
+| Owner-managed `payments.onlineEnabled` switch | Default-off business switch, independent of order intake and of environment variables |
+
 ### Reserved for later phases (NOT implemented yet)
 | Technology | Purpose |
 | --- | --- |
-| Stripe | Online payments |
 | Notification provider | A real email/SMS transport registered in `src/lib/notifications/provider.ts` |
+| Live Stripe mode | Live keys, live webhooks and real customer charges are explicitly out of scope |
 
 **Rejected dependencies:** Supabase, Firebase, PostgreSQL — must not be added.
 No paid services, subscriptions or premium dependencies. No secrets in source.
@@ -227,8 +236,37 @@ Commerce × Modern Editorial Design. Full detail lives in `docs/DESIGN_SYSTEM.md
 - Dashboard money metrics computed from real records: unpaid Cash on Arrival
   counts as outstanding, never as collected.
 
+### Phase 6 (implemented, test mode only)
+- Online payment through Stripe's hosted Checkout page for an existing order.
+  The customer never enters card details on this site and no card data is
+  stored or transmitted by this application.
+- Server-authoritative amounts: the Checkout amount is the immutable Phase 5
+  order snapshot in integer CAD cents. No browser value, price, fee, tax,
+  currency or status is accepted.
+- A durable provider attempt before every Stripe call, with a stable
+  idempotency key so an ambiguous timeout cannot create a second chargeable
+  session; retries reuse a valid open session and replace only a
+  provider-confirmed expired or failed one.
+- A signature-verified webhook endpoint with a durable event ledger. Redirects
+  are never treated as proof of payment, duplicate and out-of-order events
+  cannot corrupt a paid order, and paid is monotonic.
+- Payment states beyond `unpaid|paid`: awaiting, processing, failed, expired,
+  partially refunded, refunded and review required. Fulfilment stays
+  independent of payment.
+- A cancelled order that receives a late verified payment keeps the payment,
+  stays cancelled and is flagged for review. Cancelling is not a refund.
+- Verified refund records and partial/full refund totals derived only from
+  trusted provider events. No refund is initiated, offered or automated.
+- Owner-visible online payment switch, Stripe readiness panel, per-order
+  attempts and refunds, a dry-run-first audited reconciliation control, and a
+  dashboard that separates online settlement, cash collection, outstanding,
+  pending, failed, refunds, gross and net.
+- Payment notifications reuse the Phase 5 outbox with idempotent keys; no
+  provider is configured, so nothing claims delivery.
+
 ### Upcoming (documented, not implemented)
-- Stripe online payments and any refund workflow.
+- Live Stripe activation (real keys, real charges) and any customer-initiated
+  refund or dispute flow.
 - A registered notification provider (email/SMS transport).
 - Pickup and delivery time slots or scheduling (none offered; any future
   promise must be supplied by the business).

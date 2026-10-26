@@ -16,6 +16,10 @@
 > **Phase 5: Orders, Cash on Arrival & Order Management — IMPLEMENTED,
 > awaiting review** (see `docs/PHASE5_REPORT.md`, section 1G). Stripe and
 > deployment remain out of scope and require separate approval.
+> **Phase 6: Secure Stripe Checkout, Payment Reconciliation & Financial
+> Integrity — IMPLEMENTED IN TEST MODE, awaiting review** (see
+> `docs/PHASE6_REPORT.md`, section 1H). Live payments, deployment and any
+> refund workflow remain out of scope and require separate approval.
 
 ---
 
@@ -477,12 +481,85 @@ were invented anywhere.
 
 ---
 
+## 1H. Phase 6 — secure Stripe Checkout, reconciliation & financial integrity
+
+Full report: `docs/PHASE6_REPORT.md`. Specification snapshot:
+`docs/PHASE6_SPEC.md`. Behavioural documents: `docs/STRIPE_INTEGRATION.md`,
+`docs/PAYMENT_LIFECYCLE.md`, `docs/PAYMENT_RECONCILIATION.md`.
+
+Status: **implemented in Stripe test mode only, gated off by default, not
+verified against a real Stripe account.** Live payments and deployment are
+prohibited in this phase.
+
+### What shipped
+- **Hosted Checkout, server-authoritative amounts**: one Stripe Checkout
+  Session per attempt, `mode: "payment"`, currency `cad`, a single line item
+  equal to the immutable order snapshot total. No card form, no card data, no
+  browser-supplied price, fee, tax, currency or status.
+- **Durable attempt reservation**: a `payment_attempts` row with a stable
+  `pearl_<48 hex>` idempotency key is persisted **before** the provider call.
+  Partial unique indexes allow one active attempt per order. Ambiguous outcomes
+  keep the reservation and retry with the same key; only a provider-confirmed
+  expired or failed session is replaced; paid and cancelled orders are refused.
+- **Readiness gates**: `STRIPE_PAYMENTS_ENABLED=true`, an `sk_test_*` key, a
+  `whsec_*` secret and a valid canonical site URL, **plus** the owner's
+  default-off online payment switch. `sk_live_*` is rejected and live events are
+  quarantined. Environment presence alone enables nothing.
+- **Signature-verified webhook**: `/api/stripe/webhook` reads the raw body once
+  and calls the SDK's `constructEvent`. A durable `stripe_events` row is written
+  before financial state, unique on the event id. Amount, currency,
+  `client_reference_id`, metadata, attempt and `livemode` are all checked
+  before anything is applied.
+- **Monotonic payment state**: duplicate and out-of-order events cannot corrupt
+  a paid order; a completed session that is not paid becomes `processing`, not
+  `paid`; failures and expiries never downgrade a settlement; a late payment
+  after cancellation is retained, flagged for review and never resurrects the
+  order.
+- **Refund foundations**: `payment_refunds` records verified provider refunds;
+  partial and full refund totals come only from `succeeded` rows. No refund is
+  initiated, offered or automated, and cancelling is explicitly not a refund.
+- **Customer experience**: a two-option payment choice with an honest
+  unavailable state, "Continue to Secure Payment", and confirmation states for
+  pending, paid, failed/expired with a bounded retry, refunded and review
+  required. No success message is shown before server verification.
+- **Admin experience**: payment detail (collected amount, refunds, review
+  warning, provider ids), attempt history, refund records, a read-only
+  reconciliation check followed by a two-step audited apply, and a dashboard
+  that separates online settlement, cash collection, outstanding, pending,
+  failed, refunds, gross and net. The Cash on Arrival action refuses Stripe
+  orders.
+- **Notifications**: `payment.confirmed`, `payment.failed`,
+  `payment.requires_attention` and `payment.refund_review` reuse the Phase 5
+  outbox with idempotent keys; the durable enqueue happens before a webhook is
+  acknowledged. No provider is configured, so nothing claims delivery.
+
+### Explicitly not implemented
+Live Stripe mode or real charges, any refund/dispute UI or API call, customer
+accounts, subscriptions, discounts, gift cards, delivery integrations, paid
+queues or database upgrades, deployment. No delivery area, fee, tax rate,
+contact detail or review was invented.
+
+### Phase 6 verification (all executed)
+| Command | Result |
+| --- | --- |
+| `npx next typegen` | ✅ PASS — types generated |
+| `npm run typecheck` | ✅ PASS — 0 errors |
+| `npm run lint` | ✅ PASS — 0 errors/warnings |
+| `npm run test` | ✅ PASS — **713/713** (52 files) |
+| `npm run build` | ✅ PASS — `/api/stripe/webhook` dynamic; all Phase 5 routes intact |
+| `npm run test:e2e` | ✅ PASS — **88/88** (the new orders test proves online payment stays unavailable without explicit test configuration) |
+| `npm run screenshots` | ✅ PASS — all captures written, 0 horizontal overflow, including `checkout-payment` and `admin-settings-payments` |
+| Visual review of the Phase 6 captures | ✅ PASS after two fixes — dashboard money values no longer wrap the currency onto its own oversized line, and the readiness panel no longer renders literal backticks around `.env.example` |
+| Genuine Stripe test-mode run | ❌ NOT EXECUTED — no test keys or Stripe CLI in this environment; steps documented for the operator |
+
+---
+
 ## 2. Verification results (all executed)
 
 The table below is the original Phase 1 log. Each later phase carries its own
-verification table in its section (1B, 1C, 1D, 1E, 1F, 1G) and in its report
-(`docs/PHASE2_REPORT.md` through `docs/PHASE5_REPORT.md`); all commands have
-been re-run after every phase.
+verification table in its section (1B, 1C, 1D, 1E, 1F, 1G, 1H) and in its
+report (`docs/PHASE2_REPORT.md` through `docs/PHASE6_REPORT.md`); all commands
+have been re-run after every phase.
 
 | # | Command | Result |
 | --- | --- | --- |
@@ -530,20 +607,25 @@ been re-run after every phase.
 - A notification provider decision (email/SMS credentials) before any
   entry leaves the `notification_outbox`; until then it stays honestly
   `pending`.
+- Stripe test-mode keys and webhook secret before online payment can be
+  enabled, plus the owner's decision to turn on the online payment switch. The
+  readiness checklist is `docs/STRIPE_INTEGRATION.md` §4 and §11.
 - Operating hours, verified business email/phone/social accounts.
 - Domain/hosting choice and production deployment.
 - Confirming that “Signature” badge/wording matches brand preferences.
 
 ## 4. Known limitations
 
-- **Admin, catalogue and orders are DB-backed; payments and deployment are
+- **Admin, catalogue and orders are DB-backed; live payments and deployment are
   not.** Phase 3 added owner auth, product/category CRUD and signed uploads;
   Phase 4 added the guest cart and checkout review; Phase 5 added real order
-  records, Cash on Arrival recording and order management. Stripe does not
-  exist anywhere. Until `MONGODB_URI` exists, the site runs on labelled
-  preview fixtures (dev/preview) or shows the honest unavailable state
-  (production without configuration), and the admin requires a real database
-  (the disposable e2e stack uses an in-memory MongoDB).
+  records, Cash on Arrival recording and order management; Phase 6 added
+  Stripe test-mode Checkout, verified webhooks and reconciliation. Online
+  payment is off unless an operator supplies test credentials **and** turns on
+  the owner switch, and no live charge path exists. Until `MONGODB_URI` exists,
+  the site runs on labelled preview fixtures (dev/preview) or shows the honest
+  unavailable state (production without configuration), and the admin requires
+  a real database (the disposable e2e stack uses an in-memory MongoDB).
 - **Order intake is closed until the owner configures it.** With no
   `store_configs` document (or an `unconfigured` tax treatment) checkout
   blocks submission with a stated reason; nothing is invented to fill the
@@ -579,10 +661,11 @@ been re-run after every phase.
 
 ## 5. Next planned phase (requires separate approval)
 
-Phase 5 is implemented and awaiting review. Any next phase may add Stripe or
-other payment handling, customer accounts, a registered notification
-provider, inventory management or deployment only after explicit
-business-owner approval and the required business inputs. See
+Phase 6 is implemented in test mode and awaiting review. Live Stripe
+activation, any refund/dispute workflow, customer accounts, a registered
+notification provider, inventory management or deployment require explicit
+business-owner approval and the required business inputs (see
+`docs/STRIPE_INTEGRATION.md` §11 for the payment-specific pre-live steps). See
 `docs/PROJECT_SPEC.md` for unresolved details and
 `docs/BUSINESS_CONFIGURATION.md` for the pre-launch checklist. Do not start a
 new phase without explicit approval.
