@@ -315,10 +315,11 @@ describe("getDashboardStats", () => {
       return 0;
     }) as never);
 
-    // Order metrics: money grouped by PAYMENT state, never by lifecycle.
+    // Order metrics: money grouped by PAYMENT state and a cancelled flag,
+    // never by lifecycle alone.
     vi.mocked(OrderModel.aggregate).mockResolvedValue([
-      { _id: "paid", count: 2, cents: 9_000 },
-      { _id: "unpaid", count: 1, cents: 4_938 },
+      { _id: { payment: "paid", cancelled: false }, count: 2, cents: 9_000 },
+      { _id: { payment: "unpaid", cancelled: false }, count: 1, cents: 4_938 },
     ] as never);
     vi.mocked(OrderModel.countDocuments).mockResolvedValue(2 as never);
     vi.mocked(OrderModel.find).mockImplementation(() => chain([ORDER]) as never);

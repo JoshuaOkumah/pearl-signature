@@ -13,6 +13,9 @@
 > (see `docs/PHASE4_REPORT.md`, section 1F). Order submission, payment,
 > Stripe, inventory reservation and deployment remain out of scope and require
 > separate approval.
+> **Phase 5: Orders, Cash on Arrival & Order Management — IMPLEMENTED,
+> awaiting review** (see `docs/PHASE5_REPORT.md`, section 1G). Stripe and
+> deployment remain out of scope and require separate approval.
 
 ---
 
@@ -404,7 +407,82 @@ coverage, taxes and pickup scheduling. No MongoDB schema changes were made.
 
 ---
 
+## 1G. Phase 5 — orders, Cash on Arrival & order management
+
+Full report: `docs/PHASE5_REPORT.md`. Behavioural documents:
+`docs/ORDER_ARCHITECTURE.md`, `docs/ORDER_LIFECYCLE.md`,
+`docs/CASH_ON_ARRIVAL.md`, `docs/ADMIN_ORDER_OPERATIONS.md`,
+`docs/ORDER_NOTIFICATIONS.md` and `docs/BUSINESS_CONFIGURATION.md`.
+
+### What shipped
+- **Owner-managed configuration** in a `store_configs` singleton: order
+  intake switch, delivery areas with fees, pickup instructions and tax
+  treatment (`unconfigured` / `zero` / `rate`). Nothing is hardcoded, and an
+  unconfigured tax treatment blocks live submission with a stated reason.
+- **Real order creation**: the server re-reads configuration, re-quotes the
+  cart against the live catalogue, recomputes totals with the same pure
+  `priceCheckout` the browser previewed, and stores a frozen snapshot
+  (items, names, unit prices, fee, tax, total). Client-supplied prices,
+  totals and payment claims are never trusted.
+- **Idempotency** with a browser-generated checkout-attempt key, a unique
+  index, an intent hash that excludes the expected total, duplicate-key
+  replay, and a one-shot fresh-key retry on conflict. A double submit
+  creates exactly one order.
+- **Cash on Arrival only**: `payment.method` / `payment.status` are separate
+  from the lifecycle `status`; the owner records receipt on the order, the
+  recording form carries no amount, and a second recording is refused even
+  with a current version token.
+- **Order lifecycle** (`placed` → `confirmed` → `preparing` →
+  `ready_for_pickup` or `out_for_delivery` → `completed` / `cancelled`) with
+  method-aware rules, specific refusal messages, required cancellation
+  reasons and optimistic concurrency on every admin mutation.
+- **Admin surfaces**: `/admin/orders` (validated filters, pagination, table
+  on wide screens and stacked cards on narrow ones) and
+  `/admin/orders/[id]` (status panel, payment recording, notes, history,
+  two-step controls for cancel, complete and payment).
+- **Guest confirmation**: `/order-confirmation` opens only with an opaque
+  capability held by the placing browser; the server stores its hash, and a
+  malformed reference and a wrong key return the same neutral result.
+- **Public rate limiting**: separate `order_attempts` buckets for placement
+  (10/15 min) and confirmation reads (30/15 min), counted per attempt,
+  fail-closed, hashed keys, TTL expiry.
+- **Notification outbox**: `notification_outbox` with idempotent keys,
+  bounded retries, backoff, a 30-day TTL and no stored personal data. With
+  no provider configured, entries stay `pending` with an honest reason and
+  order persistence never depends on delivery.
+- **Dashboard metrics** aggregated from real order records only: unpaid Cash
+  on Arrival counts as outstanding and never as collected revenue; cancelled
+  unpaid orders drop out of outstanding money while still counting as an
+  order.
+- **Price safety**: a server total that differs from the reviewed total
+  returns `price_changed`, and the Place order button stays disabled until
+  the customer explicitly acknowledges the new total.
+
+### Explicitly not implemented
+Stripe or any card handling, refunds, customer accounts, discounts or gift
+cards, inventory reservation, a registered notification provider,
+deployment. No prices, fees, tax rates, addresses, hours or contact details
+were invented anywhere.
+
+### Phase 5 verification (all executed)
+| Command | Result |
+| --- | --- |
+| `npx next typegen && npm run typecheck` | ✅ PASS — 0 errors |
+| `npm run lint` | ✅ PASS — 0 errors/warnings |
+| `npm run test` | ✅ PASS — **686/686** (48 files) |
+| `npm run build` | ✅ PASS — `/admin/orders`, `/admin/orders/[id]`, `/order-confirmation`, `/admin/settings` all present |
+| `npm run test:e2e` | ✅ PASS — **87/87** (storefront, cart/checkout, admin + the new `orders` project: scenarios A, B1, B2, C, D, E1, E2, E3) |
+| `npm run screenshots` | ✅ PASS — **191 captures**, 0 horizontal overflow (36 of them the Phase 5 order surfaces at 320/360/390/667/768/1024/1440) |
+| Visual review of the Phase 5 captures | ✅ PASS — checkout (delivery and pickup), confirmation (with and without the capability), order list and detail at phone, landscape and desktop widths: stacked cards instead of compressed tables, money rows inside the viewport, no customer details echoed on the capability-less confirmation |
+
+---
+
 ## 2. Verification results (all executed)
+
+The table below is the original Phase 1 log. Each later phase carries its own
+verification table in its section (1B, 1C, 1D, 1E, 1F, 1G) and in its report
+(`docs/PHASE2_REPORT.md` through `docs/PHASE5_REPORT.md`); all commands have
+been re-run after every phase.
 
 | # | Command | Result |
 | --- | --- | --- |
@@ -444,20 +522,32 @@ coverage, taxes and pickup scheduling. No MongoDB schema changes were made.
 - Owner sign-in credentials for the production database (created once via
   `npm run admin:bootstrap`, see `docs/ADMIN_AUTH.md` §6).
 - Prices, portion sizes, customisation options.
-- Delivery regions, fees and schedules; pickup windows and locations.
+- Delivery regions, fees and schedules; pickup windows and locations. In
+  Phase 5 these become configuration in `/admin/settings` rather than code;
+  the manual pre-launch checklist is in `docs/BUSINESS_CONFIGURATION.md` §6
+  (intake switch, delivery areas and fees, pickup instructions, tax treatment
+  including the actual rate).
+- A notification provider decision (email/SMS credentials) before any
+  entry leaves the `notification_outbox`; until then it stays honestly
+  `pending`.
 - Operating hours, verified business email/phone/social accounts.
 - Domain/hosting choice and production deployment.
 - Confirming that “Signature” badge/wording matches brand preferences.
 
 ## 4. Known limitations
 
-- **Admin and catalogue writes are DB-backed; commerce is not.** Phase 3
-  added owner auth, product/category CRUD and signed uploads; cart,
-  checkout, Stripe and order lifecycle remain Phase 4. Until `MONGODB_URI`
-  exists, the site runs on labelled preview fixtures (dev/preview) or shows
-  the honest unavailable state (production without configuration), and the
-  admin requires a real database (the disposable e2e stack uses an in-memory
-  MongoDB).
+- **Admin, catalogue and orders are DB-backed; payments and deployment are
+  not.** Phase 3 added owner auth, product/category CRUD and signed uploads;
+  Phase 4 added the guest cart and checkout review; Phase 5 added real order
+  records, Cash on Arrival recording and order management. Stripe does not
+  exist anywhere. Until `MONGODB_URI` exists, the site runs on labelled
+  preview fixtures (dev/preview) or shows the honest unavailable state
+  (production without configuration), and the admin requires a real database
+  (the disposable e2e stack uses an in-memory MongoDB).
+- **Order intake is closed until the owner configures it.** With no
+  `store_configs` document (or an `unconfigured` tax treatment) checkout
+  blocks submission with a stated reason; nothing is invented to fill the
+  gap. See `docs/BUSINESS_CONFIGURATION.md`.
 - **Cloudinary uploads are implemented but unverified against a real
   cloud** (no credentials were supplied this phase); the edit page shows
   the designed "not configured" state until `CLOUDINARY_*` variables exist.
@@ -489,7 +579,10 @@ coverage, taxes and pickup scheduling. No MongoDB schema changes were made.
 
 ## 5. Next planned phase (requires separate approval)
 
-Phase 4 is implemented and awaiting review. Any next phase may add order
-creation, payment, inventory or deployment only after explicit business-owner
-approval and the required business inputs. See `docs/PROJECT_SPEC.md` for
-unresolved details. Do not treat checkout review as an order.
+Phase 5 is implemented and awaiting review. Any next phase may add Stripe or
+other payment handling, customer accounts, a registered notification
+provider, inventory management or deployment only after explicit
+business-owner approval and the required business inputs. See
+`docs/PROJECT_SPEC.md` for unresolved details and
+`docs/BUSINESS_CONFIGURATION.md` for the pre-launch checklist. Do not start a
+new phase without explicit approval.

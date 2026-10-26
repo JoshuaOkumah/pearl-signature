@@ -311,13 +311,13 @@ if (cartBaseURL) {
       await settled(page);
 
       // Touch every required field so its error is raised, exactly as a
-      // customer tabbing through the form would see them.
+      // customer tabbing through the form would see them. This stack has no
+      // store configuration, so only the customer details exist here: an
+      // unconfigured store never shows an address form (Phase 5).
       for (const label of [/^Full name/, /^Email address/, /^Phone number/]) {
         await page.getByLabel(label).click();
         await page.keyboard.press("Tab");
       }
-      await page.getByLabel(/^City or town/).click();
-      await page.keyboard.press("Tab");
       await page.waitForTimeout(300);
 
       await checkOverflow(page, `checkout-validation @ ${viewport.width}`);
@@ -329,25 +329,9 @@ if (cartBaseURL) {
       await page.close();
     }
 
-    /* /checkout: pickup selected, no address asked for */
-    {
-      const page = await browser.newPage({ viewport });
-      await seedBasket(page, pricedBasket);
-      await page.goto(`${cartBaseURL}/checkout`, { waitUntil: "domcontentloaded" });
-      await page.getByRole("heading", { name: "Your order" }).waitFor();
-      await settled(page);
-
-      await page.getByRole("radio", { name: /Pickup/ }).click();
-      await page.waitForTimeout(300);
-
-      await checkOverflow(page, `checkout-pickup @ ${viewport.width}`);
-      await page.screenshot({
-        path: `${outDir}/checkout-pickup-${viewport.width}x${viewport.height}.png`,
-        fullPage: true,
-      });
-      console.log(`✓ checkout-pickup @ ${viewport.width}x${viewport.height}`);
-      await page.close();
-    }
+    /* /checkout: pickup is captured against the ORDERS stack below, where a
+       store configuration exists. Here both fulfilment options are honestly
+       unavailable, so there is no pickup state to select. */
   }
 } else {
   console.log(
@@ -475,6 +459,179 @@ if (adminBaseURL && adminEmail && adminPassword) {
 } else {
   console.log(
     "Skipping admin screenshots (set ADMIN_BASE_URL, ADMIN_EMAIL and ADMIN_PASSWORD to enable).",
+  );
+}
+
+/* ── orders (Phase 5) ───────────────────────────────────────────────── */
+
+/**
+ * The order surfaces need a real order before they show anything worth
+ * reviewing, so this section runs against the disposable ORDERS stack
+ * (scripts/e2e-orders-server.ts): it places one labelled test order, then
+ * captures the customer confirmation and the owner's order list, detail and
+ * dashboard metrics at every reference viewport.
+ *
+ * Set ORDERS_BASE_URL (plus the same ADMIN_EMAIL/ADMIN_PASSWORD the harness
+ * bootstrapped) to enable it; otherwise the captures are skipped.
+ */
+const ordersBaseURL = process.env.ORDERS_BASE_URL;
+
+if (ordersBaseURL && adminEmail && adminPassword) {
+  const orderViewports = [
+    { width: 320, height: 700 },
+    { width: 360, height: 800 },
+    { width: 390, height: 844 },
+    { width: 667, height: 375 }, // landscape
+    { width: 768, height: 1024 },
+    { width: 1024, height: 900 },
+    { width: 1440, height: 900 },
+  ];
+
+  const CART_KEY = "pearl-cart-v1";
+
+  /** One clearly synthetic line, priced by the labelled test policy. */
+  const basket = [{ slug: "e2e-sample-meal", variantName: null, quantity: 1, unitPriceCents: 1250 }];
+
+  // 1. A guest fills in the checkout and places a Cash on Arrival order.
+  const buyer = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await buyer.addInitScript(
+    ({ key, payload }) => window.localStorage.setItem(key, JSON.stringify(payload)),
+    { key: CART_KEY, payload: { version: 1, items: basket } },
+  );
+  await buyer.goto(`${ordersBaseURL}/checkout`, { waitUntil: "domcontentloaded" });
+  await buyer.getByRole("heading", { name: "Your order" }).waitFor();
+
+  await buyer.getByRole("radio", { name: /Delivery/ }).check();
+  await buyer.getByLabel(/^Full name/).fill("Ada Okonkwo");
+  await buyer.getByLabel(/^Email address/).fill("ada.okonkwo@example.com");
+  await buyer.getByLabel(/^Phone number/).fill("(416) 555-0123");
+  await buyer.getByLabel(/^Street address/).fill("100 Queen Street West");
+  await buyer.getByLabel(/^City or town/).fill("Toronto");
+  await buyer.getByLabel(/^Province or territory/).selectOption("ON");
+  await buyer.getByLabel(/^Postal code/).fill("M5H 2N2");
+  await buyer.locator("#payment-cash").check();
+  await buyer.getByTestId("amount-due").waitFor();
+
+  // The ready-to-order review panel, before anything is submitted.
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1440, height: 900 },
+  ]) {
+    await buyer.setViewportSize(viewport);
+    await checkOverflow(buyer, `checkout-ready @ ${viewport.width}`);
+    await buyer.screenshot({
+      path: `${outDir}/checkout-ready-${viewport.width}x${viewport.height}.png`,
+      fullPage: true,
+    });
+    console.log(`✓ checkout-ready @ ${viewport.width}x${viewport.height}`);
+  }
+
+  // The same review with pickup selected: no address is asked for and the
+  // store's pickup instructions appear instead.
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1440, height: 900 },
+  ]) {
+    await buyer.setViewportSize(viewport);
+    await buyer.getByRole("radio", { name: /Pickup/ }).check();
+    await buyer.getByTestId("pickup-fields").waitFor();
+    await checkOverflow(buyer, `checkout-pickup @ ${viewport.width}`);
+    await buyer.screenshot({
+      path: `${outDir}/checkout-pickup-${viewport.width}x${viewport.height}.png`,
+      fullPage: true,
+    });
+    console.log(`✓ checkout-pickup @ ${viewport.width}x${viewport.height}`);
+  }
+
+  await buyer.setViewportSize({ width: 1440, height: 900 });
+  await buyer.getByRole("radio", { name: /Delivery/ }).check();
+  await buyer.getByTestId("delivery-fields").waitFor();
+  await buyer.getByTestId("place-order").click();
+  await buyer.waitForURL(/\/order-confirmation\?ref=PS-[0-9A-F]{10}/, { timeout: 30_000 });
+  const reference = new URL(buyer.url()).searchParams.get("ref");
+  await buyer.getByTestId("order-confirmation").waitFor();
+
+  // The confirmation as the placing browser sees it (capability present).
+  for (const viewport of orderViewports) {
+    await buyer.setViewportSize(viewport);
+    await checkOverflow(buyer, `order-confirmation @ ${viewport.width}`);
+    await buyer.screenshot({
+      path: `${outDir}/order-confirmation-${viewport.width}x${viewport.height}.png`,
+      fullPage: true,
+    });
+    console.log(`✓ order-confirmation @ ${viewport.width}x${viewport.height}`);
+  }
+  await buyer.close();
+
+  // 2. The same link on a device that holds no capability opens nothing.
+  const stranger = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await stranger.goto(`${ordersBaseURL}/order-confirmation?ref=${reference}`, {
+    waitUntil: "domcontentloaded",
+  });
+  await stranger.getByTestId("confirmation-notice").waitFor();
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1440, height: 900 },
+  ]) {
+    await stranger.setViewportSize(viewport);
+    await checkOverflow(stranger, `order-confirmation-no-capability @ ${viewport.width}`);
+    await stranger.screenshot({
+      path: `${outDir}/order-confirmation-no-capability-${viewport.width}x${viewport.height}.png`,
+      fullPage: true,
+    });
+    console.log(`✓ order-confirmation-no-capability @ ${viewport.width}x${viewport.height}`);
+  }
+  await stranger.close();
+
+  // 3. The owner's side of the same order.
+  const owner = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await owner.goto(`${ordersBaseURL}/admin/login`, { waitUntil: "domcontentloaded" });
+  await owner.getByRole("heading", { level: 1, name: "Sign in" }).waitFor();
+  await owner.getByRole("textbox", { name: "Email (required)" }).fill(adminEmail);
+  await owner.getByRole("textbox", { name: "Password (required)" }).fill(adminPassword);
+  await owner.getByRole("button", { name: "Sign in" }).click();
+  await owner.waitForURL(`${ordersBaseURL}/admin`, { timeout: 15_000 });
+
+  async function ordersGoto(page, path, heading) {
+    // One retry: Chromium occasionally reports ERR_NETWORK_IO_SUSPENDED on
+    // Windows, which is a browser/network flake rather than a page failure.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        await page.goto(`${ordersBaseURL}${path}`, { waitUntil: "domcontentloaded" });
+        break;
+      } catch (error) {
+        if (attempt === 1) throw error;
+        await page.waitForTimeout(1_000);
+      }
+    }
+    await page.getByRole("heading", { level: 1, name: heading }).waitFor();
+    await page.waitForTimeout(400); // let badges and money rows settle
+  }
+
+  const orderSurfaces = [
+    { name: "admin-orders", path: "/admin/orders", heading: "Orders" },
+    { name: "admin-order-detail", path: `/admin/orders/${reference}`, heading: reference },
+    // The dashboard again, this time with real order records behind the metrics.
+    { name: "admin-dashboard-orders", path: "/admin", heading: "Dashboard" },
+  ];
+
+  for (const surface of orderSurfaces) {
+    for (const viewport of orderViewports) {
+      await owner.setViewportSize(viewport);
+      await ordersGoto(owner, surface.path, surface.heading);
+      await checkOverflow(owner, `${surface.name} @ ${viewport.width}`);
+      await owner.screenshot({
+        path: `${outDir}/${surface.name}-${viewport.width}x${viewport.height}.png`,
+        fullPage: true,
+      });
+      console.log(`✓ ${surface.name} @ ${viewport.width}x${viewport.height}`);
+    }
+  }
+
+  await owner.close();
+} else {
+  console.log(
+    "Skipping order screenshots (start scripts/e2e-orders-server.ts and set ORDERS_BASE_URL to enable).",
   );
 }
 

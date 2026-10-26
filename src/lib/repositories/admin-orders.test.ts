@@ -336,6 +336,25 @@ describe("getDashboardStats order metrics", () => {
     expect(stats!.orders.unpaidCents + stats!.orders.collectedCents).toBe(15_000);
   });
 
+  it("never lists a cancelled order as outstanding money", async () => {
+    // One live unpaid order (1413) and one live paid order (3525)…
+    await seedOrder({ status: "ready_for_pickup", paymentStatus: "unpaid", totalCents: 1_413 });
+    await seedOrder({ status: "completed", paymentStatus: "paid", totalCents: 3_525 });
+    // …plus a cancelled order nobody will ever pay, and one that was paid
+    // before it was cancelled (the money WAS received, so it stays).
+    await seedOrder({ status: "cancelled", paymentStatus: "unpaid", totalCents: 7_000 });
+    await seedOrder({ status: "cancelled", paymentStatus: "paid", totalCents: 900 });
+
+    const stats = await getDashboardStats();
+    expect(stats!.orders).toEqual({
+      total: 4, // all four are still orders, all time
+      inProgress: 1, // only the unpaid pickup order is still open
+      awaitingPayment: 1, // the cancelled unpaid order is not awaiting anything
+      unpaidCents: 1_413, // the 7000 cancelled total is NOT outstanding
+      collectedCents: 4_425, // paid includes the paid-then-cancelled 900
+    });
+  });
+
   it("reports real zeros on an empty store instead of a placeholder", async () => {
     const stats = await getDashboardStats();
     expect(stats!.orders).toEqual({

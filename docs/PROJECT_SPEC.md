@@ -1,10 +1,11 @@
 # PEARL Signature — Product Specification
 
-> Status: **Phases 1–4 implemented** (foundation, catalogue, admin, guest
-> cart and checkout review). Phase 4 deliberately stops before order
-> submission, payment, inventory reservation or customer-data transmission.
-> This document records agreed requirements; see `docs/PHASE_PROGRESS.md`
-> for implementation and verification details.
+> Status: **Phases 1–5 implemented** (foundation, catalogue, admin, guest
+> cart and checkout review, then orders). Phase 5 adds real order creation,
+> Cash on Arrival recording, the order lifecycle, admin order management and
+> a notification outbox. Online card payment, customer accounts and
+> deployment remain out of scope. This document records agreed requirements;
+> see `docs/PHASE_PROGRESS.md` for implementation and verification details.
 
 ---
 
@@ -122,10 +123,19 @@ remain unconfirmed and are shown as such.
 | Next.js Server Action | Read-only cart quote against the public catalogue; returns current eligible names/prices and line issues |
 | Zod 4 | Strict cart-quote and local checkout-form boundaries with explicit quantity and text limits |
 
+### Added in Phase 5 (implemented, no new paid services)
+| Technology | Status & purpose |
+| --- | --- |
+| MongoDB `orders` collection | Snapshot order records with unique public reference, idempotency key and optimistic-concurrency `version` |
+| MongoDB rate limiting (second bucket) | Public order-submission and confirmation-read attempt budgets in `order_attempts`, separate from login budgets |
+| Notification outbox | `notification_outbox` queue with idempotent keys, bounded retries and a provider-registry seam; no provider is wired yet |
+| Owner-managed `store_configs` singleton | Delivery areas and fees, pickup instructions, tax treatment and order intake: no fee, rate or address is hardcoded |
+
 ### Reserved for later phases (NOT implemented yet)
 | Technology | Purpose |
 | --- | --- |
 | Stripe | Online payments |
+| Notification provider | A real email/SMS transport registered in `src/lib/notifications/provider.ts` |
 
 **Rejected dependencies:** Supabase, Firebase, PostgreSQL — must not be added.
 No paid services, subscriptions or premium dependencies. No secrets in source.
@@ -191,16 +201,38 @@ Commerce × Modern Editorial Design. Full detail lives in `docs/DESIGN_SYSTEM.md
   catalogue data before any price is shown as verified.
 - `/checkout` is a review foundation with local-only field validation. Delivery
   and pickup choices are explicitly unconfirmed; delivery fees and taxes say
-  “To be confirmed”. There is no Place Order control or submission endpoint.
+  “To be confirmed”. There is no Place Order control or submission endpoint
+  (Phase 4 boundary; Phase 5 adds both).
 - Cart and checkout create no database records and do not reserve inventory.
   Customer details remain in component state in the current tab and are not
   transmitted.
 
+### Phase 5 (implemented)
+- Real order creation: the server re-reads configuration, re-quotes the cart,
+  recomputes totals and stores a frozen snapshot. Nothing the browser sends
+  about price or payment status is trusted.
+- Cash on Arrival only: the customer pays at handover, and the owner records
+  the receipt on the order. No card data, no online charge, no refund path.
+- Order lifecycle (`placed` through `completed` or `cancelled`) with
+  method-aware rules, required cancellation reasons and optimistic
+  concurrency for admin updates.
+- `/admin/orders` and `/admin/orders/[id]` with filters, pagination, staged
+  confirmation controls, operational notes and status history.
+- Guest confirmation page opened only with an opaque capability held by the
+  placing browser; references cannot be enumerated.
+- Public rate limits on order submission and confirmation reads, plus an
+  idempotency key so a double submission creates exactly one order.
+- Notification outbox for order events, honest while unconfigured: entries
+  stay pending with a stated reason and never fail the underlying action.
+- Dashboard money metrics computed from real records: unpaid Cash on Arrival
+  counts as outstanding, never as collected.
+
 ### Upcoming (documented, not implemented)
-- Order creation, Stripe online payments and any cash-on-arrival workflow.
-- Delivery zones, fees, taxes and pickup scheduling (all values supplied by business).
-- Order lifecycle and fulfilment views in the admin dashboard.
-- Customer account/order history, notifications (channels TBD).
+- Stripe online payments and any refund workflow.
+- A registered notification provider (email/SMS transport).
+- Pickup and delivery time slots or scheduling (none offered; any future
+  promise must be supplied by the business).
+- Customer account/order history.
 - Verified contact channels, social profiles, operating hours.
 
 ## 9. Security & accessibility priorities
@@ -217,7 +249,9 @@ Commerce × Modern Editorial Design. Full detail lives in `docs/DESIGN_SYSTEM.md
 
 ## 10. Unresolved business details (must be configured or marked pending)
 
-These are **known unknowns**. The product must not invent them:
+These are **known unknowns**. The product must not invent them. The
+configuration checklist in `docs/BUSINESS_CONFIGURATION.md` walks through
+each one before the first real order:
 
 - Prices (CAD), portions/sizes, pricing strategy
 - Delivery regions, zones, fees and schedules
@@ -228,5 +262,6 @@ These are **known unknowns**. The product must not invent them:
 - Real product photography (current imagery is clearly temporary illustration)
 - Stripe merchant account / currency & tax rules
 - Pickup vs delivery availability per location
-- Whether guests should be allowed to submit orders, once order creation is approved
+- Tax treatment (zero-rated or an exact rate, and what it applies to)
+- Whether order intake is switched on (implemented; the owner's switch)
 - Whether preorders, catering or subscriptions are ever offered

@@ -89,7 +89,9 @@ export interface DashboardStats {
    * `collectedCents` counts ONLY orders whose payment status is `paid`:
    * an unpaid Cash on Arrival order is money the store has NOT received,
    * so it lives in `unpaidCents` (outstanding) and never in collected
-   * revenue.
+   * revenue. A CANCELLED order is no longer money anyone owes, so it is
+   * excluded from the outstanding figures (while staying in the all-time
+   * order count, and in collected revenue if it really was paid).
    */
   orders: {
     total: number;
@@ -342,10 +344,26 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
         .limit(5)
         .select({ name: 1, status: 1, availability: 1, updatedAt: 1 })
         .lean(),
-      // Money totals grouped by PAYMENT state, so collected revenue can
-      // never include an order the store has not been paid for.
-      OrderModel.aggregate<{ _id: PaymentStatus; count: number; cents: number }>([
-        { $group: { _id: "$payment.status", count: { $sum: 1 }, cents: { $sum: "$money.totalCents" } } },
+      // Money totals grouped by PAYMENT state (so collected revenue can
+      // never include an order the store has not been paid for), with the
+      // CANCELLED flag carried in the group key: a cancelled order is no
+      // longer money anyone owes, so it must never appear in the
+      // outstanding figures even though it still counts as an order.
+      OrderModel.aggregate<{
+        _id: { payment: PaymentStatus | null; cancelled: boolean };
+        count: number;
+        cents: number;
+      }>([
+        {
+          $group: {
+            _id: {
+              payment: "$payment.status",
+              cancelled: { $eq: ["$status", "cancelled"] },
+            },
+            count: { $sum: 1 },
+            cents: { $sum: "$money.totalCents" },
+          },
+        },
       ]),
       OrderModel.countDocuments({ status: { $nin: ["completed", "cancelled"] } }),
       OrderModel.find()
@@ -362,8 +380,17 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
         .lean(),
     ]);
 
-    const paid = paymentGroups.find((group) => group._id === "paid");
-    const unpaid = paymentGroups.find((group) => group._id === "unpaid");
+    // Group keys are `{ payment, cancelled }` (see the aggregation above).
+    const paidGroups = paymentGroups.filter((group) => group._id.payment === "paid");
+    // Unpaid AND not cancelled: a cancelled order is nobody's outstanding
+    // cash any more, however it ended.
+    const outstandingGroups = paymentGroups.filter(
+      (group) => group._id.payment === "unpaid" && !group._id.cancelled,
+    );
+    const countOf = (groups: typeof paymentGroups): number =>
+      groups.reduce((total, group) => total + group.count, 0);
+    const centsOf = (groups: typeof paymentGroups): number =>
+      groups.reduce((total, group) => total + group.cents, 0);
 
     return {
       totalProducts,
@@ -381,11 +408,11 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
         updatedAt: record.updatedAt!.toISOString(),
       })),
       orders: {
-        total: (paid?.count ?? 0) + (unpaid?.count ?? 0),
+        total: countOf(paymentGroups),
         inProgress: ordersInProgress,
-        awaitingPayment: unpaid?.count ?? 0,
-        unpaidCents: unpaid?.cents ?? 0,
-        collectedCents: paid?.cents ?? 0,
+        awaitingPayment: countOf(outstandingGroups),
+        unpaidCents: centsOf(outstandingGroups),
+        collectedCents: centsOf(paidGroups),
       },
       recentOrders: recentOrders.map((record) => ({
         reference: record.reference,

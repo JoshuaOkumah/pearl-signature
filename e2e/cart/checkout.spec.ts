@@ -1,12 +1,22 @@
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * Phase 4 checkout-foundation suite (cart project, port 3002).
+ * Checkout-foundation suite (cart project, port 3002).
  *
- * `/checkout` is a REVIEW step only. These tests hold the line on what that
- * means: every price is server-verified, delivery and taxes read "To be
- * confirmed" rather than `$0.00`, the customer's details are validated but
- * never transmitted, and there is no order submission of any kind.
+ * This project deliberately has NO database (`scripts/e2e-cart-server.ts`
+ * blanks `MONGODB_URI`), which is precisely Phase 5's "the store's
+ * configuration could not be read" state. So the suite holds two lines:
+ *
+ *  - the basket is still reviewed against server-verified prices, and
+ *  - ordering stays closed with no payment panel, no Place order button
+ *    and an honest reason, because fulfilment and tax policy are unknown.
+ *
+ * Everything a customer types stays in this tab: no submission of any
+ * kind is possible from this server. Order placement itself is exercised
+ * by the "orders" project (port 3003), which has a real database.
+ *
+ * The live order flow, price-change handling and rate limiting live in
+ * `e2e/orders/orders.spec.ts`.
  */
 
 const STORAGE_KEY = "pearl-cart-v1";
@@ -29,10 +39,6 @@ const resolvableCart = [
 const name = (page: Page) => page.getByLabel(/^Full name/);
 const email = (page: Page) => page.getByLabel(/^Email address/);
 const phone = (page: Page) => page.getByLabel(/^Phone number/);
-const street = (page: Page) => page.getByLabel(/^Street address/);
-const city = (page: Page) => page.getByLabel(/^City or town/);
-const province = (page: Page) => page.getByLabel(/^Province or territory/);
-const postal = (page: Page) => page.getByLabel(/^Postal code/);
 
 test.describe("PEARL Signature — checkout review", () => {
   test("redirects an empty cart to an honest empty state, not a form", async ({ page }) => {
@@ -64,57 +70,66 @@ test.describe("PEARL Signature — checkout review", () => {
     await expect(page.getByRole("link", { name: /Back to your cart/ })).toBeVisible();
   });
 
-  test("shows delivery and taxes as to be confirmed, and never claims a total", async ({ page }) => {
+  test("shows the server-quoted subtotal and claims no fee or tax it does not know", async ({ page }) => {
     await seedCart(page, resolvableCart);
     await page.goto("/checkout");
 
-    await expect(page.getByText("Merchandise subtotal")).toBeVisible();
-    const summary = page.locator("dl").filter({ hasText: "Merchandise subtotal" });
-    await expect(summary.getByText("Delivery", { exact: true })).toBeVisible();
-    await expect(summary.getByText("Estimated taxes")).toBeVisible();
-    await expect(page.getByText("To be confirmed")).toHaveCount(2);
+    // $12.50 x 2 + $14.00 x 1, quoted by the server.
+    const summary = page.locator("dl").filter({ hasText: "Subtotal" });
+    await expect(summary.getByText("Subtotal")).toBeVisible();
+    await expect(summary.getByText("$39.00 CAD")).toBeVisible();
 
-    // No zero, and no figure presented as the amount to be charged.
+    // Without readable configuration there is no delivery fee, no tax row
+    // and no total: only the merchandise subtotal the server confirmed.
+    await expect(summary.getByText("Total", { exact: true })).toHaveCount(0);
+    await expect(summary.getByText(/Delivery fee/)).toHaveCount(0);
+    await expect(summary.getByText("$0.00 CAD")).toHaveCount(0);
     await expect(page.getByText(/\$0\.00/)).toHaveCount(0);
-    await expect(page.getByText("Total", { exact: true })).toHaveCount(0);
-    await expect(page.getByText(/Delivery and taxes are added once the business confirms/)).toBeVisible();
   });
 
-  test("offers no way to place an order, and says so plainly", async ({ page }) => {
+  test("blocks ordering with a stated reason while configuration is unreadable", async ({ page }) => {
     await seedCart(page, resolvableCart);
     await page.goto("/checkout");
 
-    await expect(page.getByText("Order placement is not available yet")).toBeVisible();
-    await expect(page.getByText(/Taking payment, confirming delivery and sending receipts/)).toBeVisible();
+    const blocked = page.getByTestId("checkout-blocked");
+    await expect(blocked).toBeVisible();
+    await expect(blocked.getByText("Ordering is not open right now")).toBeVisible();
+    await expect(
+      blocked.getByText(/Checkout availability could not be confirmed right now/),
+    ).toBeVisible();
+    await expect(blocked.getByText(/Nothing has been sent or charged/)).toBeVisible();
 
-    // Nothing that could submit anything.
+    // Nothing that could submit anything: no payment panel, no Place order
+    // button, no form that posts anywhere.
+    await expect(page.getByTestId("place-order")).toHaveCount(0);
+    await expect(page.getByText("Cash on arrival")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /place order/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /pay/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /confirm/i })).toHaveCount(0);
     await expect(page.getByRole("button", { name: /submit/i })).toHaveCount(0);
-    expect(await page.locator("form").getAttribute("action")).toBeNull();
+    expect(await page.locator("form").first().getAttribute("action")).toBeNull();
   });
 
-  test("marks fulfilment as unconfirmed and collects no fee or promise", async ({ page }) => {
+  test("keeps both fulfilment options visible but unavailable, and shows no address form", async ({ page }) => {
     await seedCart(page, resolvableCart);
     await page.goto("/checkout");
 
-    await expect(page.getByText("Not yet confirmed")).toHaveCount(2);
-    await expect(
-      page.getByText(/Service areas, fees and pickup arrangements are still being finalised/),
-    ).toBeVisible();
+    // The options are never silently dropped, and never offered either:
+    // each is disabled with an honest badge.
+    const delivery = page.getByRole("radio", { name: /Delivery/ });
+    const pickup = page.getByRole("radio", { name: /Pickup/ });
+    await expect(delivery).toBeDisabled();
+    await expect(pickup).toBeDisabled();
+    await expect(page.getByText("Not available")).toHaveCount(2);
 
-    // Delivery is selected, so its address fields are required…
-    await expect(page.getByTestId("delivery-fields")).toBeVisible();
-
-    // …and switching to pickup hides them without demanding an address.
-    await page.getByRole("radio", { name: /Pickup/ }).click();
-    await expect(page.getByTestId("pickup-fields")).toBeVisible();
-    await expect(page.getByText(/A pickup location and collection times have not been confirmed yet/)).toBeVisible();
+    // Neither address nor pickup fields appear for an unavailable method.
     await expect(page.getByTestId("delivery-fields")).toHaveCount(0);
+    await expect(page.getByTestId("pickup-fields")).toHaveCount(0);
 
-    await page.getByRole("radio", { name: /Delivery/ }).click();
-    await expect(page.getByTestId("delivery-fields")).toBeVisible();
+    // A disabled option cannot be chosen, so no promise of either method
+    // is ever made from an unknown configuration.
+    await pickup.click({ force: true });
+    await expect(page.getByTestId("pickup-fields")).toHaveCount(0);
   });
 
   test("validates Canadian details with per-field messages", async ({ page }) => {
@@ -139,23 +154,6 @@ test.describe("PEARL Signature — checkout review", () => {
     await phone(page).fill("+44 20 7946 0958");
     await phone(page).blur();
     await expect(page.getByText(/Enter a Canadian phone number/)).toBeVisible();
-
-    // Postal code and province are checked together with delivery, once the
-    // rest of the form is sound: give it a complete valid set first.
-    await name(page).fill("Ada Okonkwo");
-    await email(page).fill("ada@example.com");
-    await phone(page).fill("416 555 0123");
-
-    // A postal code Canada Post would not issue is refused.
-    await postal(page).fill("12345");
-    await postal(page).blur();
-    await expect(page.getByText("Enter a postal code like K1A 0B1")).toBeVisible();
-
-    // An unknown province is refused rather than defaulted.
-    await street(page).fill("123 Queen Street W");
-    await city(page).fill("Toronto");
-    await city(page).blur();
-    await expect(page.getByText("Choose your province or territory")).toBeVisible();
   });
 
   test("clears an error the moment the field is fixed", async ({ page }) => {
@@ -171,17 +169,13 @@ test.describe("PEARL Signature — checkout review", () => {
     await expect(name(page)).not.toHaveAttribute("aria-invalid", "true");
   });
 
-  test("accepts a complete valid delivery order and still submits nothing", async ({ page }) => {
+  test("accepts complete details and still transmits nothing", async ({ page }) => {
     await seedCart(page, resolvableCart);
     await page.goto("/checkout");
 
     await name(page).fill("Ada Okonkwo");
     await email(page).fill("Ada.Okonkwo@Example.com");
     await phone(page).fill("(416) 555-0123");
-    await street(page).fill("123 Queen Street W");
-    await city(page).fill("Toronto");
-    await province(page).selectOption("ON");
-    await postal(page).fill("m5h2n2");
     await page.getByLabel(/^Notes/).fill("Ring the buzzer.");
 
     await page.keyboard.press("Tab");
@@ -190,12 +184,11 @@ test.describe("PEARL Signature — checkout review", () => {
     // route announcer is a permanent body-level role="alert" element.)
     await expect(page.locator("form [role=alert]")).toHaveCount(0);
 
-    // …and nothing has been transmitted. No order exists, no total appeared,
-    // and the page still says the details stay in this tab.
-    await expect(page.getByText(/Your details stay in this browser tab/)).toBeVisible();
-    await expect(page.getByText(/Nothing you type on this page is sent or saved yet/)).toBeVisible();
+    // …and nothing has been transmitted. No submission control exists, no
+    // amount is presented as a charge, and the basket is untouched.
+    await expect(page.getByTestId("place-order")).toHaveCount(0);
     await expect(page.getByText(/\$0\.00/)).toHaveCount(0);
-    expect(await page.locator("form").getAttribute("action")).toBeNull();
+    expect(await page.locator("form").first().getAttribute("action")).toBeNull();
   });
 
   test("keeps the customer's details in the tab only across a reload", async ({ page }) => {
@@ -239,7 +232,7 @@ test.describe("PEARL Signature — checkout review", () => {
 
     await expect(page.getByText("Prices could not be verified").first()).toBeVisible();
     await expect(page.getByText(/Your items are saved and nothing has been submitted/)).toBeVisible();
-    await expect(page.getByText("Could not be verified", { exact: true })).toBeVisible();
+    await expect(page.getByText("Prices could not be verified. Nothing has been submitted.")).toBeVisible();
     await expect(page.getByText(/\$25\.00 CAD/)).toHaveCount(0);
     await expect(page.getByText(/\$0\.00/)).toHaveCount(0);
   });
@@ -254,14 +247,15 @@ test.describe("PEARL Signature — checkout review", () => {
     await expect(name(page)).toBeFocused();
     await page.keyboard.type("Ada Okonkwo");
 
-    // The form, the summary and the honest no-ordering panel are all visible
-    // without any horizontal scrolling at 360px.
+    // The form, the summary and the honest blocked-ordering panel are all
+    // visible without any horizontal scrolling at 360px.
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow).toBeLessThanOrEqual(0);
 
     await expect(page.getByRole("heading", { name: "Your order" })).toBeVisible();
-    await expect(page.getByText("Order placement is not available yet")).toBeVisible();
+    await expect(page.getByTestId("checkout-blocked")).toBeVisible();
+    await expect(page.getByText("Ordering is not open right now")).toBeVisible();
   });
 });

@@ -244,7 +244,8 @@ reads consistently, but drops the storefront chrome entirely:
 
 Cart and checkout reuse the storefront shell and tokens, with a restrained
 operational tone. They are review interfaces only: no price is inferred from
-browser storage, and no order/payment action is shown.
+browser storage, and no order/payment action is shown (Phase 4 boundary;
+Phase 5 adds the submission control described in section 11).
 
 - **Header cart control:** accessible name includes the unit count; it opens a
   body-portalled modal drawer with a visible close control, Escape/backdrop
@@ -270,3 +271,52 @@ browser storage, and no order/payment action is shown.
 Responsive checks include the cart and checkout at 320, 390, 1024 and 1440px;
 the populated and unresolvable cart states are included in the screenshot
 utility and 320px cart layout is covered by Playwright.
+
+## 11. Order surfaces (Phase 5)
+
+Order screens keep the same tokens and add an operational register: calm for
+the customer, explicit for the owner.
+
+**Checkout payment and submission**
+
+- **Payment panel:** one Cash on Arrival option presented as a selectable
+  card with a radio control, the plain statement that nothing is paid
+  online, and an `Amount due on arrival` line rendered through `formatCad`
+  with tabular figures. No fee, tax or total is ever shown in raw digits.
+- **Place order:** `variant="primary"`, full width, with a polite
+  `role="status"` line underneath that always explains the current state
+  (verifying, awaiting address, awaiting acknowledgment, submitting,
+  unavailable). Submission errors use a terracotta `role="alert"` block with
+  `data-testid="submit-error"`.
+- **Price-change panel:** a gold-bordered `role="alert"` block stating the
+  new total, the previous total and that the order was not submitted, with
+  an outline acknowledgment control. Until acknowledgment the Place order
+  button stays disabled, so an amount nobody reviewed can never be sent.
+
+**Confirmation page**
+
+- Order reference, status badge, item snapshot, money breakdown and the
+  fulfilment method, each in its own rounded surface. Customer contact
+  details are deliberately not echoed back.
+- Failure states are first-class and worded neutrally: no capability on this
+  device, reference not found, rate limited, unavailable. One sentence each,
+  no stack traces, no database terms.
+
+**Admin order surfaces**
+
+- **Status buttons:** navy pill buttons for forward transitions; the two
+  consequential actions (cancel, complete) and payment recording use the
+  two-step control, which changes its own label to the consequence and
+  returns to rest when focus leaves.
+- **Danger tone:** cancellation uses `terracotta-700` once armed; ordinary
+  progression stays navy, so colour follows consequence rather than
+  decoration.
+- **Results:** `FormAlert` in `success` or `error` tone directly under the
+  panel that acted, with `role="status"` and `role="alert"` respectively.
+- **Metrics:** five `StatCard`s under `Order statistics`, values in
+  `formatCad` where they are money.
+- **List:** a table from tablet upward, stacked cards below it, so status
+  and payment badges are never compressed into unreadable columns.
+- Focus, contrast and reduced-motion rules are identical to the storefront;
+  order pages are screenshot-checked at 320, 360, 390, 768, 1024 and 1440px
+  and in landscape.

@@ -182,13 +182,17 @@ export function CheckoutClient() {
     cart.quoteStatus === "ready" && !cart.quoteStale && !cart.quote?.hasIssues;
   const totalsReady = preview?.ok === true;
   const awaitingAddress = method === "delivery" && !addressReady;
+  // A total the customer has not acknowledged yet cannot be submitted: the
+  // button says so by staying disabled instead of quietly doing nothing.
+  const awaitingAcknowledgment = Boolean(priceChange && !acknowledged);
   const canSubmit =
     settingsState.status === "ready" &&
     readinessBlockers.length === 0 &&
     totalsReady &&
     quoteReady &&
     !submitting &&
-    !placed;
+    !placed &&
+    !awaitingAcknowledgment;
 
   /* ── submission ────────────────────────────────────────────────── */
 
@@ -371,6 +375,7 @@ export function CheckoutClient() {
                 canSubmit={canSubmit}
                 awaitingPrice={awaitingPrice}
                 awaitingAddress={awaitingAddress}
+                awaitingAcknowledgment={awaitingAcknowledgment}
                 error={submitError}
                 onSubmit={() => void submit()}
               />
@@ -501,6 +506,7 @@ function PaymentPanel({
   canSubmit,
   awaitingPrice,
   awaitingAddress,
+  awaitingAcknowledgment,
   error,
   onSubmit,
 }: {
@@ -511,6 +517,7 @@ function PaymentPanel({
   canSubmit: boolean;
   awaitingPrice: boolean;
   awaitingAddress: boolean;
+  awaitingAcknowledgment: boolean;
   error: string | null;
   onSubmit: () => void;
 }) {
@@ -588,11 +595,13 @@ function PaymentPanel({
             ? "Submitting your order. Please do not close this page."
             : canSubmit
               ? "Your order is placed once the store confirms it was received."
-              : awaitingAddress
-                ? "Enter your delivery address to continue."
-                : awaitingPrice
-                  ? "Verifying your total…"
-                  : "Ordering is unavailable until the store finishes its setup."}
+              : awaitingAcknowledgment
+                ? "Review the new total above to continue."
+                : awaitingAddress
+                  ? "Enter your delivery address to continue."
+                  : awaitingPrice
+                    ? "Verifying your total…"
+                    : "Ordering is unavailable until the store finishes its setup."}
         </p>
       </div>
     </section>

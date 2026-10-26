@@ -1,4 +1,4 @@
-# PEARL Signature — Database Schema (Phase 2, 3 & 4)
+# PEARL Signature — Database Schema (Phase 2, 3, 4 & 5)
 
 Database: **MongoDB** (target: MongoDB Atlas M0 free tier).
 ODM: **Mongoose 9**. Boundary validation: **Zod 4**.
@@ -147,7 +147,86 @@ is unreachable. This is the no-Redis rate limiter (`docs/ADMIN_AUTH.md` §4).
 
 ---
 
-## Phase 4 commerce foundation (no database writes)
+## Phase 5 order collections
+
+Four new collections. Full field-level prose lives in
+`src/models/order.ts`; the behavioural documents are
+`docs/ORDER_ARCHITECTURE.md`, `docs/ORDER_LIFECYCLE.md`,
+`docs/CASH_ON_ARRIVAL.md`, `docs/ORDER_NOTIFICATIONS.md` and
+`docs/BUSINESS_CONFIGURATION.md`.
+
+### `orders`
+
+| Field | Type | Rules | Notes |
+| --- | --- | --- | --- |
+| `reference` | string | required, **unique**, uppercase, `^PS-[0-9A-F]{10}$` | Public, unpredictable, URL-safe |
+| `idempotencyKey` | string | required, **unique**, `^[0-9a-f]{32,64}$` | Client checkout-attempt id: a retry can never insert twice |
+| `idempotencyHash` | string | required, ≤ 64 | sha256 of the order intent (excludes the expected total) |
+| `confirmationKeyHash` | string | required, ≤ 64 | sha256 of the guest capability; the raw key is never stored |
+| `customer` | `{ fullName, email, phone }` | embedded, required | Exactly three fields; no other PII is collected |
+| `fulfillment` | `{ method, address, instructions, notes, serviceAreaLabel, pickupInstructions }` | embedded | `address` is null for pickup; area label and pickup instructions are snapshots |
+| `items` | OrderItem[] | 1–30, `_id: false` | name, variant, quantity (1–99), `unitPriceCents`, `lineTotalCents`, image reference: **all frozen at purchase** |
+| `money` | `{ currency, subtotalCents, deliveryFeeCents, taxCents, totalCents, taxLabel, taxRateBps }` | embedded, integer cents | Schema validator enforces `subtotal + fee + tax === total` |
+| `payment` | `{ method, status, paidAt, paidByAdminId, paidByLabel }` | embedded | `method` enum has one member (`cash_on_arrival`); `status` is `unpaid` or `paid` |
+| `status` | enum | default `placed` | The seven lifecycle states |
+| `statusHistory` | StatusEvent[] | ≤ 40 | `{ from, to, at, adminId, note }`; placement row has `from: null` |
+| `cancellationReason` | string \| null | ≤ 300 | Required by the action, not the schema |
+| `notes` | OrderNote[] | ≤ 20, each ≤ 500 | Operator-only; does not bump `version` |
+| `version` | number | default 1, ≥ 1 | Optimistic-concurrency token for admin updates |
+| `createdAt` / `updatedAt` | date | timestamps | |
+
+Indexes: unique `reference`, unique `idempotencyKey`, `createdAt` desc,
+`{ status, createdAt }`, `{ payment.status, createdAt }`. Created
+deliberately by `scripts/seed.ts` and the test harness (`autoIndex` is off).
+
+### `store_configs`
+
+Single singleton document, `_id: "checkout"`.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `orderIntakeEnabled` | boolean | Master switch; false blocks submission |
+| `delivery` | `{ enabled, serviceAreas[] }` | Each area: label, 1–13 province codes, FSA prefixes, `feeCents` (integer, 0–999 999) |
+| `pickup` | `{ enabled, instructions }` | Enabling pickup requires instructions |
+| `tax` | `{ mode, rateBps, base, label }` | `unconfigured` \| `zero` \| `rate`; a rate without rate and base reads back as `unconfigured` |
+| `createdAt` / `updatedAt` | date | timestamps |
+
+A malformed service area or tax block is dropped or downgraded on read,
+never rendered with a wrong value.
+
+### `order_attempts`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `key` | string, unique | `sha256(scope, address, window)` — raw addresses never stored |
+| `count` | number | Atomic upsert `$inc`; counted per attempt, not per success |
+| `expiresAt` | date | **TTL index**; 15-minute windows (`ORDER_RATE_WINDOW_MS`) |
+
+Limits: 10 attempts per window for `order.create`, 30 for `order.lookup`.
+Separate from `admin_login_attempts` so neither budget can consume the
+other. Fail-closed when unreadable.
+
+### `notification_outbox`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `key` | string, unique | `${event}:${reference}:${recipientRole}` |
+| `event` | enum | `order.placed`, `order.status_changed` |
+| `reference` | string | Order reference only |
+| `recipientRole` | enum | `customer`, `admin` |
+| `status` | enum | `pending`, `sent`, `failed` |
+| `attempts` | number | Counts failures only; cap 5 |
+| `lastReason` | string ≤ 300 \| null | PII-free by construction |
+| `nextAttemptAt` | date | Backoff schedule, scanned with `{ status, nextAttemptAt }` |
+| `sentAt` | date \| null | |
+| `createdAt` | date | **TTL index**: entries are removed 30 days after creation |
+
+No email, name, address or message body is ever stored: recipients resolve
+at dispatch time.
+
+---
+
+## Phase 4 commerce foundation (browser storage only)
 
 The guest cart is stored in browser `localStorage` under `pearl-cart-v1`,
 version 1. A line contains `{ slug, variantName, quantity,
@@ -160,13 +239,15 @@ currently published products and active categories.
 The quote derives display name, current availability, option eligibility and
 integer-cent price from the catalogue. Draft, archived, disabled-category and
 unknown slugs share the same `not_found` result. The action makes no writes;
-there is no cart collection, order collection, customer record, stock
-reservation, payment intent or audit event for browsing/quoting.
+there is no cart collection, customer record, stock reservation, payment
+intent or audit event for browsing/quoting. Order storage itself lives in the
+Phase 5 `orders` collection above.
 
 Checkout form values remain in component state for the current tab. Local
-validation does not submit or save the values. Delivery/tax amounts and
-fulfilment details stay unconfirmed until the business supplies them and a
-future approved phase adds order submission.
+validation does not submit or save the values. Delivery, tax and fulfilment
+amounts are read from the owner's `store_configs` singleton; when that
+configuration is absent or incomplete the checkout reports the specific
+blocker and refuses submission rather than assuming a fee or a tax rate.
 
 ---
 
@@ -175,7 +256,9 @@ future approved phase adds order submission.
 1. **Mongoose schema** — write-time safety for anything that reaches the
    database (seed, future admin): types, required fields, enums, limits,
    integer-cents price validators, slug setters.
-2. **Zod (`src/lib/validations/catalogue.ts`, `src/lib/validations/admin.ts`)**
+2. **Zod (`src/lib/validations/catalogue.ts`, `src/lib/validations/admin.ts`,
+   `src/lib/validations/order.ts`, `src/lib/validations/checkout.ts`,
+   `src/lib/validations/store-config.ts`)**
    — read-time safety at the server boundary: every database record is
    parsed before it becomes a DTO; an invalid record is dropped and logged,
    never rendered and never allowed to crash a page. Also validates URL

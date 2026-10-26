@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_ORIGIN, E2E_ADMIN_PASSWORD } from "./e2e/admin/credentials";
 
 /**
- * Playwright runs three suites against ONE production build:
+ * Playwright runs four suites against ONE production build:
  *
  *  - "chromium" (Phase 1/2 storefront smoke): port 3000, labelled preview
  *    fixtures, `CATALOGUE_SOURCE=fixtures`, no cloud credentials. Every
@@ -16,9 +16,13 @@ import { E2E_ADMIN_EMAIL, E2E_ADMIN_ORIGIN, E2E_ADMIN_PASSWORD } from "./e2e/adm
  *    in-memory MongoDB. The harness waits for the storefront server (which
  *    owns `next build`), seeds the database, bootstraps the disposable
  *    owner and starts `next start` on 3001.
+ *  - "orders" (Phase 5): port 3003, the same disposable-database pattern
+ *    plus the labelled orderable fixtures, a labelled test store
+ *    configuration and the whole order stack (checkout → order →
+ *    confirmation → admin order management).
  *
  * Browsers must be installed first: `npx playwright install chromium`.
- * Stop any stray dev/prod server on ports 3000/3001/3002 before running.
+ * Stop any stray dev/prod server on ports 3000/3001/3002/3003 before running.
  *
  * Reliability notes: e2e runs against `next build` + `next start` rather
  * than `next dev` because dev's on-demand Turbopack under parallel workers
@@ -37,7 +41,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: ["**/admin/**", "**/cart/**"],
+      testIgnore: ["**/admin/**", "**/cart/**", "**/orders/**"],
       use: { ...devices["Desktop Chrome"] },
     },
     {
@@ -49,6 +53,11 @@ export default defineConfig({
       name: "admin",
       testMatch: "**/admin/**/*.spec.ts",
       use: { ...devices["Desktop Chrome"], baseURL: E2E_ADMIN_ORIGIN },
+    },
+    {
+      name: "orders",
+      testMatch: "**/orders/**/*.spec.ts",
+      use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:3003" },
     },
   ],
   webServer: [
@@ -87,6 +96,17 @@ export default defineConfig({
     {
       command: "npx tsx scripts/e2e-admin-server.ts",
       url: E2E_ADMIN_ORIGIN,
+      reuseExistingServer: false,
+      timeout: 300_000,
+      env: {
+        E2E_ADMIN_EMAIL,
+        E2E_ADMIN_PASSWORD,
+        E2E_STOREFRONT_URL: "http://localhost:3000",
+      },
+    },
+    {
+      command: "npx tsx scripts/e2e-orders-server.ts",
+      url: "http://localhost:3003",
       reuseExistingServer: false,
       timeout: 300_000,
       env: {

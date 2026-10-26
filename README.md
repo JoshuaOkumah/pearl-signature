@@ -10,10 +10,11 @@ paying online or with cash on arrival.
 This repository contains the public storefront and the private owner
 dashboard. It is a live commercial project — Phase 1 (project foundation,
 design system and interactive storefront), Phase 2 (catalogue data layer
-and product experience) and Phase 3 (admin authentication, catalogue
-management and signed uploads) and Phase 4 (guest cart and checkout review)
-are implemented. Order submission, payments and deployment require later
-approval (see `docs/PHASE_PROGRESS.md`).
+and product experience), Phase 3 (admin authentication, catalogue
+management and signed uploads), Phase 4 (guest cart and checkout review)
+and Phase 5 (order placement, Cash on Arrival and order management) are
+implemented. Stripe and deployment require later approval (see
+`docs/PHASE_PROGRESS.md`).
 
 ---
 
@@ -32,8 +33,12 @@ approval (see `docs/PHASE_PROGRESS.md`).
 | Validation | Zod 4 at every server boundary |
 | Admin auth | Argon2id (`@node-rs/argon2`) + DB-backed sessions (hashed opaque tokens) |
 | Guest cart | Versioned browser `localStorage` + read-only server quote action |
+| Orders | Snapshot documents in MongoDB: unique reference, idempotency key, optimistic concurrency |
+| Payments | Cash on Arrival recorded by the owner (no card data anywhere) |
+| Rate limiting | MongoDB attempt buckets with TTL (login, order placement, confirmation reads) |
+| Notifications | Outbox queue with bounded retries; no provider registered yet |
 | Unit tests | Vitest + React Testing Library |
-| E2E tests | Playwright (storefront, cart/checkout fixtures + disposable admin stack) |
+| E2E tests | Playwright (storefront, cart/checkout, disposable admin stack + disposable orders stack) |
 | Packages | npm |
 
 **Reserved for later phases:** Stripe. No Supabase/Firebase/Postgres; no
@@ -78,6 +83,7 @@ npm run test         # Vitest unit/component tests (single run)
 npm run test:watch   # Vitest watch mode
 npm run test:e2e     # Playwright: storefront suites + admin suite (disposable
                      # cart fixtures on port 3002, admin memory MongoDB on 3001)
+                     # + the Phase 5 orders suite (port 3003, disposable stack)
 npm run screenshots  # capture responsive screenshots (storefront + admin surfaces,
                      # incl. cart/checkout and modal states) + overflow check
 node scripts/audit-mobile.mjs   # diagnostic: DOM geometry, hit-testing, computed contrast
@@ -99,10 +105,11 @@ src/
 │   ├── menu/page.tsx       # Menu (streams searchParams via Suspense)
 │   ├── menu/[slug]/        # Product detail (blocking route: real 404s)
 │   ├── cart/               # Guest cart editing surface
-│   ├── checkout/           # Local-only checkout review foundation
+│   ├── checkout/           # Checkout review, pricing and order submission
+│   ├── order-confirmation/ # Guest confirmation behind an opaque capability
 │   ├── about/page.tsx
 │   ├── contact/page.tsx
-│   ├── admin/              # Owner dashboard: login, products, categories
+│   ├── admin/              # Owner dashboard: login, products, categories, orders, settings
 │   ├── globals.css         # Design tokens (@theme) + base/utility styles
 │   └── icon.svg            # Favicon (pearl mark)
 ├── proxy.ts                # Next 16 Proxy: slug check + previous-slug 308 redirects
@@ -118,24 +125,30 @@ src/
 │   └── providers/          # MotionProvider (reduced-motion config)
 ├── data/                   # Labelled preview fixtures (dev/preview only)
 ├── models/                 # Mongoose schemas (autoIndex off): category, product,
-│                           # admin, admin-session, login-attempt, audit-log
+│                           # admin, admin-session, login-attempt, audit-log,
+│                           # order, order-attempt, notification-outbox, store-config
 ├── lib/
 │   ├── db/                 # Server-only Mongoose connection (cached, HMR-safe)
 │   ├── auth/               # Password (Argon2id), sessions, guards, rate limit, audit
 │   ├── cloudinary/         # Signed uploads + server-side asset verification
-│   ├── actions/            # Server Actions: login, catalogue, images, read-only cart quote
+│   ├── actions/            # Server Actions: login, catalogue, images, cart quote, orders
 │   ├── cart/               # Guest cart store, quote reconciliation, limits, pricing rules
-│   ├── repositories/       # Catalogue read layer + admin list queries
-│   ├── validations/        # Zod schemas: catalogue DTOs + admin forms
+│   ├── checkout/           # Order pricing, checkout readiness, attempt keys
+│   ├── orders/             # Order creation, lifecycle rules, public rate limiting
+│   ├── notifications/      # Outbox dispatch, templates, provider registry seam
+│   ├── repositories/       # Catalogue read layer + admin list/dashboard queries
+│   ├── store/              # Owner-managed fulfilment, fee and tax configuration
+│   ├── validations/        # Zod schemas: catalogue, admin, checkout, orders, settings
 │   └── server/             # Page data loaders (io() + React cache)
 └── types/                  # Shared domain types
-e2e/                        # Playwright: storefront suites + admin suite (e2e/admin)
+e2e/                        # Playwright: storefront, cart/checkout, admin, orders suites
 scripts/screenshots.mjs     # Design-review utility (storefront + admin captures)
 scripts/seed.ts             # Explicit, idempotent MongoDB seed (never auto-runs)
 scripts/admin-bootstrap.ts  # Guarded first-owner CLI (hidden password prompt)
 scripts/admin-reset-password.ts  # Guarded password rotation (revokes sessions)
 scripts/e2e-admin-server.ts # Disposable admin e2e stack (memory MongoDB + seed + bootstrap)
 scripts/e2e-cart-server.ts  # Isolated fixture-only cart server on port 3002
+scripts/e2e-orders-server.ts # Disposable Phase 5 orders stack on port 3003
 scripts/audit-mobile.mjs    # Diagnostic: DOM geometry, hit-testing, contrast measurement
 docs/                       # Spec, design system, phase progress, reports, guides
 vitest.config.mts           # Vitest setup (jsdom)
@@ -208,14 +221,40 @@ data layer (MongoDB when `MONGODB_URI` exists, labelled fixtures otherwise):
   price is only a hint and is never used as the verified amount.
 - `/checkout` validates fields locally and reviews the basket. Details are
   not sent or saved; no order, payment, inventory reservation or submission
-  control exists. Fulfilment, fees and taxes remain unconfirmed.
+  control exists. Fulfilment, fees and taxes remain unconfirmed. (Phase 4
+  boundary: Phase 5 adds the submission control and real configuration.)
 - 496 Vitest tests, 79 Playwright tests and 161 responsive screenshots passed;
   screenshots reported zero horizontal overflow.
 
+**Phase 5 — implemented, awaiting review:** orders, Cash on Arrival and order
+management (see `docs/PHASE5_REPORT.md`, `docs/ORDER_ARCHITECTURE.md`,
+`docs/ORDER_LIFECYCLE.md`, `docs/CASH_ON_ARRIVAL.md`,
+`docs/ADMIN_ORDER_OPERATIONS.md`, `docs/ORDER_NOTIFICATIONS.md` and
+`docs/BUSINESS_CONFIGURATION.md`):
+
+- Owner-managed configuration (intake switch, delivery areas with fees,
+  pickup instructions, tax treatment) with no hardcoded fee, rate or
+  address; unconfigured tax blocks live submission with a stated reason.
+- The server re-quotes and reprices every submission, then stores a frozen
+  snapshot order with a unique `PS-` reference, an idempotency key and an
+  optimistic-concurrency `version`. A double submit creates one order; a
+  tampered total is refused before anything is written.
+- Cash on Arrival only: the owner records receipt on the order, a second
+  recording is refused, and payment state never changes the lifecycle state.
+- Lifecycle and admin management at `/admin/orders` and
+  `/admin/orders/[id]`: legal transitions only, required cancellation
+  reasons, conflict messages, notes, history, and dashboard metrics counted
+  from real records (unpaid orders are outstanding, never collected).
+- `/order-confirmation` opens only for the browser that placed the order;
+  public submission and confirmation reads are rate limited; notifications
+  sit in a tested outbox that stays honestly `pending` until a provider is
+  chosen.
+
 Hosted Atlas and real Cloudinary verification remain pending owner-supplied
 credentials. Prices, delivery areas, pickup arrangements, business hours and
-contact details remain pending until supplied by the business. Stripe, order
-creation and deployment require explicit approval for a later phase.
+contact details remain pending until supplied by the business
+(`docs/BUSINESS_CONFIGURATION.md` carries the pre-launch checklist). Stripe
+and deployment require explicit approval for a later phase.
 
 ## Documentation
 
@@ -223,11 +262,18 @@ creation and deployment require explicit approval for a later phase.
 | --- | --- |
 | `docs/PROJECT_SPEC.md` | Business requirements, features, unresolved details |
 | `docs/DESIGN_SYSTEM.md` | Colours, typography, spacing, motion, a11y, imagery |
-| `docs/PHASE_PROGRESS.md` | Phase 1–4 results, verification log and approval boundary |
+| `docs/PHASE_PROGRESS.md` | Phase 1–5 results, verification log and approval boundary |
 | `docs/PHASE1B_REMEDIATION_REPORT.md` | Root causes, fixes, verification and evidence for the mobile remediation |
 | `docs/PHASE2_REPORT.md` | Phase 2 implementation report (sections A–L) |
 | `docs/PHASE3_REPORT.md` | Phase 3 implementation report (sections A–M) |
 | `docs/PHASE4_REPORT.md` | Phase 4 implementation report (sections A–O) |
+| `docs/PHASE5_REPORT.md` | Phase 5 implementation report (sections A–O) |
+| `docs/ORDER_ARCHITECTURE.md` | Order placement pipeline, request contract, idempotency and rate limits |
+| `docs/ORDER_LIFECYCLE.md` | Status graph, method-aware rules, refusals and concurrency |
+| `docs/CASH_ON_ARRIVAL.md` | Payment recording, dashboard accounting rules and exclusions |
+| `docs/ADMIN_ORDER_OPERATIONS.md` | Owner guide: order list, detail page, confirmations and metrics |
+| `docs/ORDER_NOTIFICATIONS.md` | Outbox design, configuration states, retries and privacy |
+| `docs/BUSINESS_CONFIGURATION.md` | What the owner must configure, plus the pre-launch checklist |
 | `docs/CART_ARCHITECTURE.md` | Guest cart state, limits, server quote and failure behaviour |
 | `docs/CHECKOUT_FOUNDATION.md` | Review-only checkout, Canadian field validation and explicit exclusions |
 | `docs/MANUAL_TESTING.md` | Plain-language review guide for the business owner |
