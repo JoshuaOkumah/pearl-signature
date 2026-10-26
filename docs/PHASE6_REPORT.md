@@ -758,6 +758,8 @@ payments disabled.
 - Code commit: `06c9865` — payment implementation, models, route, actions, UI,
   tests, seed indexes, `.env.example`, screenshot script.
 - Documentation commit: `5764b75` — this report and the updated document set.
+- Follow-up copy fix: `95be571` — two customer-facing money fallbacks used an em
+  dash placeholder; they now use a hyphen, matching the no-em-dash copy rule.
 - Working tree after the final commit: clean.
 - **Push: not performed.** No remote credentials or `gh` authentication exist
   in this environment. Nothing was reset, rebased or discarded.
