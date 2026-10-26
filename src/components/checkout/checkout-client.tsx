@@ -473,7 +473,7 @@ function CheckoutTotals({
       { label: "Total", value: formatCad(preview.totals.totalCents) ?? "", strong: true },
     );
   } else {
-    rows.push({ label: "Subtotal", value: checking ? "Checking…" : formatCad(cart.subtotalCents) ?? "—" });
+    rows.push({ label: "Subtotal", value: checking ? "Checking…" : formatCad(cart.subtotalCents) ?? "-" });
   }
 
   return (
