@@ -1,6 +1,7 @@
 import {
   EMPTY_CART,
   addItem as addLine,
+  cartLineKey,
   clearCart as resetCart,
   cartQuantity,
   readStoredCart,
@@ -157,6 +158,40 @@ export function removeFromCart(lineKey: string): void {
 
 export function clearWholeCart(): void {
   commit(resetCart());
+}
+
+/**
+ * Remove ONLY the lines an order actually consumed (Phase 5).
+ *
+ * A line is removed when its identity AND quantity still match what was
+ * submitted. If the customer changed a quantity in another tab while the
+ * order was in flight, that line survives with the customer's newer value —
+ * clearing everything would silently discard a change this order never
+ * covered.
+ *
+ * Returns without emitting when nothing matches, so a stray call can never
+ * rewrite an unrelated cart.
+ */
+export function clearOrderedLines(
+  ordered: ReadonlyArray<{ slug: string; variantName: string | null; quantity: number }>,
+): void {
+  if (ordered.length === 0) return;
+
+  const expected = new Map<string, number>();
+  for (const line of ordered) {
+    expected.set(cartLineKey(line), line.quantity);
+  }
+
+  const remaining = state.items.filter((item) => {
+    const wanted = expected.get(cartLineKey(item));
+    if (wanted === undefined) return true; // not part of this order: keep
+    if (wanted !== item.quantity) return true; // changed since review: keep
+    expected.delete(cartLineKey(item));
+    return false; // ordered exactly as submitted: clear
+  });
+
+  if (remaining.length === state.items.length) return;
+  commit({ version: state.version, items: remaining });
 }
 
 /** Total units currently in the cart (used by the header badge). */

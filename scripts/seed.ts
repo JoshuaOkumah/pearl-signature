@@ -27,6 +27,9 @@
 import mongoose from "mongoose";
 import { CategoryModel } from "../src/models/category";
 import { ProductModel } from "../src/models/product";
+import { OrderModel } from "../src/models/order";
+import { OrderAttemptModel } from "../src/models/order-attempt";
+import { StoreConfigModel } from "../src/models/store-config";
 import { categories } from "../src/data/categories";
 import { products } from "../src/data/products";
 import { loadEnvLocal } from "./load-env-local";
@@ -162,6 +165,12 @@ async function seed(): Promise<void> {
     // Add missing indexes only (never drops anything).
     await CategoryModel.createIndexes();
     await ProductModel.createIndexes();
+    // Phase 5: orders (unique reference + idempotency key, listing indexes),
+    // public order rate-limit buckets (unique key + TTL), and the singleton
+    // checkout configuration.
+    await OrderModel.createIndexes();
+    await OrderAttemptModel.createIndexes();
+    await StoreConfigModel.createIndexes();
 
     console.log(
       `[seed] Done. Categories: ${categories.length - categoriesInserted} existing, ` +

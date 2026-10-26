@@ -55,6 +55,34 @@ export const cartItemRequestSchema = z
 
 export type CartItemRequest = z.output<typeof cartItemRequestSchema>;
 
+/**
+ * Cart-wide rules shared by EVERY endpoint that accepts cart lines: the
+ * quote service (Phase 4) and order creation (Phase 5) both call this, so
+ * the two boundaries can never disagree about what a valid cart is.
+ */
+export function cartItemsRefine(
+  request: { items: CartItemRequest[] },
+  ctx: z.RefinementCtx,
+): void {
+  const total = request.items.reduce((sum, item) => sum + item.quantity, 0);
+  if (total > MAX_CART_QUANTITY) {
+    ctx.addIssue({
+      code: "custom",
+      message: `A cart can hold at most ${MAX_CART_QUANTITY} items in total`,
+    });
+  }
+
+  const seen = new Set<string>();
+  for (const item of request.items) {
+    const key = `${item.slug} ${item.variantName ?? ""}`;
+    if (seen.has(key)) {
+      ctx.addIssue({ code: "custom", message: "Duplicate cart line" });
+      break;
+    }
+    seen.add(key);
+  }
+}
+
 export const cartQuoteRequestSchema = z
   .object({
     items: z
@@ -62,25 +90,7 @@ export const cartQuoteRequestSchema = z
       .min(1, "Your cart is empty")
       .max(MAX_CART_LINES, `A cart can hold at most ${MAX_CART_LINES} different items`),
   })
-  .superRefine((request, ctx) => {
-    const total = request.items.reduce((sum, item) => sum + item.quantity, 0);
-    if (total > MAX_CART_QUANTITY) {
-      ctx.addIssue({
-        code: "custom",
-        message: `A cart can hold at most ${MAX_CART_QUANTITY} items in total`,
-      });
-    }
-
-    const seen = new Set<string>();
-    for (const item of request.items) {
-      const key = `${item.slug} ${item.variantName ?? ""}`;
-      if (seen.has(key)) {
-        ctx.addIssue({ code: "custom", message: "Duplicate cart line" });
-        break;
-      }
-      seen.add(key);
-    }
-  });
+  .superRefine(cartItemsRefine);
 
 export type CartQuoteRequest = z.output<typeof cartQuoteRequestSchema>;
 

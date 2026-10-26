@@ -1,66 +1,50 @@
 "use client";
 
-import { cloneElement, isValidElement, useId, useState, type ReactElement, type ReactNode } from "react";
-import { AlertTriangle, Info } from "lucide-react";
+import { useId, type ReactElement, type ReactNode, cloneElement, isValidElement } from "react";
+import { AlertTriangle, MapPin, Truck } from "lucide-react";
 import {
   CANADIAN_PROVINCES,
-  checkoutFieldErrors,
-  checkoutFormSchema,
-  EMPTY_CHECKOUT_VALUES,
+  normalizePostalCode,
   type CheckoutFieldErrors,
   type CheckoutFormValues,
   type FulfillmentMethod,
 } from "@/lib/validations/checkout";
+import type { CheckoutSettings } from "@/lib/validations/store-config";
+import { matchServiceArea } from "@/lib/checkout/pricing";
+import { formatCad } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import type { CheckoutSettingsState } from "./use-checkout";
 
 /**
- * Customer and fulfilment form for `/checkout`.
+ * Customer and fulfilment form for `/checkout` (Phase 5, controlled).
  *
- * Phase 4 boundary: this form is fully validated but deliberately has NO
- * submit action. Values are held in component state only — never written to
- * storage, never posted, never rendered back by the server — because order
- * creation belongs to a later phase. The panel below it says so plainly.
+ * The form holds no state of its own: values, errors and the update/blur
+ * handlers are lifted to the page so the Place Order action can validate
+ * the same fields it displays. What the form DOES own is presentation of
+ * the owner's configuration:
+ *
+ *  - a fulfilment method the owner has not enabled is shown disabled with an
+ *    honest badge, never offered as a choice that would later be refused;
+ *  - pickup shows the owner's own instructions when configured, and says so
+ *    plainly when they are not;
+ *  - delivery validates the address against the configured service areas
+ *    live, so an unsupported address is visible BEFORE submission.
  */
-export function CustomerForm() {
-  const [values, setValues] = useState<CheckoutFormValues>(EMPTY_CHECKOUT_VALUES);
-  const [errors, setErrors] = useState<CheckoutFieldErrors>({});
-  const [touched, setTouched] = useState<Record<string, boolean>>({});
 
-  const update = (field: keyof CheckoutFormValues, value: string) => {
-    const next = { ...values, [field]: value };
-    setValues(next);
-    // Re-validate live once a field has been touched, so an error clears the
-    // moment the customer fixes it rather than on blur of another field.
-    if (touched[field]) validate(next, field);
-  };
+interface CustomerFormProps {
+  values: CheckoutFormValues;
+  errors: CheckoutFieldErrors;
+  settingsState: CheckoutSettingsState;
+  update: (field: keyof CheckoutFormValues, value: string) => void;
+  blur: (field: keyof CheckoutFormValues) => void;
+}
 
-  const validate = (candidate: CheckoutFormValues, focusField?: keyof CheckoutFormValues) => {
-    const result = checkoutFormSchema.safeParse(candidate);
-    if (result.success) {
-      if (focusField) setErrors((previous) => omit(previous, focusField));
-      else setErrors({});
-      return true;
-    }
-    const next = checkoutFieldErrors(result.error);
-    setErrors(focusField ? { ...next, [focusField]: next[focusField] } : next);
-    return false;
-  };
-
-  const blur = (field: keyof CheckoutFormValues) => {
-    setTouched((previous) => ({ ...previous, [field]: true }));
-    validate(values, field);
-  };
-
+export function CustomerForm({ values, errors, settingsState, update, blur }: CustomerFormProps) {
   return (
     <form noValidate className="flex flex-col gap-8">
       <FormSection title="Your details" description="So we know who the order is for.">
-        <Field
-          id="checkout-name"
-          label="Full name"
-          required
-          error={errors.fullName}
-        >
+        <Field id="checkout-name" label="Full name" required error={errors.fullName}>
           <input
             id="checkout-name"
             name="fullName"
@@ -81,7 +65,7 @@ export function CustomerForm() {
             label="Email address"
             required
             error={errors.email}
-            hint="Order updates would go here in a later release."
+            hint="So the store can reach you about this order."
           >
             <input
               id="checkout-email"
@@ -103,7 +87,7 @@ export function CustomerForm() {
             label="Phone number"
             required
             error={errors.phone}
-            hint=" Canadian number, for example 416 555 0123."
+            hint="A Canadian number, for example 416 555 0123."
           >
             <input
               id="checkout-phone"
@@ -122,7 +106,7 @@ export function CustomerForm() {
         </div>
       </FormSection>
 
-      <FulfillmentSection values={values} errors={errors} update={update} blur={blur} />
+      <FulfillmentSection values={values} errors={errors} settingsState={settingsState} update={update} blur={blur} />
 
       <FormSection
         title="Order notes"
@@ -141,11 +125,6 @@ export function CustomerForm() {
           />
         </Field>
       </FormSection>
-
-      <p className="rounded-2xl bg-cream-100 px-4 py-3 text-sm leading-relaxed text-navy-700">
-        Nothing you type on this page is sent or saved yet. Order placement is not available while the
-        checkout experience is being prepared.
-      </p>
     </form>
   );
 }
@@ -155,20 +134,29 @@ export function CustomerForm() {
 function FulfillmentSection({
   values,
   errors,
+  settingsState,
   update,
   blur,
 }: {
   values: CheckoutFormValues;
   errors: CheckoutFieldErrors;
+  settingsState: CheckoutSettingsState;
   update: (field: keyof CheckoutFormValues, value: string) => void;
   blur: (field: keyof CheckoutFormValues) => void;
 }) {
   const groupName = useId();
+  const { status, settings } = settingsState;
+
+  const offered = (method: FulfillmentMethod): boolean =>
+    status === "ready" &&
+    (method === "delivery" ? settings?.deliveryEnabled === true : settings?.pickupEnabled === true);
+
+  const showDeliveryFields = values.fulfillment === "delivery" && offered("delivery");
 
   return (
     <FormSection
       title="How you would like to receive it"
-      description="Delivery and pickup are both being confirmed by the business right now."
+      description="Choose the option the store currently offers. Unavailable options cannot be selected."
     >
       <fieldset>
         <legend className="sr-only">Fulfilment method</legend>
@@ -178,29 +166,18 @@ function FulfillmentSection({
               key={method}
               groupName={groupName}
               method={method}
-              selected={values.fulfillment === method}
+              selected={values.fulfillment === method && offered(method)}
+              disabled={!offered(method)}
+              status={status}
               onSelect={() => update("fulfillment", method)}
             />
           ))}
         </div>
       </fieldset>
 
-      <div className="mt-4 flex items-start gap-2.5 rounded-2xl bg-gold-100 px-4 py-3">
-        <Info className="mt-0.5 h-4 w-4 shrink-0 text-gold-700" aria-hidden="true" />
-        <p className="text-sm leading-relaxed text-gold-700">
-          Service areas, fees and pickup arrangements are still being finalised, so nothing here can be
-          ordered yet. Your details stay in this page only.
-        </p>
-      </div>
-
-      {values.fulfillment === "delivery" ? (
+      {showDeliveryFields ? (
         <div className="mt-6 flex flex-col gap-5" data-testid="delivery-fields">
-          <Field
-            id="checkout-address1"
-            label="Street address"
-            required
-            error={errors.addressLine1}
-          >
+          <Field id="checkout-address1" label="Street address" required error={errors.addressLine1}>
             <input
               id="checkout-address1"
               name="addressLine1"
@@ -305,17 +282,74 @@ function FulfillmentSection({
               />
             </Field>
           </div>
+
+          <DeliveryAreaHint values={values} settings={settings} />
         </div>
-      ) : (
-        <div className="mt-6 rounded-2xl border border-border bg-cream-100 px-4 py-3" data-testid="pickup-fields">
-          <p className="text-sm font-semibold text-navy">Arranged pickup</p>
-          <p className="mt-1 text-sm leading-relaxed text-ink-muted">
-            A pickup location and collection times have not been confirmed yet, so there is nothing to
-            choose here at the moment.
+      ) : null}
+
+      {values.fulfillment === "pickup" && offered("pickup") ? (
+        <div
+          className="mt-6 rounded-2xl border border-border bg-cream-100 px-4 py-3"
+          data-testid="pickup-fields"
+        >
+          <p className="flex items-center gap-2 text-sm font-semibold text-navy">
+            <MapPin className="h-4 w-4 shrink-0 text-gold-700" aria-hidden="true" />
+            Arranged pickup
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-navy-700">
+            {settings?.pickupInstructions ??
+              "Pickup details are not available right now. Please check again shortly."}
           </p>
         </div>
-      )}
+      ) : null}
     </FormSection>
+  );
+}
+
+/**
+ * Live service-area feedback for the address being typed. Shows the matched
+ * area and its fee when the address is inside one, and says so plainly when
+ * it is not — before the customer ever reaches the Place Order button.
+ */
+function DeliveryAreaHint({
+  values,
+  settings,
+}: {
+  values: CheckoutFormValues;
+  settings: CheckoutSettings | null;
+}) {
+  const postal = normalizePostalCode(values.postalCode);
+
+  if (!values.province || !postal) {
+    return (
+      <p className="flex items-start gap-2 text-sm text-ink-muted">
+        <Truck className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" aria-hidden="true" />
+        Enter your province and postal code to check whether this address is served.
+      </p>
+    );
+  }
+
+  const area = matchServiceArea({ province: values.province, postalCode: postal }, settings?.serviceAreas ?? []);
+
+  if (!area) {
+    return (
+      <p
+        role="alert"
+        className="flex items-start gap-2 text-sm font-medium text-terracotta-700"
+        data-testid="area-unsupported"
+      >
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        This address is outside the delivery areas the store currently serves, so it cannot be
+        delivered to.
+      </p>
+    );
+  }
+
+  return (
+    <p className="flex items-start gap-2 text-sm text-leaf-700" data-testid="area-supported">
+      <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      In the {area.label} delivery area. Delivery fee {formatCad(area.feeCents) ?? "to be confirmed"}.
+    </p>
   );
 }
 
@@ -323,22 +357,38 @@ function MethodOption({
   groupName,
   method,
   selected,
+  disabled,
+  status,
   onSelect,
 }: {
   groupName: string;
   method: FulfillmentMethod;
   selected: boolean;
+  disabled: boolean;
+  status: CheckoutSettingsState["status"];
   onSelect: () => void;
 }) {
   const id = `${groupName}-${method}`;
   const label = method === "delivery" ? "Delivery" : "Pickup";
+  const badge =
+    status === "loading"
+      ? { tone: "neutral" as const, text: "Checking availability" }
+      : status === "error"
+        ? { tone: "terracotta" as const, text: "Unavailable right now" }
+        : disabled
+          ? { tone: "neutral" as const, text: "Not available" }
+          : { tone: "leaf" as const, text: "Available" };
 
   return (
     <label
       htmlFor={id}
       className={cn(
-        "focus-within:ring-2 focus-within:ring-gold-700 focus-within:ring-offset-2 flex cursor-pointer flex-col gap-2 rounded-2xl border p-4 transition-colors",
-        selected ? "border-navy bg-cream-100" : "border-border hover:border-navy/40",
+        "focus-within:ring-2 focus-within:ring-gold-700 focus-within:ring-offset-2 flex flex-col gap-2 rounded-2xl border p-4 transition-colors",
+        disabled
+          ? "cursor-not-allowed border-border bg-cream-100/60 opacity-80"
+          : selected
+            ? "cursor-pointer border-navy bg-cream-100"
+            : "cursor-pointer border-border hover:border-navy/40",
       )}
     >
       <span className="flex items-center gap-3">
@@ -348,13 +398,14 @@ function MethodOption({
           name={groupName}
           value={method}
           checked={selected}
+          disabled={disabled}
           onChange={onSelect}
           className="h-4 w-4 shrink-0 accent-[#1a2530]"
         />
         <span className="text-base font-semibold text-navy">{label}</span>
       </span>
-      <Badge tone="gold" className="self-start">
-        Not yet confirmed
+      <Badge tone={badge.tone} className="self-start">
+        {badge.text}
       </Badge>
     </label>
   );
@@ -369,7 +420,7 @@ function FormSection({
 }: {
   title: string;
   description?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <section className="flex flex-col gap-5">
@@ -442,10 +493,4 @@ function inputClass(error?: string): string {
     "w-full rounded-2xl border bg-surface px-4 py-3 text-base text-navy transition-colors placeholder:text-ink-muted/60 focus-gold",
     error ? "border-terracotta-700" : "border-border hover:border-navy/40",
   );
-}
-
-function omit<T extends object, K extends keyof T>(source: T, key: K): Omit<T, K> {
-  const clone = { ...source };
-  delete clone[key];
-  return clone;
 }

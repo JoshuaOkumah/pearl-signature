@@ -3,11 +3,52 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { CANADIAN_PROVINCES } from "@/lib/validations/checkout";
+import type { CheckoutSettingsState } from "@/components/checkout/use-checkout";
+import { useCheckoutForm } from "@/components/checkout/use-checkout";
 import { renderWithCart } from "@/test/cart-harness";
 import { CustomerForm } from "./customer-form";
 
-function renderForm() {
-  renderWithCart(<CustomerForm />);
+/**
+ * Phase 5: the form is controlled — values, errors and handlers are lifted
+ * to the page so Place Order can validate exactly what it displays. These
+ * tests drive it through the REAL `useCheckoutForm` hook, so the wiring the
+ * customer experiences is what is under test, not a mock of it.
+ *
+ * The settings fixture is explicitly synthetic (a test area, a test fee and
+ * owner-attested zero tax) and exists only so the availability and
+ * service-area behaviour can be exercised.
+ */
+
+const SYNTHETIC_SETTINGS: CheckoutSettingsState = {
+  status: "ready",
+  settings: {
+    available: true,
+    intakeEnabled: true,
+    deliveryEnabled: true,
+    serviceAreas: [
+      { label: "Test area", provinces: ["ON"], postalPrefixes: ["M5H"], feeCents: 500 },
+    ],
+    pickupEnabled: true,
+    pickupInstructions: "Collect from the test kitchen door.",
+    tax: { mode: "zero", rateBps: null, base: null, label: null },
+    customerNote: null,
+  },
+};
+
+function renderForm(settingsState: CheckoutSettingsState = SYNTHETIC_SETTINGS) {
+  function Harness() {
+    const form = useCheckoutForm();
+    return (
+      <CustomerForm
+        values={form.values}
+        errors={form.errors}
+        settingsState={settingsState}
+        update={form.update}
+        blur={form.blur}
+      />
+    );
+  }
+  renderWithCart(<Harness />);
 }
 
 const name = () => screen.getByLabelText(/^Full name/);
@@ -29,8 +70,10 @@ describe("CustomerForm: structure", () => {
     expect(screen.getByRole("heading", { name: "How you would like to receive it" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Order notes" })).toBeInTheDocument();
 
-    // The page states plainly that nothing is sent or stored yet.
-    expect(screen.getByText(/Nothing you type on this page is sent or saved yet/)).toBeInTheDocument();
+    // Availability is explained rather than assumed.
+    expect(
+      screen.getByText(/Choose the option the store currently offers/),
+    ).toBeInTheDocument();
   });
 
   it("marks every field as required or optional rather than implying a default", () => {
@@ -43,10 +86,11 @@ describe("CustomerForm: structure", () => {
     expect(screen.getAllByText("(optional)").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("offers no submit control whatsoever", () => {
+  it("keeps submission out of the form itself", () => {
     renderForm();
 
-    // Order placement is out of scope for this phase: no button, no submit.
+    // Place Order lives in the page's summary panel; the form is a plain
+    // noValidate collection of fields with no action of its own.
     expect(screen.queryByRole("button", { name: /place order/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /pay/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /continue to payment/i })).not.toBeInTheDocument();
@@ -62,19 +106,53 @@ describe("CustomerForm: fulfilment", () => {
     expect(screen.queryByTestId("pickup-fields")).not.toBeInTheDocument();
   });
 
-  it("badges both methods as not yet confirmed", () => {
+  it("badges both methods with their real availability", () => {
     renderForm();
 
-    expect(screen.getAllByText("Not yet confirmed")).toHaveLength(2);
+    expect(screen.getAllByText("Available")).toHaveLength(2);
   });
 
-  it("says service areas and fees are still being finalised", () => {
+  it("disables a method the owner has not enabled, with an honest badge", () => {
+    renderForm({
+      status: "ready",
+      settings: { ...SYNTHETIC_SETTINGS.settings!, pickupEnabled: false, pickupInstructions: null },
+    });
+
+    expect(screen.getByRole("radio", { name: /Pickup/ })).toBeDisabled();
+    expect(screen.getAllByText("Not available")).toHaveLength(1);
+    expect(screen.getAllByText("Available")).toHaveLength(1);
+  });
+
+  it("says availability is still being checked while settings load", () => {
+    renderForm({ status: "loading", settings: null });
+
+    expect(screen.getAllByText("Checking availability")).toHaveLength(2);
+    expect(screen.getByRole("radio", { name: /Delivery/ })).toBeDisabled();
+  });
+
+  it("matches the typed address against the configured service area", async () => {
+    const user = userEvent.setup({ delay: null });
     renderForm();
 
-    expect(screen.getByText(/Service areas, fees and pickup arrangements are still being finalised/)).toBeInTheDocument();
+    await user.type(postal(), "M5H 2N2");
+    await user.selectOptions(province(), "ON");
+
+    await waitFor(() => expect(screen.getByTestId("area-supported")).toBeInTheDocument());
+    expect(screen.getByText(/Test area delivery area/)).toBeInTheDocument();
+    expect(screen.getByText(/\$5\.00/)).toBeInTheDocument();
   });
 
-  it("swaps the address fields for the honest pickup panel", async () => {
+  it("rejects an address outside every configured service area", async () => {
+    const user = userEvent.setup({ delay: null });
+    renderForm();
+
+    await user.type(postal(), "K1A 0B1");
+    await user.selectOptions(province(), "ON");
+
+    await waitFor(() => expect(screen.getByTestId("area-unsupported")).toBeInTheDocument());
+  });
+
+  it("swaps the address fields for the owner's pickup instructions", async () => {
     const user = userEvent.setup({ delay: null });
     renderForm();
 
@@ -82,7 +160,7 @@ describe("CustomerForm: fulfilment", () => {
 
     expect(screen.getByTestId("pickup-fields")).toBeInTheDocument();
     expect(screen.queryByTestId("delivery-fields")).not.toBeInTheDocument();
-    expect(screen.getByText(/A pickup location and collection times have not been confirmed yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Collect from the test kitchen door/)).toBeInTheDocument();
   });
 
   it("restores the address fields when delivery is chosen again", async () => {

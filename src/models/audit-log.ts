@@ -31,6 +31,7 @@ export const AUDIT_EVENTS = [
   "image.updated",
   "image.removed",
   "store.settings_updated",
+  "order.placed",
   "order.status_changed",
   "order.payment_recorded",
   "order.note_added",
