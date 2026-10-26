@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  ClipboardList,
   ExternalLink,
   LayoutDashboard,
   LogOut,
   Menu,
   Package,
+  Settings,
   Tags,
   X,
 } from "lucide-react";
@@ -27,8 +29,10 @@ import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/admin/orders", label: "Orders", icon: ClipboardList, exact: false },
   { href: "/admin/products", label: "Products", icon: Package, exact: false },
   { href: "/admin/categories", label: "Categories", icon: Tags, exact: false },
+  { href: "/admin/settings", label: "Settings", icon: Settings, exact: false },
 ] as const;
 
 function isActive(pathname: string, href: string, exact: boolean): boolean {

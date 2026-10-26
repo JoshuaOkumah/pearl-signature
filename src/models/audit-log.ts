@@ -30,6 +30,10 @@ export const AUDIT_EVENTS = [
   "image.attached",
   "image.updated",
   "image.removed",
+  "store.settings_updated",
+  "order.status_changed",
+  "order.payment_recorded",
+  "order.note_added",
 ] as const;
 
 export type AuditEvent = (typeof AUDIT_EVENTS)[number];
@@ -38,7 +42,7 @@ const AuditTargetSchema = new Schema(
   {
     type: {
       type: String,
-      enum: ["product", "category", "admin"],
+      enum: ["product", "category", "admin", "order", "store"],
       default: undefined,
     },
     id: {
