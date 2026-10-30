@@ -1,11 +1,14 @@
 # PEARL Signature: Phase 7 Progress
 
-Status: **7A in progress.** Transactional email and secure order tracking are
-being implemented on the existing Phase 5 outbox. Deployment, live payments and
-Phase 8 remain prohibited.
+Status: **7A–7F complete.** Transactional email and secure order tracking are
+implemented on the existing Phase 5 outbox. No real email has been sent: no
+Resend account, verified domain, sender or owner recipient was supplied.
+Deployment, live payments and Phase 8 remain prohibited.
 
-Specification snapshot: `docs/PHASE7_SPEC.md`. Final report (created at 7F):
-`docs/PHASE7_REPORT.md`.
+Specification snapshot: `docs/PHASE7_SPEC.md`. Final report:
+`docs/PHASE7_REPORT.md`. Behavioural documents:
+`docs/EMAIL_NOTIFICATIONS.md`, `docs/NOTIFICATION_PROCESSING.md`,
+`docs/ORDER_TRACKING.md`.
 
 ## Initial repository inspection
 
@@ -110,11 +113,44 @@ Specification snapshot: `docs/PHASE7_SPEC.md`. Final report (created at 7F):
 | Milestone | State | Verification / notes |
 | --- | --- | --- |
 | 7A Specification and architecture | Complete | Spec, progress, integration map, security decisions |
-| 7B Resend integration | Not started | Provider adapter, config, templates, unit tests |
-| 7C Outbox processor | Not started | Claims, retries, idempotency, guarded execution, admin observability |
-| 7D Customer tracking | Not started | Page, capability, timeline, refresh, auth tests |
-| 7E Customer communication | Not started | Lifecycle/payment events, recovery, admin settings |
-| 7F Quality assurance | Not started | Gates, browser regression, screenshots, docs, report |
+| 7B Resend integration | Complete | Config reader, provider contract, Resend + file-sink adapters, eleven templates, unit tests |
+| 7C Outbox processor | Complete | Claims, leases, retries, ambiguous handling, quota, guarded route + CLI, admin observability |
+| 7D Customer tracking | Complete | `/track`, capability + grant access, timeline, payment copy, polling, refresh, Vitest + Playwright |
+| 7E Customer communication | Complete | Lifecycle and payment events, preparing preference, recovery email, admin settings panel |
+| 7F Quality assurance | Complete | All gates green, screenshots inspected, docs and report written |
+
+## Final verification
+
+| Command | Result |
+| --- | --- |
+| `npx next typegen` | PASS |
+| `npm run typecheck` | PASS, 0 errors |
+| `npm run lint` | PASS, 0 errors/warnings |
+| `npm run test` | PASS, **794/794** across 59 files |
+| `npm run build` | PASS; `/track` and `/api/notifications/process` present |
+| `npm run test:e2e` | PASS, **96/96** across five projects (tracking A–H) |
+| `npm run screenshots` | PASS, zero horizontal overflow (tracking at nine viewports, admin notifications at five) |
+| Genuine Resend delivery | NOT EXECUTED (no credentials; no real email may be sent) |
+| Genuine Stripe test-mode payment | NOT EXECUTED (Phase 6 carry-over) |
+
+## Files added or changed
+
+- New: `src/lib/notifications/{config,contract,events,facts,observability,auth,preferences,send-tracking-code}.ts`,
+  `src/lib/notifications/email/*`, `src/lib/notifications/providers/*`,
+  `src/lib/orders/{tracking,view}.ts`, `src/lib/actions/{tracking,admin-notifications}.ts`,
+  `src/models/{tracking-challenge,order-access-grant}.ts`,
+  `src/app/track/page.tsx`, `src/app/api/notifications/process/route.ts`,
+  `src/app/admin/(dashboard)/notifications/page.tsx`,
+  `src/components/tracking/order-tracking.tsx`,
+  `src/components/admin/notification-retry-form.tsx`,
+  `scripts/process-notifications.ts`, `e2e/tracking/tracking.spec.ts`,
+  `e2e/orders/tracking-fixture.ts`.
+- Changed: outbox model, dispatch, provider registry, templates, admin order
+  action, COA payment action, store config (model, schema, action, form,
+  settings page), audit target types, rate-limit scopes, order view builder,
+  `scripts/seed.ts`, `scripts/e2e-orders-server.ts`, `scripts/screenshots.mjs`,
+  `playwright.config.ts`, `package.json`, `.env.example`, footer,
+  confirmation client, admin shell.
 
 ## External integration blockers
 

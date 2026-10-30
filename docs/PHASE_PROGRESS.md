@@ -20,6 +20,10 @@
 > Integrity — IMPLEMENTED IN TEST MODE, awaiting review** (see
 > `docs/PHASE6_REPORT.md`, section 1H). Live payments, deployment and any
 > refund workflow remain out of scope and require separate approval.
+> **Phase 7: Transactional Email & Secure Guest Order Tracking — IMPLEMENTED,
+> awaiting review** (see `docs/PHASE7_REPORT.md`, section 1I). No real email
+> has been sent: no Resend account, verified domain, sender or owner recipient
+> was supplied. Deployment and live payments remain out of scope.
 
 ---
 
@@ -554,11 +558,92 @@ contact detail or review was invented.
 
 ---
 
+## 1I. Phase 7 — transactional email & secure guest order tracking
+
+Full report: `docs/PHASE7_REPORT.md`. Specification snapshot:
+`docs/PHASE7_SPEC.md`. Behavioural documents:
+`docs/EMAIL_NOTIFICATIONS.md`, `docs/NOTIFICATION_PROCESSING.md`,
+`docs/ORDER_TRACKING.md`.
+
+Status: **implemented, no real email sent, not verified against a live Resend
+account.** Deployment and live payments remain prohibited.
+
+### What shipped
+- **Provider layer**: one config reader, a provider contract with explicit
+  failure kinds, a Resend adapter (plain `fetch`, no SDK) and a
+  development/test-only `file-sink` adapter that refuses production unless the
+  harness opts in. `NOTIFICATION_PROVIDER` selects between three states:
+  configured, named-but-incomplete and unsupported.
+- **Eleven branded templates** sharing one cream/navy/gold layout, each with a
+  plain-text alternative, escaped dynamic text, no em dashes, no invented facts
+  and no secrets or capabilities in the message.
+- **Outbox extended, not replaced**: `transition`, `providerId`,
+  `providerStatus` (`accepted|delivered|bounced|complained|failed|unknown`),
+  `leaseToken`/`leaseExpiresAt`, `lastAttemptAt`, `ambiguousAttempts`, plus the
+  new `processing` and `uncertain` statuses. The TTL moved from `createdAt` to
+  `sentAt`, and `scripts/seed.ts` drops the legacy index explicitly.
+- **Processor**: atomic claims with leases, expired-lease recovery, bounded
+  retries (5 failures), a separate ambiguous-outcome budget (2), rate-limit
+  deferral that honours `retryAfterMs`, a quota guard, and a rule that HTTP
+  success means *accepted*, never *delivered*.
+- **Guarded execution**: `POST /api/notifications/process` (503 with no secret,
+  401 with a wrong one, counters only) and `npm run notifications:process`.
+  Automatic scheduled delivery is documented as pending a deployment scheduler,
+  not implied.
+- **Order and payment events A–J** with stable identities, so webhook replays,
+  retries, reloads and repeated admin clicks never duplicate a message.
+- **Admin observability**: `/admin/notifications` with readiness (no secrets),
+  queue counts, recent accepted, last attempt and acceptance, and a failed list
+  with sanitised reasons and an entry-id-only retry that keeps the idempotency
+  key. Settings gained the single muteable `preparing` switch.
+- **`/track`**: same-device capability access, a timeline per fulfilment method,
+  honest payment states, visibility-aware polling, a stale-safe manual refresh
+  and a private-access state that never reveals an order.
+- **Cross-device recovery**: reference + email always answers generically, then
+  emails a single-use six-digit code (10 minutes, 5 attempts, hash-only
+  storage). Verification issues a hashed, order-scoped, 24-hour grant. No
+  capability in a URL, no reference-only lookup, and both actions report
+  "unavailable" when email is not configured.
+
+### Explicitly not implemented
+Accounts, SMS, WhatsApp, marketing or loyalty email, discounts, new payment
+gateways, live Stripe, automatic refunds, GPS or map tracking, new databases,
+paid queues, deployment, a domain purchase and any storefront redesign. No
+delivery window, fee, tax rate, contact detail or review was invented.
+
+### Phase 7 verification (all executed)
+| Command | Result |
+| --- | --- |
+| `npx next typegen` | ✅ PASS — `/track` and `/api/notifications/process` typed |
+| `npm run typecheck` | ✅ PASS — 0 errors |
+| `npm run lint` | ✅ PASS — 0 errors/warnings |
+| `npm run test` | ✅ PASS — **794/794** (59 files) |
+| `npm run build` | ✅ PASS — `/track` and the processor route present; all earlier routes intact |
+| `npm run test:e2e` | ✅ PASS — **96/96** across five projects, including the new `tracking` project A–H |
+| `npm run screenshots` | ✅ PASS — zero horizontal overflow on every capture, including `track-order` at nine viewports and `admin-notifications` |
+| Visual review of the Phase 7 captures | ✅ PASS after one fix — the order reference wrapped after its hyphen at 320px; the heading is now `text-2xl` on phones and `text-3xl` from `sm` up |
+| Genuine Resend delivery | ❌ NOT EXECUTED — no API key, verified domain, sender or owner recipient available; no real email may be sent |
+
+### Phase 7 defects found during verification and fixed
+1. **Tracking E2E raced the background scan.** The admin status change kicks a
+   detached processor, so a manual processor call could legitimately find
+   nothing to do. The tracking harness now seeds one due entry that no login or
+   tracking read drains, making the guarded-processor assertion deterministic.
+2. **Order reference wrapped at 320px** after its hyphen. Fixed with a
+   responsive heading size.
+3. **Admin products list overflowed by 13px** only when the admin screenshots
+   ran against the *tracking* harness, whose wider E2E fixture rows include
+   prices and availability badges. Not a Phase 7 regression: the documented
+   configuration captures admin surfaces against the admin harness, which is
+   what the final run uses.
+
+---
+
 ## 2. Verification results (all executed)
 
 The table below is the original Phase 1 log. Each later phase carries its own
-verification table in its section (1B, 1C, 1D, 1E, 1F, 1G, 1H) and in its
-report (`docs/PHASE2_REPORT.md` through `docs/PHASE6_REPORT.md`); all commands
+verification table in its section (1B, 1C, 1D, 1E, 1F, 1G, 1H, 1I) and in its
+report (`docs/PHASE2_REPORT.md` through `docs/PHASE7_REPORT.md`); all commands
 have been re-run after every phase.
 
 | # | Command | Result |
@@ -606,7 +691,10 @@ have been re-run after every phase.
   including the actual rate).
 - A notification provider decision (email/SMS credentials) before any
   entry leaves the `notification_outbox`; until then it stays honestly
-  `pending`.
+  `pending`. Phase 7 wires Resend, so what is needed now is a Resend account, a
+  verified sending domain, `EMAIL_FROM`, `OWNER_NOTIFICATION_EMAIL`, a
+  processor secret and a scheduler (see `docs/EMAIL_NOTIFICATIONS.md` §3 and
+  `docs/BUSINESS_CONFIGURATION.md` §6).
 - Stripe test-mode keys and webhook secret before online payment can be
   enabled, plus the owner's decision to turn on the online payment switch. The
   readiness checklist is `docs/STRIPE_INTEGRATION.md` §4 and §11.
@@ -620,12 +708,22 @@ have been re-run after every phase.
   not.** Phase 3 added owner auth, product/category CRUD and signed uploads;
   Phase 4 added the guest cart and checkout review; Phase 5 added real order
   records, Cash on Arrival recording and order management; Phase 6 added
-  Stripe test-mode Checkout, verified webhooks and reconciliation. Online
+  Stripe test-mode Checkout, verified webhooks and reconciliation; Phase 7 added
+  Resend delivery on the same outbox and secure guest order tracking. Online
   payment is off unless an operator supplies test credentials **and** turns on
-  the owner switch, and no live charge path exists. Until `MONGODB_URI` exists,
+  the owner switch, and no live charge path exists. Email is off until a
+  provider, sender and processor secret exist, and no message is claimed as
+  sent before then. Until `MONGODB_URI` exists,
   the site runs on labelled preview fixtures (dev/preview) or shows the honest
   unavailable state (production without configuration), and the admin requires
   a real database (the disposable e2e stack uses an in-memory MongoDB).
+- **Notification delivery has no scheduler in this repository.** Entries drain
+  on the next order event, an operator retry, a manual CLI run or a call to the
+  guarded endpoint. A deployment must add a scheduler; until then "pending" is
+  the honest state and `/admin/notifications` shows it.
+- **No real email has ever been sent from this project.** The Resend adapter is
+  covered by mocked unit tests and the pipeline by the file-sink provider, but
+  provider acceptance and delivery remain unverified.
 - **Order intake is closed until the owner configures it.** With no
   `store_configs` document (or an `unconfigured` tax treatment) checkout
   blocks submission with a stated reason; nothing is invented to fill the
@@ -661,11 +759,12 @@ have been re-run after every phase.
 
 ## 5. Next planned phase (requires separate approval)
 
-Phase 6 is implemented in test mode and awaiting review. Live Stripe
-activation, any refund/dispute workflow, customer accounts, a registered
-notification provider, inventory management or deployment require explicit
-business-owner approval and the required business inputs (see
-`docs/STRIPE_INTEGRATION.md` §11 for the payment-specific pre-live steps). See
+Phase 7 is implemented and awaiting review. Live Stripe activation, any
+refund/dispute workflow, customer accounts, SMS or WhatsApp notifications,
+marketing email, a deployment scheduler, inventory management or deployment
+require explicit business-owner approval and the required business inputs (see
+`docs/STRIPE_INTEGRATION.md` §11 for the payment-specific pre-live steps and
+`docs/EMAIL_NOTIFICATIONS.md` §3 for the email settings). See
 `docs/PROJECT_SPEC.md` for unresolved details and
 `docs/BUSINESS_CONFIGURATION.md` for the pre-launch checklist. Do not start a
 new phase without explicit approval.

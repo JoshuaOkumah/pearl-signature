@@ -1,11 +1,13 @@
 # PEARL Signature — Product Specification
 
-> Status: **Phases 1–5 implemented** (foundation, catalogue, admin, guest
-> cart and checkout review, then orders). Phase 5 adds real order creation,
-> Cash on Arrival recording, the order lifecycle, admin order management and
-> a notification outbox. Online card payment, customer accounts and
-> deployment remain out of scope. This document records agreed requirements;
-> see `docs/PHASE_PROGRESS.md` for implementation and verification details.
+> Status: **Phases 1–7 implemented** (foundation, catalogue, admin, guest
+> cart and checkout review, orders, test-mode online payment, then
+> transactional email and secure guest order tracking). Phase 7 adds Resend
+> delivery on the existing notification outbox, a guarded processor, admin
+> notification observability and `/track` with cross-device email recovery.
+> Customer accounts, SMS/WhatsApp, live card payment and deployment remain out
+> of scope. This document records agreed requirements; see
+> `docs/PHASE_PROGRESS.md` for implementation and verification details.
 
 ---
 
@@ -140,11 +142,21 @@ remain unconfirmed and are shown as such.
 | MongoDB `payment_refunds` collection | Verified provider refund records keyed by `stripeRefundId`; foundation for refund reporting, no refunds are initiated |
 | Owner-managed `payments.onlineEnabled` switch | Default-off business switch, independent of order intake and of environment variables |
 
+### Added in Phase 7 (implemented, free tier only)
+| Technology | Status & purpose |
+| --- | --- |
+| Resend transactional email | Provider adapter behind `src/lib/notifications/contract.ts`; free tier, no SDK, no marketing |
+| Outbox processor | Atomic claims with leases, bounded retries, ambiguous-outcome handling, quota guard, guarded `POST /api/notifications/process` and a CLI |
+| MongoDB `tracking_challenges` collection | Hashed one-time tracking codes (10 minute TTL, 5 attempts, single use) |
+| MongoDB `order_access_grants` collection | Hashed, order-scoped, 24-hour cross-device tracking grants with a TTL index |
+| `/track` guest tracking | Timeline per fulfilment method, honest payment states, visibility-aware polling and manual refresh |
+
 ### Reserved for later phases (NOT implemented yet)
 | Technology | Purpose |
 | --- | --- |
-| Notification provider | A real email/SMS transport registered in `src/lib/notifications/provider.ts` |
+| SMS / WhatsApp notifications | Explicitly out of scope; email only |
 | Live Stripe mode | Live keys, live webhooks and real customer charges are explicitly out of scope |
+| Scheduled notification worker | A deployment scheduler must call the guarded processor; not part of this repository |
 
 **Rejected dependencies:** Supabase, Firebase, PostgreSQL — must not be added.
 No paid services, subscriptions or premium dependencies. No secrets in source.
@@ -264,10 +276,42 @@ Commerce × Modern Editorial Design. Full detail lives in `docs/DESIGN_SYSTEM.md
 - Payment notifications reuse the Phase 5 outbox with idempotent keys; no
   provider is configured, so nothing claims delivery.
 
+### Phase 7 (implemented, free tier only)
+- Transactional email through Resend behind a provider contract, with eleven
+  branded responsive templates that each carry a plain-text alternative. No
+  invented business facts, no secrets in a message, no em dashes in customer
+  copy.
+- The Phase 5 outbox extended rather than replaced: distinct lifecycle events,
+  provider message id and acceptance state, claim leases, ambiguous-outcome
+  handling and a 30-day TTL measured from acceptance so unresolved failures are
+  never silently deleted.
+- Atomic claiming with lease tokens, so a scheduler and a manual run can never
+  send the same entry twice. A crash is recovered by the next scan.
+- A guarded processor (`POST /api/notifications/process` with a bearer secret,
+  plus `npm run notifications:process`). Missing configuration leaves
+  everything working: events are still recorded, nothing is reported as sent
+  and the admin sees an honest warning.
+- `/admin/notifications`: readiness without secrets, queue counts, recent
+  accepted messages, last attempt and last acceptance, and a failed list with
+  sanitised reasons and a safe entry-id-only retry.
+- `/track`: guest order tracking on the existing capability, plus cross-device
+  recovery by reference and email. Recovery answers generically whether or not
+  the order exists, emails a single-use six-digit code, and issues a hashed,
+  order-scoped, 24-hour grant. No capability ever appears in a URL and there is
+  no reference-only lookup.
+- A tracking timeline per fulfilment method with honest payment states: a
+  cancelled order is never shown as completed, and a refund that the provider
+  has not confirmed is never described as money returned.
+- Visibility-aware polling with a manual refresh that cannot overwrite a newer
+  result, and no paid realtime infrastructure.
+
 ### Upcoming (documented, not implemented)
 - Live Stripe activation (real keys, real charges) and any customer-initiated
   refund or dispute flow.
-- A registered notification provider (email/SMS transport).
+- A deployment scheduler that drains the notification queue automatically.
+- Genuine Resend delivery verification against a real verified domain.
+- Customer accounts, SMS or WhatsApp notifications, marketing email, loyalty,
+  discounts and GPS or map tracking.
 - Pickup and delivery time slots or scheduling (none offered; any future
   promise must be supplied by the business).
 - Customer account/order history.

@@ -1,4 +1,4 @@
-# PEARL Signature — Database Schema (Phase 2, 3, 4, 5 & 6)
+# PEARL Signature — Database Schema (Phase 2, 3, 4, 5, 6 & 7)
 
 Database: **MongoDB** (target: MongoDB Atlas M0 free tier).
 ODM: **Mongoose 9**. Boundary validation: **Zod 4**.
@@ -9,7 +9,9 @@ browser-local and quote requests are read-only. Phase 5 adds `orders`,
 `store_configs`, `order_attempts` and `notification_outbox`. Phase 6 adds
 `payment_attempts`, `stripe_events` and `payment_refunds` and extends the
 `orders.payment` subdocument; it introduces no customer, card or
-payment-method records.
+payment-method records. Phase 7 extends `notification_outbox` and adds
+`tracking_challenges` and `order_access_grants`; neither stores a plaintext code
+or token, and neither stores an email address.
 
 All indexes below are created by the seed script or an operator command
 (`autoIndex` is **off** on the application connection, so the app never
@@ -232,21 +234,68 @@ when unreadable. Verified webhooks are never rate limited.
 
 ### `notification_outbox`
 
+Extended in Phase 7.
+
 | Field | Type | Notes |
 | --- | --- | --- |
 | `key` | string, unique | `${event}:${reference}:${recipientRole}` |
-| `event` | enum | `order.placed`, `order.status_changed`, `payment.confirmed`, `payment.failed`, `payment.requires_attention`, `payment.refund_review` |
+| `event` | enum | `order.placed`, `order.status_changed`, `order.confirmed`, `order.preparing`, `order.ready_for_pickup`, `order.out_for_delivery`, `order.completed`, `order.cancelled`, `payment.confirmed`, `payment.collected`, `payment.failed`, `payment.requires_attention`, `payment.refund_review` |
 | `reference` | string | Order reference only |
+| `transition` | order status \| null | Target status for status events |
 | `recipientRole` | enum | `customer`, `admin` |
-| `status` | enum | `pending`, `sent`, `failed` |
+| `status` | enum | `pending`, `processing`, `sent`, `failed`, `uncertain` |
 | `attempts` | number | Counts failures only; cap 5 |
-| `lastReason` | string ≤ 300 \| null | PII-free by construction |
+| `ambiguousAttempts` | number | Timeout/5xx outcomes; cap 2, then `uncertain` |
+| `lastReason` | string ≤ 300 \| null | Sanitised; no address, no token |
 | `nextAttemptAt` | date | Backoff schedule, scanned with `{ status, nextAttemptAt }` |
-| `sentAt` | date \| null | |
-| `createdAt` | date | **TTL index**: entries are removed 30 days after creation |
+| `lastAttemptAt` | date \| null | Set when an entry is claimed |
+| `sentAt` | date \| null | **TTL index**: accepted entries expire 30 days after acceptance |
+| `leaseToken` | string ≤ 64 \| null | Random token held by one processor |
+| `leaseExpiresAt` | date \| null | 2 minutes; expired leases are recovered |
+| `providerId` | string \| null | Provider message id |
+| `providerStatus` | enum \| null | `accepted`, `delivered`, `bounced`, `complained`, `failed`, `unknown` |
+| `providerStatusAt` | date \| null | |
+| `createdAt` | date | Audit only; the legacy `createdAt_1` TTL index is dropped by the seed script |
+
+`sent` means the provider **accepted** the message. Only a verified provider
+callback may move `providerStatus` to `delivered`, `bounced` or `complained`.
+Unresolved failures never expire, so a problem cannot silently disappear.
 
 No email, name, address or message body is ever stored: recipients resolve
 at dispatch time.
+
+---
+
+## Phase 7 tracking collections
+
+Two collections, written only by the tracking Server Actions. Prose:
+`docs/ORDER_TRACKING.md`. Both store hashes only.
+
+### `tracking_challenges`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `reference` | string | Public order reference |
+| `codeHash` | string, 64 hex | sha256 of the six-digit code; the code itself is never stored |
+| `attempts` | number | Wrong-code count; cap 5 |
+| `consumedAt` | date \| null | Set atomically on successful verification (single use) |
+| `expiresAt` | date | **TTL index**; 10 minutes |
+| `createdAt` | date | Used to select the newest challenge |
+
+### `order_access_grants`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `reference` | string | The one order this grant opens |
+| `orderId` | string | Order id at issue time |
+| `tokenHash` | string, 64 hex, **unique** | sha256 of the 43-character base64url token |
+| `expiresAt` | date | **TTL index**; 24 hours |
+| `revokedAt` | date \| null | Reserved for explicit revocation |
+| `createdAt` | date | |
+
+The browser keeps the plaintext capability in `sessionStorage`
+(`pearl-confirmations-v1`) and the plaintext grant in
+`pearl-tracking-grants-v1`. Neither is ever placed in a URL.
 
 ---
 

@@ -1,4 +1,4 @@
-# PEARL Signature — Manual Review Guide (Phase 6)
+# PEARL Signature — Manual Review Guide (Phase 7)
 
 This guide is for a business owner reviewing the storefront, ordering and
 payment experience. No coding knowledge is needed. Use the local test site
@@ -132,10 +132,54 @@ Tab, Shift+Tab and Escape through the cart drawer, the payment choices and the
 confirmation controls. Focus should remain visible, and the selected payment
 choice must be operable with the keyboard alone.
 
-The automated screenshot review also covers 320, 360, 390, 667 landscape, 768,
-1024 and 1440 layouts. See `docs/PHASE6_REPORT.md` for the completed results.
+The automated screenshot review also covers 320, 360, 375, 390, 430, 667
+landscape, 768, 1024 and 1440 layouts. See `docs/PHASE7_REPORT.md` for the
+completed results.
 
-## 8. Feedback for the business
+## 8. Check order tracking and private access
+
+1. Place a Cash on Arrival order, then follow **Track this order** on the
+   confirmation page. The order should open with a timeline that matches its
+   current status. A pickup order must show **Ready for pickup** and must never
+   show **Out for delivery**; a delivery order shows the opposite.
+2. Check the payment panel. Cash on Arrival must say payment is due on delivery
+   or collection until the owner records it. After the owner records it, it may
+   say payment received. Nothing may say "paid" before that.
+3. Open the same `/track?ref=...` address in a private window, where the order
+   was never placed. It must not reveal the order. It should say the order needs
+   private access and offer the email recovery form.
+4. Enter the order reference and the email address used on the order, then press
+   **Email me a code**. The message must be neutral whether or not the order
+   exists. If the developer has not configured email, it must say recovery is
+   unavailable instead of pretending to send.
+5. With email configured, enter the six-digit code. The order should open on
+   that device and keep opening after a reload. Enter a wrong code five times:
+   the sixth attempt must be refused even with the correct code.
+6. Ask the owner to change the order status. Press **Refresh** on the tracking
+   page; the new status must appear, and the page must never show an older one
+   afterwards.
+7. Cancel an order and open its tracking page. It must say it was cancelled and
+   must never show a completed step. A refund that Stripe has not confirmed must
+   never be described as money returned.
+
+## 9. Check the owner's notification screens
+
+1. Sign in to `/admin` and open **Notifications**. **Delivery readiness** must
+   state whether email is configured, without ever showing a key or a secret.
+2. If email is not configured, the page must say so plainly and the queue counts
+   must still work. Nothing may claim a message was sent.
+3. If email is configured, send a test order event and process the queue (the
+   developer will run the processor). Accepted messages should appear with a
+   time and a provider status of **accepted**. That is not the same as
+   delivered; the page must not say "delivered" unless the provider reported it.
+4. A failed entry should show a short, readable reason with no email address in
+   it. **Retry** should be offered only for failed or uncertain entries, and
+   pressing it must not create a duplicate message.
+5. In `/admin/settings`, check that the **preparing** update switch is the only
+   message you can turn off. Confirmations, handover, completion, cancellation
+   and payment messages must always send.
+
+## 10. Feedback for the business
 
 Please provide approved values rather than asking the site to guess:
 
@@ -144,6 +188,8 @@ Please provide approved values rather than asking the site to guess:
 - Delivery fees, tax rules, pickup instructions and any service limits.
 - Whether online payment should be offered at all, and the Stripe account that
   should receive it (test mode first, live only after a separate approval).
+- A Resend account, a verified sending domain, the address messages should come
+  from, and where owner alerts should go. Until these exist, no email is sent.
 - Verified contact details, operating hours and approved food photography.
 
 Unknowns stay pending. The application never invents a fee, a tax rate, a

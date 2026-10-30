@@ -1,4 +1,4 @@
-# PEARL Signature — Admin Operations Guide (Phase 3–6)
+# PEARL Signature — Admin Operations Guide (Phase 3–7)
 
 > Day-to-day operating instructions for the owner dashboard at `/admin`.
 > This guide assumes the owner account already exists (see
@@ -148,6 +148,38 @@ status, reconciliation and refund records are documented in
 
 ---
 
+## 6c. Notifications (`/admin/notifications`)
+
+Everything the store has queued, accepted or failed to email, and whether email
+is configured at all. See `docs/EMAIL_NOTIFICATIONS.md` and
+`docs/NOTIFICATION_PROCESSING.md` for the full model.
+
+- **Delivery readiness** states whether a send can be attempted, the provider
+  name, whether a sender and owner recipient are configured, whether the
+  processor secret and delivery callbacks exist, and whether cross-device
+  tracking recovery is available. It never shows a key, a secret or a
+  recipient address.
+- **Queue state** counts `pending`, `processing`, accepted (`sent`), `failed`
+  and `uncertain`, and shows the last processing attempt and the last provider
+  acceptance.
+- **Configured send limits** are the store's own ceilings, not a claim about the
+  provider's plan.
+- **Notifications needing attention** lists failed and uncertain entries with a
+  short reason that contains no address or token. **Retry** takes the entry id
+  only, requeues the original event, and keeps the provider idempotency key, so
+  a retry cannot duplicate a message that was already accepted.
+- **Accepted** means the provider took the message. It is **not** delivery. Only
+  a verified provider callback may move an entry to delivered, bounced or
+  complained.
+- If email is not configured, the page says so and the queue still records
+  everything. Nothing is ever reported as sent when it was not.
+
+An entry that stays `pending` for a long time usually means no scheduler is
+draining the queue. Run `npm run notifications:process` or call the guarded
+endpoint; see `docs/NOTIFICATION_PROCESSING.md` §9.
+
+---
+
 ## 7. Troubleshooting
 
 | Symptom | Cause | Action |
@@ -161,3 +193,7 @@ status, reconciliation and refund records are documented in
 | A Stripe order has no manual payment control | Correct: online payments are never recorded by hand | Use reconciliation after checking Stripe |
 | An order shows **Review required** | Provider and local facts disagree, or a cancelled order received a late payment | Read the attempts, check Stripe, then reconcile or decide on a refund in Stripe |
 | **Paid online** disagrees with Stripe | A webhook may have been missed | Open the order, run the read-only reconciliation check |
+| A notification sits at **Pending** for hours | No scheduler is draining the queue | Run `npm run notifications:process` or call the guarded endpoint |
+| Every notification stays **Pending**, readiness says "not configured" | `NOTIFICATION_PROVIDER` is blank or its settings are incomplete | Configure Resend as described in `docs/EMAIL_NOTIFICATIONS.md` §3 |
+| A notification is **Uncertain** | A provider timeout made acceptance unknowable | Check the provider dashboard before retrying, then use **Retry** |
+| Tracking recovery says "unavailable" | Email is not configured, so no code can be sent | Configure email; same-device tracking still works |

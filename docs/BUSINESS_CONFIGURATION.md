@@ -1,9 +1,9 @@
 # PEARL Signature - Business Configuration
 
-Phase 5 (extended in Phase 6). Everything a business must decide before a
-customer can place a real order lives in one owner-managed document: the
-`store_configs` singleton (`_id: "checkout"`). Nothing about fulfilment, fees,
-tax or payment availability is hardcoded anywhere in the codebase.
+Phase 5 (extended in Phase 6 and Phase 7). Everything a business must decide
+before a customer can place a real order lives in one owner-managed document:
+the `store_configs` singleton (`_id: "checkout"`). Nothing about fulfilment,
+fees, tax or payment availability is hardcoded anywhere in the codebase.
 
 ## 1. The configuration surface
 
@@ -14,6 +14,7 @@ tax or payment availability is hardcoded anywhere in the codebase.
 | Pickup | `pickup.enabled`, pickup instructions | Pickup unavailable; enabling pickup without instructions is a validation error |
 | Tax | mode (`unconfigured`, `zero`, `rate`), rate in basis points, base (`merchandise` or `with_delivery`), label | `tax_unconfigured` blocks submission |
 | Online payment | `payments.onlineEnabled` (default **false**) | Online payment unavailable; Cash on Arrival stays available |
+| Notifications | `notifications.preparingUpdateEnabled` (default **true**) | The preparing update still sends; every other message always sends |
 
 Online payment additionally requires a complete Stripe test-mode environment
 (`STRIPE_PAYMENTS_ENABLED`, an `sk_test_*` key, a `whsec_*` webhook secret and
@@ -147,9 +148,21 @@ decision; none can be filled in by a developer.
 
 **Notifications**
 
-- [ ] A notification provider chosen and registered in a later phase, or the
-      team accepts that outbox entries will remain `pending` with the reason
-      `Notification provider not configured`.
+- [ ] A Resend account exists, with a domain verified for sending.
+- [ ] `NOTIFICATION_PROVIDER=resend`, `RESEND_API_KEY` and `EMAIL_FROM` are set
+      on the server only, never in the repository.
+- [ ] The sender address the business wants customers to see is decided
+      (for example `orders@` their domain), and the display name if any.
+- [ ] `OWNER_NOTIFICATION_EMAIL` is decided, or the owner accepts that store
+      alerts go to the active owner admin account.
+- [ ] `NOTIFICATION_PROCESSOR_SECRET` is generated and stored outside the
+      repository, and a scheduler is configured to call the processor.
+- [ ] The business accepts that the **preparing** update is the only message
+      that can be muted; confirmations, handover, completion, cancellation and
+      payment messages always send.
+- [ ] If none of this is done yet, the team accepts that outbox entries stay
+      `pending`, that `/admin/notifications` reports "not configured", and that
+      no message is sent.
 
 **Before going live**
 

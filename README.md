@@ -12,10 +12,11 @@ dashboard. It is a live commercial project — Phase 1 (project foundation,
 design system and interactive storefront), Phase 2 (catalogue data layer
 and product experience), Phase 3 (admin authentication, catalogue
 management and signed uploads), Phase 4 (guest cart and checkout review),
-Phase 5 (order placement, Cash on Arrival and order management) and Phase 6
+Phase 5 (order placement, Cash on Arrival and order management), Phase 6
 (Stripe hosted Checkout, verified payment webhooks and reconciliation, test
-mode only) are implemented. Live payments and deployment require later
-approval (see `docs/PHASE_PROGRESS.md`).
+mode only) and Phase 7 (transactional email and secure guest order tracking)
+are implemented. Live payments, deployment and a real email account require
+later approval (see `docs/PHASE_PROGRESS.md`).
 
 ---
 
@@ -37,13 +38,15 @@ approval (see `docs/PHASE_PROGRESS.md`).
 | Orders | Snapshot documents in MongoDB: unique reference, idempotency key, optimistic concurrency |
 | Payments | Cash on Arrival recorded by the owner; Stripe hosted Checkout for online payment (test mode only, no card data on this site) |
 | Rate limiting | MongoDB attempt buckets with TTL (login, order placement, confirmation reads, payment initiation) |
-| Notifications | Outbox queue with bounded retries; no provider registered yet |
+| Notifications | Outbox queue with atomic claims, leases and bounded retries; Resend transactional email (free tier) plus a guarded processor |
+| Order tracking | Private `/track` page: guest capability or a hashed, order-scoped grant obtained by verifying the order's email address |
 | Unit tests | Vitest + React Testing Library |
-| E2E tests | Playwright (storefront, cart/checkout, disposable admin stack + disposable orders stack) |
+| E2E tests | Playwright (storefront, cart/checkout, disposable admin stack, disposable orders stack, disposable tracking stack) |
 | Packages | npm |
 
-**Reserved for later phases:** live Stripe activation, refund automation, a
-notification provider. No Supabase/Firebase/Postgres; no paid services.
+**Reserved for later phases:** live Stripe activation, refund automation,
+marketing/SMS notifications and a deployment scheduler. No
+Supabase/Firebase/Postgres; no paid services.
 
 ## Requirements
 
@@ -68,6 +71,7 @@ npm run start        # serve the production build
 npm run seed -- --yes  # seed MongoDB (explicit, idempotent; see docs/MONGODB_SETUP.md)
 npm run admin:bootstrap -- --yes   # create the first owner account (guarded CLI)
 npm run admin:reset -- --email <email> --yes   # rotate a password, revoke its sessions
+npm run notifications:process   # drain the notification outbox once (bounded scan)
 ```
 
 Catalogue source rules: with `MONGODB_URI` set the site reads MongoDB;
@@ -88,10 +92,18 @@ application builds and runs with none of it set.
 | `STRIPE_PAYMENTS_ENABLED` | Explicit server switch, must be exactly `true` to enable online payment |
 | `STRIPE_SECRET_KEY` | Stripe **test** secret key (`sk_test_*`); live keys are rejected |
 | `STRIPE_WEBHOOK_SECRET` | Webhook signing secret (`whsec_*`) |
+| `NOTIFICATION_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM` | Transactional email (Resend, free tier); blank means nothing is sent |
+| `OWNER_NOTIFICATION_EMAIL` | Where store alerts go; blank falls back to the active owner admin |
+| `NOTIFICATION_PROCESSOR_SECRET` | Bearer secret for the guarded processor endpoint |
+| `RESEND_WEBHOOK_SECRET` | Optional delivery callbacks (bounced/complained/delivered) |
 
 Online payment also needs the owner switch at `/admin/settings`, and it stays
 off until both are configured. Full setup, webhook registration and the manual
 test-mode pass: `docs/STRIPE_INTEGRATION.md`.
+
+Email is off until a provider, key and sender exist; the queue still records
+every event. Full setup: `docs/EMAIL_NOTIFICATIONS.md` and
+`docs/NOTIFICATION_PROCESSING.md`.
 
 ## Quality & test commands
 
@@ -102,7 +114,8 @@ npm run test         # Vitest unit/component tests (single run)
 npm run test:watch   # Vitest watch mode
 npm run test:e2e     # Playwright: storefront suites + admin suite (disposable
                      # cart fixtures on port 3002, admin memory MongoDB on 3001)
-                     # + the Phase 5 orders suite (port 3003, disposable stack)
+                     # + the Phase 5 orders suite (port 3003) + the Phase 7
+                     # tracking suite (port 3004), each with its own memory DB
 npm run screenshots  # capture responsive screenshots (storefront + admin surfaces,
                      # incl. cart/checkout and modal states) + overflow check
 node scripts/audit-mobile.mjs   # diagnostic: DOM geometry, hit-testing, computed contrast
@@ -141,36 +154,39 @@ src/
 │   ├── cart/               # Cart drawer, rows, summary, quantity controls
 │   ├── checkout/           # Review UI and local customer form
 │   ├── admin/              # AdminShell, forms, tables, image manager, fields
+│   ├── tracking/           # Guest order tracking view, timeline, recovery form
 │   ├── shared/             # Wordmark, FoodMedia, ProductCard
 │   └── providers/          # MotionProvider (reduced-motion config)
 ├── data/                   # Labelled preview fixtures (dev/preview only)
 ├── models/                 # Mongoose schemas (autoIndex off): category, product,
 │                           # admin, admin-session, login-attempt, audit-log,
 │                           # order, order-attempt, notification-outbox, store-config,
-│                           # payment-attempt, stripe-event, payment-refund
+│                           # payment-attempt, stripe-event, payment-refund,
+│                           # tracking-challenge, order-access-grant
 ├── lib/
 │   ├── db/                 # Server-only Mongoose connection (cached, HMR-safe)
 │   ├── auth/               # Password (Argon2id), sessions, guards, rate limit, audit
 │   ├── cloudinary/         # Signed uploads + server-side asset verification
-│   ├── actions/            # Server Actions: login, catalogue, images, cart quote, orders, payments
+│   ├── actions/            # Server Actions: login, catalogue, images, cart quote, orders, payments, tracking
 │   ├── cart/               # Guest cart store, quote reconciliation, limits, pricing rules
 │   ├── checkout/           # Order pricing, checkout readiness, attempt keys
-│   ├── orders/             # Order creation, lifecycle rules, public rate limiting
+│   ├── orders/             # Order creation, lifecycle rules, public rate limiting, tracking helpers
 │   ├── payments/           # Stripe readiness, Checkout sessions, verified events, reconciliation
-│   ├── notifications/      # Outbox dispatch, templates, provider registry seam
+│   ├── notifications/      # Outbox processing, provider adapters, templates, email rendering, observability
 │   ├── repositories/       # Catalogue read layer + admin list/dashboard queries
 │   ├── store/              # Owner-managed fulfilment, fee and tax configuration
-│   ├── validations/        # Zod schemas: catalogue, admin, checkout, orders, settings
+│   ├── validations/        # Zod schemas: catalogue, admin, checkout, orders, settings, tracking
 │   └── server/             # Page data loaders (io() + React cache)
 └── types/                  # Shared domain types
-e2e/                        # Playwright: storefront, cart/checkout, admin, orders suites
-scripts/screenshots.mjs     # Design-review utility (storefront + admin captures)
+e2e/                        # Playwright: storefront, cart/checkout, admin, orders, tracking suites
+scripts/screenshots.mjs     # Design-review utility (storefront + admin + tracking captures)
 scripts/seed.ts             # Explicit, idempotent MongoDB seed (never auto-runs)
 scripts/admin-bootstrap.ts  # Guarded first-owner CLI (hidden password prompt)
 scripts/admin-reset-password.ts  # Guarded password rotation (revokes sessions)
+scripts/process-notifications.ts # Bounded outbox drain (one scan, then exit)
 scripts/e2e-admin-server.ts # Disposable admin e2e stack (memory MongoDB + seed + bootstrap)
 scripts/e2e-cart-server.ts  # Isolated fixture-only cart server on port 3002
-scripts/e2e-orders-server.ts # Disposable Phase 5 orders stack on port 3003
+scripts/e2e-orders-server.ts # Disposable orders/tracking stack (ports 3003 and 3004)
 scripts/audit-mobile.mjs    # Diagnostic: DOM geometry, hit-testing, contrast measurement
 docs/                       # Spec, design system, phase progress, reports, guides
 vitest.config.mts           # Vitest setup (jsdom)
@@ -304,11 +320,42 @@ verified webhooks and reconciliation (see `docs/PHASE6_REPORT.md`,
   A genuine Stripe test-mode payment has **not** been executed in this
   environment; the operator steps are in `docs/STRIPE_INTEGRATION.md` §11.
 
+**Phase 7 — implemented, awaiting review:** transactional email and secure
+guest order tracking (see `docs/PHASE7_REPORT.md`, `docs/EMAIL_NOTIFICATIONS.md`,
+`docs/NOTIFICATION_PROCESSING.md` and `docs/ORDER_TRACKING.md`):
+
+- Resend transactional email behind a provider contract, with eleven branded
+  responsive templates that each carry a plain-text alternative. No invented
+  business facts, no secrets in a message, no em dashes in customer copy.
+- The Phase 5 outbox extended rather than replaced: distinct lifecycle events,
+  provider message id and acceptance state, atomic claims with leases, bounded
+  retries, a separate ambiguous-outcome budget and a 30-day TTL from acceptance
+  so unresolved failures are never silently deleted.
+- A guarded processor (`POST /api/notifications/process` with a bearer secret,
+  plus `npm run notifications:process`). Missing configuration changes nothing
+  about ordering: events are still recorded, nothing is reported as sent and
+  the admin shows an honest warning.
+- `/admin/notifications`: readiness without secrets, queue counts, recent
+  accepted messages, last attempt and last acceptance, and a failed list with
+  sanitised reasons and an entry-id-only retry that keeps the idempotency key.
+- `/track`: guest tracking on the existing capability, plus cross-device
+  recovery by reference and email. Recovery answers generically whether or not
+  the order exists, emails a single-use six-digit code and issues a hashed,
+  order-scoped, 24-hour grant. No capability appears in a URL and there is no
+  reference-only lookup.
+- A timeline per fulfilment method with honest payment states: a cancelled
+  order is never shown as completed, and a refund the provider has not
+  confirmed is never described as money returned.
+- 794 Vitest tests (59 files) and 96 Playwright tests across five projects pass.
+  **No real email has been sent**: no Resend account, verified domain, sender or
+  owner recipient was supplied, and no automatic scheduler exists yet.
+
 Hosted Atlas and real Cloudinary verification remain pending owner-supplied
 credentials. Prices, delivery areas, pickup arrangements, business hours and
 contact details remain pending until supplied by the business
 (`docs/BUSINESS_CONFIGURATION.md` carries the pre-launch checklist). Live
-Stripe activation and deployment require explicit approval for a later phase.
+Stripe activation, email credentials, a deployment scheduler and deployment
+itself require explicit approval for a later phase.
 
 ## Documentation
 
@@ -316,7 +363,7 @@ Stripe activation and deployment require explicit approval for a later phase.
 | --- | --- |
 | `docs/PROJECT_SPEC.md` | Business requirements, features, unresolved details |
 | `docs/DESIGN_SYSTEM.md` | Colours, typography, spacing, motion, a11y, imagery |
-| `docs/PHASE_PROGRESS.md` | Phase 1–6 results, verification log and approval boundary |
+| `docs/PHASE_PROGRESS.md` | Phase 1–7 results, verification log and approval boundary |
 | `docs/PHASE1B_REMEDIATION_REPORT.md` | Root causes, fixes, verification and evidence for the mobile remediation |
 | `docs/PHASE2_REPORT.md` | Phase 2 implementation report (sections A–L) |
 | `docs/PHASE3_REPORT.md` | Phase 3 implementation report (sections A–M) |
@@ -325,6 +372,12 @@ Stripe activation and deployment require explicit approval for a later phase.
 | `docs/PHASE6_SPEC.md` | Phase 6 requirements snapshot |
 | `docs/PHASE6_PROGRESS.md` | Phase 6 milestones, integration map and verification log |
 | `docs/PHASE6_REPORT.md` | Phase 6 implementation report (sections A–S) |
+| `docs/PHASE7_SPEC.md` | Phase 7 requirements snapshot |
+| `docs/PHASE7_PROGRESS.md` | Phase 7 milestones, decisions and verification log |
+| `docs/PHASE7_REPORT.md` | Phase 7 implementation report (sections A–S) |
+| `docs/EMAIL_NOTIFICATIONS.md` | Provider setup, events, templates and failure behaviour |
+| `docs/NOTIFICATION_PROCESSING.md` | Claims, leases, retries, guarded processor and scheduling |
+| `docs/ORDER_TRACKING.md` | `/track`, capability/grant access and email recovery |
 | `docs/STRIPE_INTEGRATION.md` | Stripe configuration, readiness gates, session shape and test-mode pass |
 | `docs/PAYMENT_LIFECYCLE.md` | Payment states, event mapping, monotonicity and refund foundations |
 | `docs/PAYMENT_RECONCILIATION.md` | Dry-run/apply reconciliation, safety properties and limits |
