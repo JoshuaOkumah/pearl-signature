@@ -36,6 +36,7 @@ export const AUDIT_EVENTS = [
   "order.payment_recorded",
   "order.note_added",
   "payment.reconciled",
+  "notification.retried",
 ] as const;
 
 export type AuditEvent = (typeof AUDIT_EVENTS)[number];
@@ -44,7 +45,7 @@ const AuditTargetSchema = new Schema(
   {
     type: {
       type: String,
-      enum: ["product", "category", "admin", "order", "store"],
+      enum: ["product", "category", "admin", "order", "store", "notification"],
       default: undefined,
     },
     id: {

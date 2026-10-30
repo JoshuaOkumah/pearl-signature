@@ -21,7 +21,7 @@ export interface AuditInput {
   email?: string | null;
   /** Raw client address — hashed before it reaches the database. */
   address?: string | null;
-  target?: { type?: "product" | "category" | "admin" | "order" | "store"; id?: string | null; label?: string | null };
+  target?: { type?: "product" | "category" | "admin" | "order" | "store" | "notification"; id?: string | null; label?: string | null };
   /** Short operator-facing context. No secrets, no free-form payloads. */
   detail?: string | null;
 }

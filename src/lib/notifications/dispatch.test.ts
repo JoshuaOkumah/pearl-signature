@@ -31,6 +31,7 @@ import {
   enqueueOrderNotifications,
   nextAttemptDelayMs,
   notifyOrderEvent,
+  retryNotificationById,
 } from "./dispatch";
 
 /**
@@ -125,26 +126,42 @@ async function seedEntry(
     key: notificationKey("order.placed", REFERENCE, "customer"),
     event: "order.placed",
     reference: REFERENCE,
+    transition: null,
     recipientRole: "customer",
     status: "pending",
     attempts: 0,
+    ambiguousAttempts: 0,
     lastReason: null,
     nextAttemptAt: new Date(now - 1_000), // due by default
+    lastAttemptAt: null,
     sentAt: null,
+    leaseToken: null,
+    leaseExpiresAt: null,
+    providerId: null,
+    providerStatus: null,
+    providerStatusAt: null,
     ...overrides,
   });
 }
 
 interface SeedEntryFields {
   key: string;
-  event: "order.placed" | "order.status_changed";
+  event: NotificationOutboxRecord["event"];
   reference: string;
+  transition: OrderStatus | null;
   recipientRole: "customer" | "admin";
-  status: "pending" | "sent" | "failed";
+  status: "pending" | "processing" | "sent" | "failed" | "uncertain";
   attempts: number;
+  ambiguousAttempts: number;
   lastReason: string | null;
   nextAttemptAt: Date;
+  lastAttemptAt: Date | null;
   sentAt: Date | null;
+  leaseToken: string | null;
+  leaseExpiresAt: Date | null;
+  providerId: string | null;
+  providerStatus: NotificationOutboxRecord["providerStatus"];
+  providerStatusAt: Date | null;
 }
 
 async function readEntry(key: string): Promise<NotificationOutboxRecord> {
@@ -161,10 +178,12 @@ function fakeProvider(
   return {
     id: "fake",
     configured: true,
+    reason: null,
     sent,
     send: async (message) => {
       sent.push(message);
       onSend?.(message);
+      return { providerMessageId: `fake_${sent.length}`, status: "accepted" };
     },
   };
 }
@@ -199,79 +218,119 @@ beforeEach(async () => {
   ]);
 });
 
-/* ── templates (exact copy) ─────────────────────────────────────────── */
+/* ── templates ──────────────────────────────────────────────────────── */
 
 describe("templates", () => {
-  it("builds the customer order-placed message with exact factual copy", () => {
-    const message = buildNotification("order.placed", "customer", {
-      reference: REFERENCE,
-      status: "placed",
-      method: "delivery",
+  const richFacts = {
+    reference: REFERENCE,
+    status: "placed" as const,
+    method: "delivery" as const,
+    totalCents: 4938,
+    customerName: "Ada Obi",
+    paymentMethod: "cash_on_arrival" as const,
+    paymentStatus: "unpaid" as const,
+    items: [
+      {
+        name: "Synthetic Jollof",
+        variantName: "Large",
+        quantity: 3,
+        unitPriceCents: 3750,
+        lineTotalCents: 3750,
+      },
+    ],
+    money: {
+      currency: "CAD" as const,
+      subtotalCents: 3750,
+      deliveryFeeCents: 700,
+      taxCents: 488,
       totalCents: 4938,
-      customerName: "Ada Obi",
-    });
+      taxLabel: "Test HST",
+    },
+    siteUrl: "https://pearl.example",
+  };
+
+  it("builds the customer order-placed message with factual copy and a text alternative", () => {
+    const message = buildNotification("order.placed", "customer", richFacts);
 
     expect(message.subject).toBe(`Order ${REFERENCE} received`);
-    expect(message.text).toBe(
-      [
-        "Hello Ada Obi,",
-        "",
-        `We have received your order ${REFERENCE}.`,
-        "",
-        "Total: $49.38 CAD",
-        "Fulfilment: Delivery",
-        "Status: Placed",
-      ].join("\n"),
-    );
+    expect(message.text).toContain(`Hello Ada Obi, we have received order ${REFERENCE}.`);
+    expect(message.text).toContain("Total: $49.38 CAD");
+    expect(message.text).toContain("Subtotal: $37.50 CAD");
+    expect(message.text).toContain("Test HST: $4.88 CAD");
+    expect(message.text).toContain("Payment: Cash on arrival");
+    expect(message.text).toContain(`https://pearl.example/track?ref=${REFERENCE}`);
+    expect(message.text).toContain("3 x Synthetic Jollof (Large)");
+    expect(message.html).toContain("<!doctype html>");
+    expect(message.html).toContain("Synthetic Jollof");
+    expect(message.html).toContain("$49.38 CAD");
+    expect(message.html).toContain("Cash on arrival");
     // No em dashes, no promised timeframes, no invented contact details.
     expect(message.text).not.toMatch(/[—–]/);
+    expect(message.html).not.toMatch(/[—–]/);
     expect(message.text.toLowerCase()).not.toMatch(/as soon as|fastest|best/);
+    // No capability token or provider secret can appear in a message.
+    expect(message.text).not.toMatch(/[0-9a-f]{64}/);
+    expect(message.html).not.toMatch(/[0-9a-f]{64}/);
   });
 
-  it("builds the store-facing order-placed message", () => {
-    const message = buildNotification("order.placed", "admin", {
-      reference: REFERENCE,
-      status: "placed",
-      method: "pickup",
-      totalCents: 3750,
-      customerName: "Ada Obi",
-    });
+  it("builds the store-facing order-placed message with an authenticated admin link", () => {
+    const message = buildNotification("order.placed", "admin", richFacts);
 
     expect(message.subject).toBe(`New order ${REFERENCE}`);
-    expect(message.text).toBe(
-      [
-        "A new order has been placed.",
-        "",
-        `Order: ${REFERENCE}`,
-        "Customer: Ada Obi",
-        "Total: $37.50 CAD",
-        "Fulfilment: Pickup",
-        "Status: Placed",
-      ].join("\n"),
-    );
+    expect(message.text).toContain("Order: PS-1A2B3C4D5E");
+    expect(message.text).toContain("Customer: Ada Obi");
+    expect(message.text).toContain("Total: $49.38 CAD");
+    expect(message.text).toContain("Payment method: Cash on arrival");
+    expect(message.html).toContain(`https://pearl.example/admin/orders/${REFERENCE}`);
+    // The alert carries no customer contact details or address.
+    expect(message.html).not.toContain("ada.obi@example.com");
+    expect(message.html).not.toContain("1 Test Way");
+    expect(message.html).not.toContain("+1416");
   });
 
-  it("builds the customer status-change message with the shared status label", () => {
-    const message = buildNotification("order.status_changed", "customer", {
-      reference: REFERENCE,
+  it("builds a pickup status message with the shared status label", () => {
+    const message = buildNotification("order.ready_for_pickup", "customer", {
+      ...richFacts,
       status: "ready_for_pickup",
       method: "pickup",
-      totalCents: 3750,
-      customerName: "Ada Obi",
+      paymentMethod: "cash_on_arrival",
+      paymentStatus: "unpaid",
+      pickupInstructions: "Collect at the labelled test counter.",
     });
 
-    expect(message.subject).toBe(`Order ${REFERENCE} is now ready for pickup`);
-    expect(message.text).toBe(
-      [
-        "Hello Ada Obi,",
-        "",
-        `The status of your order ${REFERENCE} has been updated.`,
-        "",
-        "Status: Ready for pickup",
-        "Total: $37.50 CAD",
-        "Fulfilment: Pickup",
-      ].join("\n"),
-    );
+    expect(message.subject).toBe(`Order ${REFERENCE} is ready for pickup`);
+    expect(message.text).toContain("Status: Ready for pickup");
+    expect(message.text).toContain("Total: $49.38 CAD");
+    expect(message.text).toContain("Pickup: Collect at the labelled test counter.");
+    expect(message.html).toContain("Ready for pickup");
+  });
+
+  it("never calls an unpaid Cash on Arrival order paid", () => {
+    const message = buildNotification("order.placed", "customer", richFacts);
+    expect(message.text).not.toMatch(/paid online|payment received/i);
+    expect(message.html).not.toMatch(/paid online|payment received/i);
+    expect(message.text).toContain("Payment of $49.38 CAD is due");
+  });
+
+  it("describes a cancelled online-paid order as refund-pending, not refunded", () => {
+    const message = buildNotification("order.cancelled", "customer", {
+      ...richFacts,
+      status: "cancelled",
+      paymentMethod: "stripe",
+      paymentStatus: "paid",
+    });
+    expect(message.subject).toBe(`Order ${REFERENCE} cancelled`);
+    expect(message.text).toContain("A refund has not been confirmed yet.");
+    expect(message.text).not.toMatch(/refunded in full|money has been returned/i);
+  });
+
+  it("escapes dynamic text so a customer name cannot inject markup", () => {
+    const message = buildNotification("order.placed", "customer", {
+      ...richFacts,
+      customerName: '<script>alert("x")</script>',
+    });
+    expect(message.html).toContain("&lt;script&gt;");
+    expect(message.html).not.toContain("<script>alert");
   });
 
   it("keys entries per event, order and role, and only allows known event/role pairs", () => {
@@ -280,6 +339,9 @@ describe("templates", () => {
     );
     expect(NOTIFICATION_EVENT_ROLES["order.placed"]).toEqual(["customer", "admin"]);
     expect(NOTIFICATION_EVENT_ROLES["order.status_changed"]).toEqual(["customer"]);
+    expect(NOTIFICATION_EVENT_ROLES["order.preparing"]).toEqual(["customer"]);
+    expect(NOTIFICATION_EVENT_ROLES["payment.collected"]).toEqual(["customer"]);
+    expect(NOTIFICATION_EVENT_ROLES["payment.requires_attention"]).toEqual(["admin"]);
   });
 });
 
@@ -382,7 +444,7 @@ describe("provider not configured", () => {
 
     const result = await attemptDueNotifications();
 
-    expect(result).toEqual({ processed: 0, sent: 0, failed: 0, deferred: 1 });
+    expect(result).toMatchObject({ processed: 0, sent: 0, failed: 0, deferred: 1 });
     const stored = await readEntry(entry.key);
     expect(stored.status).toBe("pending");
     expect(stored.attempts).toBe(0); // an unconfigured store never burns retries
@@ -420,7 +482,7 @@ describe("delivery with a configured provider", () => {
 
     const result = await attemptDueNotifications(provider);
 
-    expect(result).toEqual({ processed: 1, sent: 1, failed: 0, deferred: 0 });
+    expect(result).toMatchObject({ processed: 1, sent: 1, failed: 0, deferred: 0 });
     expect(provider.sent).toHaveLength(1);
     expect(provider.sent[0].to).toBe(CUSTOMER_EMAIL);
     expect(provider.sent[0].subject).toBe(`Order ${REFERENCE} received`);
@@ -472,7 +534,7 @@ describe("delivery with a configured provider", () => {
     expect(result).toMatchObject({ processed: 1, sent: 0, failed: 1 });
     const stored = await readEntry(entry.key);
     expect(stored.status).toBe("failed");
-    expect(stored.lastReason).toBe("No active admin recipient is configured");
+    expect(stored.lastReason).toBe("No owner notification recipient is configured");
   });
 
   it(`processes at most ${NOTIFICATION_BATCH_LIMIT} entries per scan`, async () => {
@@ -505,7 +567,7 @@ describe("delivery with a configured provider", () => {
 
     const result = await attemptDueNotifications(fakeProvider());
 
-    expect(result).toEqual({ processed: 0, sent: 0, failed: 0, deferred: 0 });
+    expect(result).toMatchObject({ processed: 0, sent: 0, failed: 0, deferred: 0 });
     expect(await NotificationOutboxModel.countDocuments({ status: "pending" })).toBe(1);
   });
 });
@@ -653,12 +715,182 @@ describe("missing recipients", () => {
 
     const result = await attemptDueNotifications(fakeProvider());
 
-    expect(result).toEqual({ processed: 1, sent: 0, failed: 0, deferred: 1 });
+    expect(result).toMatchObject({ processed: 1, sent: 0, failed: 0, deferred: 1 });
     findOne.mockRestore();
 
     const stored = await readEntry(entry.key);
     expect(stored.status).toBe("pending");
     expect(stored.attempts).toBe(0);
     expect(stored.lastReason).toBeNull();
+  });
+});
+
+/* -- Phase 7: claims, leases, ambiguity, quota and operator retry ----- */
+
+describe("claims and leases", () => {
+  it("lets only one concurrent processor send an entry", async () => {
+    await seedOrder();
+    await seedEntry();
+    const first = fakeProvider();
+    const second = fakeProvider();
+
+    await Promise.all([attemptDueNotifications(first), attemptDueNotifications(second)]);
+
+    expect(first.sent.length + second.sent.length).toBe(1);
+    expect(await NotificationOutboxModel.countDocuments({ status: "sent" })).toBe(1);
+  });
+
+  it("records provider acceptance and the provider message id", async () => {
+    await seedOrder();
+    const entry = await seedEntry();
+
+    await attemptDueNotifications(fakeProvider());
+
+    const stored = await readEntry(entry.key);
+    expect(stored.status).toBe("sent");
+    expect(stored.providerId).toBe("fake_1");
+    expect(stored.providerStatus).toBe("accepted");
+    expect(stored.providerStatusAt).toBeInstanceOf(Date);
+    expect(stored.leaseToken).toBeNull();
+    expect(stored.leaseExpiresAt).toBeNull();
+  });
+
+  it("recovers an expired processing lease and delivers it", async () => {
+    await seedOrder();
+    const entry = await seedEntry({
+      status: "processing",
+      leaseToken: "stale-token",
+      leaseExpiresAt: new Date(Date.now() - 60_000),
+    });
+    const provider = fakeProvider();
+
+    const result = await attemptDueNotifications(provider);
+
+    expect(result.recovered).toBe(1);
+    expect(result.sent).toBe(1);
+    const stored = await readEntry(entry.key);
+    expect(stored.status).toBe("sent");
+    expect(stored.attempts).toBe(1); // the interrupted attempt is counted
+  });
+
+  it("never settles an entry with a lease token it does not hold", async () => {
+    await seedOrder();
+    const entry = await seedEntry({
+      status: "processing",
+      leaseToken: "another-processor",
+      leaseExpiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const result = await attemptDueNotifications(fakeProvider());
+
+    expect(result.processed).toBe(0);
+    expect((await readEntry(entry.key)).status).toBe("processing");
+  });
+});
+
+describe("ambiguous provider outcomes", () => {
+  it("retries once with the same idempotency key, then parks as uncertain", async () => {
+    await seedOrder();
+    const entry = await seedEntry();
+    const keys: string[] = [];
+    const provider = fakeProvider((message) => {
+      keys.push(message.idempotencyKey);
+      throw new NotificationDeliveryError("The email provider did not confirm the request", {
+        kind: "ambiguous",
+      });
+    });
+
+    await attemptDueNotifications(provider);
+    let stored = await readEntry(entry.key);
+    expect(stored.status).toBe("pending");
+    expect(stored.ambiguousAttempts).toBe(1);
+
+    await NotificationOutboxModel.updateOne(
+      { key: entry.key },
+      { $set: { nextAttemptAt: new Date(Date.now() - 1_000) } },
+    );
+    const result = await attemptDueNotifications(provider);
+
+    expect(result.uncertain).toBe(1);
+    stored = await readEntry(entry.key);
+    expect(stored.status).toBe("uncertain");
+    expect(stored.ambiguousAttempts).toBe(2);
+    expect(stored.providerId).toBeNull();
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(entry.key);
+    expect(keys[1]).toBe(entry.key);
+  });
+
+  it("defers a rate-limited entry without consuming a retry and honours Retry-After", async () => {
+    await seedOrder();
+    const entry = await seedEntry();
+
+    await attemptDueNotifications(
+      fakeProvider(() => {
+        throw new NotificationDeliveryError("The email provider is rate limiting requests", {
+          kind: "rate_limited",
+          retryAfterMs: 120_000,
+        });
+      }),
+    );
+
+    const stored = await readEntry(entry.key);
+    expect(stored.status).toBe("pending");
+    expect(stored.attempts).toBe(0);
+    expect(stored.lastReason).toBe("The email provider is rate limiting requests");
+    expect(stored.nextAttemptAt.getTime()).toBeGreaterThanOrEqual(Date.now() + 115_000);
+  });
+});
+
+describe("quota", () => {
+  it("defers due work when the configured send limit is exhausted", async () => {
+    await seedOrder();
+    const entry = await seedEntry();
+    await seedEntry({
+      key: `${notificationKey("order.placed", REFERENCE, "customer")}:sent`,
+      status: "sent",
+      sentAt: new Date(),
+    });
+    vi.stubEnv("NOTIFICATION_MONTHLY_LIMIT", "1");
+    vi.stubEnv("NOTIFICATION_DAILY_LIMIT", "100");
+
+    try {
+      const result = await attemptDueNotifications(fakeProvider());
+      expect(result.quotaBlocked).toBe(true);
+      const stored = await readEntry(entry.key);
+      expect(stored.status).toBe("pending");
+      expect(stored.lastReason).toContain("sending limit");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
+describe("operator retry", () => {
+  it("requeues a failed entry with a fresh budget and keeps its identity", async () => {
+    await seedOrder();
+    const entry = await seedEntry({
+      status: "failed",
+      attempts: MAX_NOTIFICATION_ATTEMPTS,
+      lastReason: "The email provider rejected the message",
+    });
+
+    const outcome = await retryNotificationById(String(entry._id));
+
+    expect(outcome).toBe("requeued");
+    const stored = await readEntry(entry.key);
+    expect(stored.status).toBe("pending");
+    expect(stored.attempts).toBe(0);
+    expect(stored.ambiguousAttempts).toBe(0);
+    expect(stored.lastReason).toBeNull();
+    expect(stored.key).toBe(entry.key);
+  });
+
+  it("refuses to requeue an entry that is not failed or uncertain", async () => {
+    await seedOrder();
+    const entry = await seedEntry({ status: "sent", sentAt: new Date() });
+
+    expect(await retryNotificationById(String(entry._id))).toBe("not_eligible");
+    expect(await retryNotificationById("PS-NOT-AN-ID")).toBe("not_found");
   });
 });

@@ -8,6 +8,7 @@ import {
   ExternalLink,
   LayoutDashboard,
   LogOut,
+  Mail,
   Menu,
   Package,
   Settings,
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { href: "/admin/orders", label: "Orders", icon: ClipboardList, exact: false },
   { href: "/admin/products", label: "Products", icon: Package, exact: false },
   { href: "/admin/categories", label: "Categories", icon: Tags, exact: false },
+  { href: "/admin/notifications", label: "Notifications", icon: Mail, exact: false },
   { href: "/admin/settings", label: "Settings", icon: Settings, exact: false },
 ] as const;
 
