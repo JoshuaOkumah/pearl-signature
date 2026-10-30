@@ -1,108 +1,87 @@
 import "server-only";
+import { notificationConfig, type NotificationEnv } from "./config";
+import {
+  NotificationDeliveryError,
+  type NotificationProvider,
+} from "./contract";
+import { fileSinkProviderFromEnv } from "./providers/file-sink";
+import { resendProviderFromEnv } from "./providers/resend";
 
 /**
- * Notification provider contract (Phase 5, Milestone E).
+ * Notification provider registry (Phase 5 seam, Phase 7 implementation).
  *
- * Phase 5 ships NO third-party integration: no email API keys, no SMTP
- * credentials, no vendor SDKs. This module only defines the seam, so the
- * outbox pipeline can be complete and honestly testable today while a real
- * transport is registered in a later phase without touching order logic.
+ * Business code never imports a transport directly: it asks this module for the
+ * provider named by `NOTIFICATION_PROVIDER`. Adding another transactional email
+ * service later means adding one registry entry, not touching order, payment or
+ * admin code.
  *
- * Three states exist, and the dispatcher treats them differently:
+ * Three states, treated differently by the dispatcher:
  *
- *  1. **Configured provider** — registered in `REGISTRY` and selected via
- *     `NOTIFICATION_PROVIDER`. `send()` resolves on success.
- *  2. **Not configured** — `NOTIFICATION_PROVIDER` is blank (the Phase 5
- *     default). Entries stay `pending` with zero attempts; nothing fails
- *     and nothing is lost.
- *  3. **Unsupported name** — an unknown but non-blank `NOTIFICATION_PROVIDER`.
- *     Sending raises a non-retryable error so a typo surfaces as an honest
- *     `failed` entry with a readable reason instead of retrying forever.
- *
- * ## Privacy
- *
- * Errors thrown from this module are written into the outbox's
- * `lastReason`, so they must never embed a recipient address. Provider
- * failures that are not ours are replaced with a fixed sentence before
- * anything is stored (see `dispatch.ts`).
+ *  1. **Configured** - the adapter can genuinely attempt a send.
+ *  2. **Named but incomplete** - the adapter exists but its settings are
+ *     missing. `configured` is false with an operator-readable `reason`, so
+ *     entries stay pending without consuming retries.
+ *  3. **Unsupported name** - a typo surfaces once per entry as a permanent
+ *     failure naming the provider, instead of retrying forever.
  */
 
-export interface NotificationMessagePayload {
-  /** Recipient address, resolved at dispatch time — never stored. */
-  to: string;
-  subject: string;
-  text: string;
-}
-
-export interface NotificationProvider {
-  /** Registry name, for operator-facing reasons. */
-  readonly id: string;
-  /** False means "attempt nothing, keep entries pending". */
-  readonly configured: boolean;
-  send(message: NotificationMessagePayload): Promise<void>;
-}
-
-/**
- * A delivery failure with an explicit retry policy.
- *
- * `retryable: false` marks permanent problems (unknown provider, rejected
- * address): retrying them would loop forever without ever succeeding.
- */
-export class NotificationDeliveryError extends Error {
-  readonly retryable: boolean;
-
-  constructor(message: string, options?: { retryable?: boolean }) {
-    super(message);
-    this.name = "NotificationDeliveryError";
-    this.retryable = options?.retryable ?? false;
-  }
-}
+export {
+  NotificationDeliveryError,
+  type NotificationFailureKind,
+  type NotificationMessagePayload,
+  type NotificationProvider,
+  type NotificationSendResult,
+  type ProviderAcceptanceStatus,
+} from "./contract";
 
 /** Fixed, PII-free reason shown while no provider is configured. */
 export const NOT_CONFIGURED_REASON = "Notification provider not configured";
 
-/**
- * Registered providers, keyed by the exact `NOTIFICATION_PROVIDER` value.
- *
- * Empty in Phase 5 on purpose: the project rules forbid inventing or
- * wiring a third-party service before the business picks one. A later
- * phase adds e.g. `registry["postmark"] = () => postmarkProvider()`.
- */
-const REGISTRY: Record<string, () => NotificationProvider> = {};
+const REGISTRY: Record<string, () => NotificationProvider> = {
+  resend: () => resendProviderFromEnv(),
+  "file-sink": () => fileSinkProviderFromEnv(),
+};
 
 const notConfiguredProvider: NotificationProvider = {
   id: "not-configured",
   configured: false,
+  reason: NOT_CONFIGURED_REASON,
   send: async () => {
     // Never called: the dispatcher checks `configured` first. Present so a
     // misuse still fails loudly instead of pretending to send.
-    throw new NotificationDeliveryError(NOT_CONFIGURED_REASON);
+    throw new NotificationDeliveryError(NOT_CONFIGURED_REASON, { kind: "permanent" });
   },
 };
 
 /**
- * Resolve `NOTIFICATION_PROVIDER` (or an explicit name) to a provider.
- *
- * Blank → not configured. Unknown → configured-but-unsupported, so the
- * failure is reported once per entry with a reason naming the typo.
+ * Resolve a provider by name (defaults to the live environment). The name is
+ * read at call time so configuration changes are picked up without a restart.
  */
 export function resolveNotificationProvider(
   name: string | undefined = process.env.NOTIFICATION_PROVIDER,
 ): NotificationProvider {
-  const normalized = name?.trim();
+  const normalized = name?.trim().toLowerCase();
   if (!normalized) return notConfiguredProvider;
 
-  const factory = REGISTRY[normalized.toLowerCase()];
+  const factory = REGISTRY[normalized];
   if (factory) return factory();
 
   const id = normalized.slice(0, 40);
   return {
     id,
     configured: true,
+    reason: null,
     send: async () => {
       throw new NotificationDeliveryError(
         `Notification provider "${id}" is not supported in this build`,
+        { kind: "permanent" },
       );
     },
   };
+}
+
+/** Provider identity for the admin panel, without touching any secret. */
+export function notificationProviderName(env: NotificationEnv = process.env): string | null {
+  const name = notificationConfig(env).provider;
+  return name || null;
 }

@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "screenshots": "node scripts/screenshots.mjs",
     "seed": "tsx scripts/seed.ts",
+    "notifications:process": "tsx --conditions=react-server scripts/process-notifications.ts",
     "admin:bootstrap": "tsx scripts/admin-bootstrap.ts",
     "admin:reset": "tsx scripts/admin-reset-password.ts"
   },
