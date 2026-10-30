@@ -656,6 +656,124 @@ if (ordersBaseURL && adminEmail && adminPassword) {
   );
 }
 
+/* ── tracking (Phase 7) ─────────────────────────────────────────────── */
+
+/**
+ * The tracking surfaces need the seeded Phase 7 fixture order, so this section
+ * runs against the disposable TRACKING stack (scripts/e2e-orders-server.ts with
+ * E2E_TRACKING_FIXTURE=1 on port 3004). The capability below is duplicated from
+ * `e2e/orders/tracking-fixture.ts` because this script runs as plain Node; the
+ * constants are documented there and must stay in sync.
+ *
+ * Set TRACKING_BASE_URL (plus ADMIN_EMAIL/ADMIN_PASSWORD) to enable it.
+ */
+const trackingBaseURL = process.env.TRACKING_BASE_URL;
+
+if (trackingBaseURL) {
+  const TRACKING_REFERENCE = "PS-7E2E7A0001";
+  const TRACKING_CAPABILITY = `e2e${"0".repeat(61)}`;
+  const TRACKING_CONFIRMATIONS_KEY = "pearl-confirmations-v1";
+
+  const trackingViewports = [
+    { width: 320, height: 700 },
+    { width: 360, height: 800 },
+    { width: 375, height: 812 },
+    { width: 390, height: 844 },
+    { width: 430, height: 932 },
+    { width: 667, height: 375 }, // landscape
+    { width: 768, height: 1024 },
+    { width: 1024, height: 900 },
+    { width: 1440, height: 900 },
+  ];
+
+  for (const viewport of trackingViewports) {
+    const page = await browser.newPage({ viewport });
+    await page.addInitScript(
+      ({ key, reference, capability }) => {
+        window.sessionStorage.setItem(
+          key,
+          JSON.stringify([{ reference, key: capability, at: Date.now() }]),
+        );
+      },
+      {
+        key: TRACKING_CONFIRMATIONS_KEY,
+        reference: TRACKING_REFERENCE,
+        capability: TRACKING_CAPABILITY,
+      },
+    );
+    await page.goto(`${trackingBaseURL}/track?ref=${TRACKING_REFERENCE}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await page.getByTestId("order-tracking").waitFor();
+    await page.waitForTimeout(400);
+
+    await checkOverflow(page, `track-order @ ${viewport.width}`);
+    await page.screenshot({
+      path: `${outDir}/track-order-${viewport.width}x${viewport.height}.png`,
+      fullPage: true,
+    });
+    console.log(`✓ track-order @ ${viewport.width}x${viewport.height}`);
+    await page.close();
+  }
+
+  // The reference alone: the honest private-access notice plus recovery.
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1440, height: 900 },
+  ]) {
+    const page = await browser.newPage({ viewport });
+    await page.goto(`${trackingBaseURL}/track?ref=${TRACKING_REFERENCE}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await page.getByTestId("tracking-recovery").waitFor();
+    await page.waitForTimeout(300);
+
+    await checkOverflow(page, `track-no-access @ ${viewport.width}`);
+    await page.screenshot({
+      path: `${outDir}/track-no-access-${viewport.width}x${viewport.height}.png`,
+      fullPage: true,
+    });
+    console.log(`✓ track-no-access @ ${viewport.width}x${viewport.height}`);
+    await page.close();
+  }
+
+  // The admin notification surface: readiness, queue counts and the failed list.
+  if (adminEmail && adminPassword) {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.goto(`${trackingBaseURL}/admin/login`, { waitUntil: "domcontentloaded" });
+    await page.getByRole("heading", { level: 1, name: "Sign in" }).waitFor();
+    await page.getByRole("textbox", { name: "Email (required)" }).fill(adminEmail);
+    await page.getByRole("textbox", { name: "Password (required)" }).fill(adminPassword);
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.waitForURL(`${trackingBaseURL}/admin`, { timeout: 15_000 });
+
+    for (const viewport of [
+      { width: 360, height: 800 },
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1024, height: 900 },
+      { width: 1440, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`${trackingBaseURL}/admin/notifications`, { waitUntil: "domcontentloaded" });
+      await page.getByRole("heading", { level: 1, name: "Notifications" }).waitFor();
+      await page.waitForTimeout(300);
+
+      await checkOverflow(page, `admin-notifications @ ${viewport.width}`);
+      await page.screenshot({
+        path: `${outDir}/admin-notifications-${viewport.width}x${viewport.height}.png`,
+        fullPage: true,
+      });
+      console.log(`✓ admin-notifications @ ${viewport.width}x${viewport.height}`);
+    }
+    await page.close();
+  }
+} else {
+  console.log(
+    "Skipping tracking screenshots (start the tracking harness and set TRACKING_BASE_URL to enable).",
+  );
+}
+
 await browser.close();
 
 if (failures > 0) {

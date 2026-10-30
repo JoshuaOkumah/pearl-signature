@@ -20,6 +20,11 @@ import { E2E_ADMIN_EMAIL, E2E_ADMIN_ORIGIN, E2E_ADMIN_PASSWORD } from "./e2e/adm
  *    plus the labelled orderable fixtures, a labelled test store
  *    configuration and the whole order stack (checkout → order →
  *    confirmation → admin order management).
+ *  - "tracking" (Phase 7): port 3004, its own disposable database and a single
+ *    seeded tracking order, so the Phase 5 order counts stay untouched. The
+ *    same harness script runs with `E2E_TRACKING_FIXTURE=1`, which enables the
+ *    file-sink email provider (no real message can leave) and the guarded
+ *    processor secret.
  *
  * Browsers must be installed first: `npx playwright install chromium`.
  * Stop any stray dev/prod server on ports 3000/3001/3002/3003 before running.
@@ -41,7 +46,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: ["**/admin/**", "**/cart/**", "**/orders/**"],
+      testIgnore: ["**/admin/**", "**/cart/**", "**/orders/**", "**/tracking/**"],
       use: { ...devices["Desktop Chrome"] },
     },
     {
@@ -58,6 +63,11 @@ export default defineConfig({
       name: "orders",
       testMatch: "**/orders/**/*.spec.ts",
       use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:3003" },
+    },
+    {
+      name: "tracking",
+      testMatch: "**/tracking/**/*.spec.ts",
+      use: { ...devices["Desktop Chrome"], baseURL: "http://localhost:3004" },
     },
   ],
   webServer: [
@@ -113,6 +123,20 @@ export default defineConfig({
         E2E_ADMIN_EMAIL,
         E2E_ADMIN_PASSWORD,
         E2E_STOREFRONT_URL: "http://localhost:3000",
+      },
+    },
+    {
+      command: "npx tsx scripts/e2e-orders-server.ts",
+      url: "http://localhost:3004",
+      reuseExistingServer: false,
+      timeout: 300_000,
+      env: {
+        E2E_ADMIN_EMAIL,
+        E2E_ADMIN_PASSWORD,
+        E2E_STOREFRONT_URL: "http://localhost:3000",
+        E2E_SERVER_PORT: "3004",
+        E2E_DB_NAME: "pearl_signature_e2e_tracking",
+        E2E_TRACKING_FIXTURE: "1",
       },
     },
   ],

@@ -20,8 +20,10 @@
  *   - Requires an explicit `--yes` and prints the target host + database
  *     (never credentials) before connecting.
  *   - Refuses to run without MONGODB_URI.
- *   - Never drops collections or indexes; `createIndexes()` only adds what is
- *     missing (unique slug, listing indexes).
+ *   - Never drops collections. `createIndexes()` only adds what is missing
+ *     (unique slug, listing indexes). The single exception is an explicit
+ *     Phase 7 migration that drops the obsolete notification_outbox
+ *     `createdAt_1` TTL index so unresolved failures are not deleted.
  *   - This script never runs automatically (not on build, not on startup).
  */
 import mongoose from "mongoose";
@@ -30,6 +32,8 @@ import { ProductModel } from "../src/models/product";
 import { OrderModel } from "../src/models/order";
 import { OrderAttemptModel } from "../src/models/order-attempt";
 import { NotificationOutboxModel } from "../src/models/notification-outbox";
+import { TrackingChallengeModel } from "../src/models/tracking-challenge";
+import { OrderAccessGrantModel } from "../src/models/order-access-grant";
 import { StoreConfigModel } from "../src/models/store-config";
 import { PaymentAttemptModel } from "../src/models/payment-attempt";
 import { StripeEventModel } from "../src/models/stripe-event";
@@ -58,6 +62,26 @@ export function describeTarget(uri: string): { host: string; database: string } 
     return { host: url.hostname || "(unknown host)", database: database || "(no database selected)" };
   } catch {
     return { host: "(unparseable connection string)", database: "(unknown)" };
+  }
+}
+
+async function dropLegacyNotificationTtl(): Promise<void> {
+  // Phase 7 moves the outbox retention anchor from `createdAt` to `sentAt`, so
+  // unresolved failures are never silently deleted. `createIndexes()` only
+  // ADDS the new index; the old TTL must be removed explicitly or it keeps
+  // deleting pending entries after 30 days. This is the one intentional index
+  // removal in this script, and it targets one exact legacy name.
+  try {
+    const indexes = await NotificationOutboxModel.collection.indexes();
+    if (!indexes.some((index) => index.name === "createdAt_1")) return;
+    await NotificationOutboxModel.collection.dropIndex("createdAt_1");
+    console.log(
+      "[seed] Dropped the legacy notification_outbox TTL index createdAt_1 (retention now uses sentAt).",
+    );
+  } catch {
+    console.warn(
+      "[seed] Could not inspect/drop the legacy notification_outbox index. If it exists, drop createdAt_1 manually.",
+    );
   }
 }
 
@@ -177,6 +201,11 @@ async function seed(): Promise<void> {
     await OrderAttemptModel.createIndexes();
     await StoreConfigModel.createIndexes();
     await NotificationOutboxModel.createIndexes();
+    await dropLegacyNotificationTtl();
+    // Phase 7: cross-device tracking challenges (TTL + newest-first lookup)
+    // and scoped access grants (unique token hash + TTL).
+    await TrackingChallengeModel.createIndexes();
+    await OrderAccessGrantModel.createIndexes();
     // Phase 6: durable provider attempts and event/refund references. These
     // unique indexes are required for concurrency and event idempotency.
     await PaymentAttemptModel.createIndexes();
