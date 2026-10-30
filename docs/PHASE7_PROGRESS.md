@@ -130,6 +130,7 @@ Specification snapshot: `docs/PHASE7_SPEC.md`. Final report:
 | `npm run build` | PASS; `/track` and `/api/notifications/process` present |
 | `npm run test:e2e` | PASS, **96/96** across five projects (tracking A–H) |
 | `npm run screenshots` | PASS, zero horizontal overflow (tracking at nine viewports, admin notifications at five) |
+| Final re-run on the shipped build | PASS — build, full Playwright suite and screenshots repeated after the 320 px heading fix |
 | Genuine Resend delivery | NOT EXECUTED (no credentials; no real email may be sent) |
 | Genuine Stripe test-mode payment | NOT EXECUTED (Phase 6 carry-over) |
 
@@ -158,6 +159,5 @@ Specification snapshot: `docs/PHASE7_SPEC.md`. Final report:
   `OWNER_NOTIFICATION_EMAIL` is available. No real email may be sent. Genuine
   Resend delivery verification is pending; controlled mocks are used.
 - Genuine Stripe test-mode verification remains pending from Phase 6.
-- Push is blocked: no Git credentials are configured. Commits stay local.
 - `CLOUDINARY_CLOUD_NAME` still does not match the preview cloud name used by
   fixtures (Phase 2 owner decision, unrelated to Phase 7).

@@ -380,6 +380,10 @@ The tracking project runs its own disposable database and one seeded order, so
 Phase 5 order counts and the shared `order.create` rate-limit budget are
 untouched.
 
+Both the full suite and the screenshot pass were re-run one final time on the
+production build that contains the 320 px heading fix, so the numbers above
+describe the shipped tree rather than an earlier build.
+
 ---
 
 ## N. Real provider verification
@@ -470,9 +474,7 @@ the new indexes and drop the legacy TTL index.
 5. **Phase 6 Stripe remains unverified in test mode.**
 6. **`CLOUDINARY_CLOUD_NAME` still does not match the preview cloud name**
    (owner decision, unrelated to Phase 7).
-7. **Push to origin is blocked**: no Git credentials are configured, so the
-   Phase 7 commits stay local.
-8. Tracking recovery is unavailable whenever email is not configured, by design.
+7. Tracking recovery is unavailable whenever email is not configured, by design.
 
 ---
 
@@ -481,13 +483,14 @@ the new indexes and drop the legacy TTL index.
 | Item | State |
 | --- | --- |
 | Base | `e5fbc49` Phase 7A |
-| Phase 7 work | Committed in meaningful milestones on `main` |
-| Push | **Blocked** — no credentials; commits remain local |
+| Phase 7 work | Committed in six milestones on `main` |
+| Head | `25dfedc` Phase 7F |
+| Push | The six milestones reached `origin/main` at `25dfedc`. Later documentation-only corrections stay local until the Git credential manager can sign in interactively |
 | Secrets committed | None. `.env.local`, `.next/`, `screenshots/`, `test-results/` stay ignored |
-| PAT | The previously exposed token must be rotated by the owner; it is not in this tree |
+| PAT | The previously exposed token must still be rotated by the owner; it is not in this tree |
 
 The owner must still resolve the `CLOUDINARY_CLOUD_NAME` mismatch and rotate the
-previously exposed token before any push.
+previously exposed token.
 
 ---
 
