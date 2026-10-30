@@ -4,6 +4,8 @@ import { recordAudit } from "@/lib/auth/audit";
 import { requireActionAdmin } from "@/lib/auth/guard";
 import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
 import { notifyOrderEvent } from "@/lib/notifications/dispatch";
+import { eventForStatus, isOptionalStatusEvent } from "@/lib/notifications/events";
+import { preparingUpdateEnabled } from "@/lib/notifications/preferences";
 import { ORDER_STATUS_LABELS, transitionRejection } from "@/lib/orders/lifecycle";
 import { OrderModel } from "@/models/order";
 import {
@@ -121,11 +123,16 @@ export async function changeOrderStatusAction(
       detail: `${ORDER_STATUS_LABELS[order.status]} -> ${ORDER_STATUS_LABELS[input.to]}`,
     });
 
-    // Tell the customer about the new status. The enqueue is idempotent
-    // and both it and the background delivery attempt swallow their own
+    // Tell the customer about the new status. Each meaningful transition has
+    // its own event name, so replaying the same action cannot notify twice.
+    // The `preparing` update is the only muteable one; essential messages
+    // always send. Both the preference read and the enqueue swallow their own
     // errors, so a notification problem can never fail an operator action
     // whose write already succeeded (docs/ORDER_NOTIFICATIONS.md).
-    await notifyOrderEvent("order.status_changed", input.reference);
+    const event = eventForStatus(input.to);
+    if (!isOptionalStatusEvent(event) || (await preparingUpdateEnabled())) {
+      await notifyOrderEvent(event, input.reference, input.to);
+    }
 
     return { ok: true, status: input.to, version: input.expectedVersion + 1 };
   } catch (error) {
@@ -195,6 +202,10 @@ export async function recordPaymentAction(
       target: { type: "order", id: input.reference, label: input.reference },
       detail: `Cash on Arrival payment recorded (${order.money.totalCents} cents CAD)`,
     });
+
+    // Receipt email. The event key is stable, so a repeated recording attempt
+    // (which the guard above already refuses) could never send a second one.
+    await notifyOrderEvent("payment.collected", input.reference);
 
     return { ok: true, paymentStatus: "paid", version: input.expectedVersion + 1 };
   } catch (error) {

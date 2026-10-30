@@ -25,6 +25,7 @@ import { CheckboxField, FormAlert, SelectField, TextAreaField, TextField } from 
 export interface SettingsFormValues {
   orderIntakeEnabled: boolean;
   onlinePaymentsEnabled: boolean;
+  notificationsPreparingEnabled: boolean;
   deliveryEnabled: boolean;
   serviceAreas: Array<{
     label: string;
@@ -448,6 +449,26 @@ export function StoreSettingsForm({ initial }: { initial: SettingsFormValues }) 
             {fieldErrors.taxMode}
           </p>
         ) : null}
+      </section>
+
+      {/* ── customer emails ──────────────────────────────────────── */}
+
+      <section aria-label="Customer emails" className="rounded-2xl border border-border bg-surface p-5">
+        <h2 className="font-sans text-base font-bold text-navy">Customer emails</h2>
+        <p className="mt-1 font-sans text-sm text-ink-muted">
+          Order received, confirmed, ready, out for delivery, completed, cancelled and payment messages
+          are always sent. Only the optional preparing update can be turned off.
+        </p>
+        <div className="mt-4">
+          <input type="hidden" name="notificationsPreparingPresent" value="1" readOnly />
+          <CheckboxField
+            id="preparing-email-enabled"
+            name="notificationsPreparingEnabled"
+            label="Send the preparing update"
+            hint="A short note when the kitchen starts preparing the order. Turning this off does not affect any other message."
+            defaultChecked={initial.notificationsPreparingEnabled}
+          />
+        </div>
       </section>
 
       {/* ── customer note ────────────────────────────────────────── */}

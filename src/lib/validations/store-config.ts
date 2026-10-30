@@ -184,6 +184,7 @@ export const storeConfigFormSchema = z
   .object({
     orderIntakeEnabled: z.boolean(),
     onlinePaymentsEnabled: z.boolean().default(false),
+    notificationsPreparingEnabled: z.boolean().default(true),
     deliveryEnabled: z.boolean(),
     serviceAreas: z
       .array(serviceAreaInputSchema)

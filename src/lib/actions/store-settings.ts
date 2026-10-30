@@ -46,6 +46,14 @@ function parseForm(formData: FormData): { input: StoreConfigFormInput } | { fiel
   const parsed = storeConfigFormSchema.safeParse({
     orderIntakeEnabled: formData.get("orderIntakeEnabled") === "on" || formData.get("orderIntakeEnabled") === "true",
     onlinePaymentsEnabled: formData.get("onlinePaymentsEnabled") === "on" || formData.get("onlinePaymentsEnabled") === "true",
+    // A checkbox that is unchecked sends no value, so a marker field
+    // distinguishes "the owner turned it off" from "this form predates the
+    // preference". Absent marker keeps the safe default (enabled).
+    notificationsPreparingEnabled:
+      formData.get("notificationsPreparingPresent") === "1"
+        ? formData.get("notificationsPreparingEnabled") === "on" ||
+          formData.get("notificationsPreparingEnabled") === "true"
+        : true,
     deliveryEnabled: formData.get("deliveryEnabled") === "on" || formData.get("deliveryEnabled") === "true",
     serviceAreas: labels.map((label, index) => ({
       label,
@@ -78,6 +86,7 @@ function writableFields(input: StoreConfigFormInput) {
   return {
     orderIntakeEnabled: input.orderIntakeEnabled,
     payments: { onlineEnabled: input.onlinePaymentsEnabled },
+    notifications: { preparingUpdateEnabled: input.notificationsPreparingEnabled },
     delivery: {
       enabled: input.deliveryEnabled,
       serviceAreas: input.serviceAreas.map((area) => ({
@@ -105,6 +114,7 @@ function summarize(input: StoreConfigFormInput): string {
   const parts = [
     `intake ${input.orderIntakeEnabled ? "on" : "off"}`,
     `online payments ${input.onlinePaymentsEnabled ? "on" : "off"}`,
+    `preparing email ${input.notificationsPreparingEnabled ? "on" : "off"}`,
     input.deliveryEnabled
       ? `delivery ${input.serviceAreas.length} area${input.serviceAreas.length === 1 ? "" : "s"}`
       : "delivery off",

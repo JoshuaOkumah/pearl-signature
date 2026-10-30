@@ -96,6 +96,19 @@ export const StoreConfigSchema = new Schema(
       ),
       default: () => ({}),
     },
+    /**
+     * Phase 7 customer-email preferences. Only the nonessential `preparing`
+     * update can be muted; confirmations and payment messages always send.
+     */
+    notifications: {
+      type: new Schema(
+        {
+          preparingUpdateEnabled: { type: Boolean, default: true },
+        },
+        { _id: false },
+      ),
+      default: () => ({}),
+    },
     delivery: {
       type: new Schema(
         {

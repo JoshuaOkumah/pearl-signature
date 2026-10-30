@@ -10,6 +10,7 @@ import {
 import { formatCadInput } from "@/lib/validations/admin";
 import { checkoutBlockers } from "@/lib/checkout/pricing";
 import { stripeReadiness } from "@/lib/payments/stripe";
+import { emailReadiness } from "@/lib/notifications/config";
 import { StoreSettingsForm, type SettingsFormValues } from "@/components/admin/store-settings-form";
 
 export const metadata: Metadata = {
@@ -37,6 +38,7 @@ function emptyValues(): SettingsFormValues {
   return {
     orderIntakeEnabled: false,
     onlinePaymentsEnabled: false,
+    notificationsPreparingEnabled: true,
     deliveryEnabled: false,
     serviceAreas: [],
     pickupEnabled: false,
@@ -86,11 +88,13 @@ export default async function StoreSettingsPage() {
   const settings = normalizeCheckoutSettings(record);
   const blockers = checkoutBlockers(settings);
   const stripeStatus = stripeReadiness();
+  const emailStatus = emailReadiness();
 
   const values: SettingsFormValues = {
     ...emptyValues(),
     orderIntakeEnabled: record.orderIntakeEnabled === true,
     onlinePaymentsEnabled: record.payments?.onlineEnabled === true,
+    notificationsPreparingEnabled: record.notifications?.preparingUpdateEnabled !== false,
     deliveryEnabled: record.delivery?.enabled === true,
     serviceAreas: (record.delivery?.serviceAreas ?? []).map((area) => ({
       label: area.label,
@@ -163,6 +167,30 @@ export default async function StoreSettingsPage() {
           Environment variable names are documented in .env.example; secret values are never shown
           here.
         </p>
+      </section>
+
+      <section aria-label="Email readiness" className="rounded-2xl border border-border bg-surface p-5">
+        <h2 className="font-sans text-base font-bold text-navy">Email notifications</h2>
+        {emailStatus.configured ? (
+          <p className="mt-2 font-sans text-sm text-leaf-700">
+            Transactional email is configured and ready to attempt a send.
+          </p>
+        ) : (
+          <p className="mt-2 font-sans text-sm text-ink-muted">
+            Email delivery is not configured on this server. Orders, payments and tracking keep working, and
+            notification events stay queued without being reported as sent.
+          </p>
+        )}
+        <p className="mt-2 font-sans text-xs text-ink-muted">
+          Readiness, queue counts and failed notifications are on the notifications page. Secret values are never
+          shown.
+        </p>
+        <Link
+          href="/admin/notifications"
+          className="mt-3 inline-flex rounded-lg font-sans text-sm font-semibold text-navy underline underline-offset-2 focus-gold"
+        >
+          Open notification settings
+        </Link>
       </section>
 
       <StoreSettingsForm initial={values} />

@@ -614,8 +614,9 @@ describe("customer notifications", () => {
     const entries = await NotificationOutboxModel.find().lean();
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
-      key: `order.status_changed:${order.reference}:customer`,
-      event: "order.status_changed",
+      key: `order.confirmed:${order.reference}:customer`,
+      event: "order.confirmed",
+      transition: "confirmed",
       recipientRole: "customer",
       status: "pending",
       attempts: 0,
@@ -636,7 +637,7 @@ describe("customer notifications", () => {
 
     expect(await NotificationOutboxModel.countDocuments({})).toBe(1);
     expect(
-      await NotificationOutboxModel.countDocuments({ key: `order.status_changed:${order.reference}:customer` }),
+      await NotificationOutboxModel.countDocuments({ key: `order.cancelled:${order.reference}:customer` }),
     ).toBe(1);
   });
 
@@ -659,7 +660,7 @@ describe("customer notifications", () => {
     expect(await NotificationOutboxModel.countDocuments({})).toBe(0);
   });
 
-  it("does not enqueue for payment recording or operational notes", async () => {
+  it("sends a cash receipt on payment recording and nothing for internal notes", async () => {
     const order = await makeOrder();
 
     const payment = await recordPaymentAction({ ok: false }, paymentForm(order.reference, 1));
@@ -667,8 +668,14 @@ describe("customer notifications", () => {
 
     expect(payment.ok).toBe(true);
     expect(note.ok).toBe(true);
-    // Neither event informs the customer in Phase 5: payment is recorded
-    // by hand at handover, and notes are internal-only.
-    expect(await NotificationOutboxModel.countDocuments({})).toBe(0);
+    // Recording Cash on Arrival is a customer-facing fact, so it enqueues one
+    // receipt. Notes are internal-only and never notify.
+    const entries = await NotificationOutboxModel.find().lean();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      key: `payment.collected:${order.reference}:customer`,
+      event: "payment.collected",
+      recipientRole: "customer",
+    });
   });
 });
