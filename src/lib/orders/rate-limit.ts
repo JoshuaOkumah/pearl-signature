@@ -7,6 +7,8 @@ import {
   PAYMENT_CREATE_MAX_ATTEMPTS,
   ORDER_RATE_WINDOW_MS,
   ORDER_RATE_SCOPES,
+  TRACKING_REQUEST_MAX_ATTEMPTS,
+  TRACKING_VERIFY_MAX_ATTEMPTS,
   OrderAttemptModel,
   type OrderRateScope,
 } from "@/models/order-attempt";
@@ -38,6 +40,8 @@ const LIMITS: Record<OrderRateScope, number> = {
   "order.create": ORDER_CREATE_MAX_ATTEMPTS,
   "order.lookup": ORDER_LOOKUP_MAX_ATTEMPTS,
   "payment.create": PAYMENT_CREATE_MAX_ATTEMPTS,
+  "tracking.request": TRACKING_REQUEST_MAX_ATTEMPTS,
+  "tracking.verify": TRACKING_VERIFY_MAX_ATTEMPTS,
 };
 
 export interface OrderRateLimitResult {

@@ -152,6 +152,13 @@ export interface OrderConfirmationItem {
   lineTotalCents: number;
 }
 
+/** One recorded lifecycle transition, for the confirmation and tracking timeline. */
+export interface OrderStatusEventView {
+  from: OrderStatus | null;
+  to: OrderStatus;
+  atIso: string;
+}
+
 /**
  * Everything `/order-confirmation` shows, and nothing more. Customer PII is
  * deliberately absent: the reader has already proven possession of the
@@ -162,6 +169,7 @@ export interface OrderConfirmationView {
   reference: string;
   status: OrderStatus;
   placedAtIso: string;
+  statusHistory: OrderStatusEventView[];
   items: OrderConfirmationItem[];
   money: {
     currency: "CAD";
@@ -215,6 +223,77 @@ export const orderConfirmationRequestSchema = z.object({
 });
 
 export type OrderConfirmationRequest = z.output<typeof orderConfirmationRequestSchema>;
+
+/* ── tracking (Phase 7) ─────────────────────────────────────────────── */
+
+/**
+ * Recovery request: reference plus the email on the order.
+ *
+ * Both fields are validated for shape only. The ACTION deliberately answers
+ * the same generic success whether or not the pair matches, so this endpoint
+ * cannot be used to discover orders or addresses.
+ */
+export const trackingRequestSchema = z.object({
+  reference: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(ORDER_REFERENCE_PATTERN, "Malformed reference"),
+  email: z.string().trim().toLowerCase().email("Malformed email").max(254),
+});
+
+export type TrackingRequest = z.output<typeof trackingRequestSchema>;
+
+export const trackingVerifySchema = z.object({
+  reference: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(ORDER_REFERENCE_PATTERN, "Malformed reference"),
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, "Malformed code"),
+});
+
+export type TrackingVerifyRequest = z.output<typeof trackingVerifySchema>;
+
+/**
+ * Tracking read: the Phase 5 confirmation capability (same browser) or a
+ * scoped grant issued after a verified email code (another device). At least
+ * one is required; the reference alone never authorises a read.
+ */
+export const orderTrackingRequestSchema = z
+  .object({
+    reference: z
+      .string()
+      .trim()
+      .toUpperCase()
+      .regex(ORDER_REFERENCE_PATTERN, "Malformed reference"),
+    accessKey: orderKeySchema.optional(),
+    grantKey: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9_-]{43}$/, "Malformed grant")
+      .optional(),
+  })
+  .refine((value) => Boolean(value.accessKey || value.grantKey), {
+    message: "An access key is required",
+  });
+
+export type OrderTrackingRequest = z.output<typeof orderTrackingRequestSchema>;
+
+export type TrackingRequestResponse =
+  | { ok: true }
+  | { ok: false; reason: "rate_limited" | "unavailable" };
+
+export type TrackingVerifyResponse =
+  | { ok: true; grantKey: string }
+  | { ok: false; reason: "invalid" | "rate_limited" | "unavailable" };
+
+export type OrderTrackingResponse =
+  | { ok: true; order: OrderConfirmationView; access: "capability" | "grant" }
+  | { ok: false; reason: "not_found" | "rate_limited" | "unavailable" };
 
 export const startPaymentRequestSchema = z.object({
   reference: z.string().trim().toUpperCase().regex(ORDER_REFERENCE_PATTERN, "Malformed reference"),

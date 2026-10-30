@@ -29,8 +29,18 @@ export const ORDER_RATE_WINDOW_MS = 15 * 60 * 1_000;
 export const ORDER_CREATE_MAX_ATTEMPTS = 10;
 export const ORDER_LOOKUP_MAX_ATTEMPTS = 30;
 export const PAYMENT_CREATE_MAX_ATTEMPTS = 10;
+/** Cross-device tracking recovery: code requests per address per window. */
+export const TRACKING_REQUEST_MAX_ATTEMPTS = 5;
+/** Cross-device tracking recovery: code submissions per address per window. */
+export const TRACKING_VERIFY_MAX_ATTEMPTS = 10;
 
-export const ORDER_RATE_SCOPES = ["order.create", "order.lookup", "payment.create"] as const;
+export const ORDER_RATE_SCOPES = [
+  "order.create",
+  "order.lookup",
+  "payment.create",
+  "tracking.request",
+  "tracking.verify",
+] as const;
 export type OrderRateScope = (typeof ORDER_RATE_SCOPES)[number];
 
 export const OrderAttemptSchema = new Schema(

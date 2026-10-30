@@ -30,6 +30,7 @@ import type { PaymentMethod } from "@/lib/validations/order";
 
 const ATTEMPT_KEY = "pearl-checkout-attempt-v1";
 const CONFIRMATIONS_KEY = "pearl-confirmations-v1";
+const TRACKING_GRANTS_KEY = "pearl-tracking-grants-v1";
 const MAX_CONFIRMATIONS = 10;
 
 export interface CheckoutAttempt {
@@ -202,4 +203,64 @@ export function saveConfirmation(reference: string, key: string): void {
 export function confirmationKeyFor(reference: string): string | null {
   const match = readConfirmations().find((entry) => entry.reference === reference);
   return match?.key ?? null;
+}
+
+/* ── cross-device tracking grants (Phase 7) ─────────────────────────── */
+
+interface StoredGrant {
+  reference: string;
+  key: string;
+  at: number;
+}
+
+function readGrants(): StoredGrant[] {
+  try {
+    const raw = window.sessionStorage.getItem(TRACKING_GRANTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (entry): entry is StoredGrant =>
+        typeof entry === "object" &&
+        entry !== null &&
+        typeof (entry as StoredGrant).reference === "string" &&
+        typeof (entry as StoredGrant).key === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Remember a scoped grant issued after a verified email code. sessionStorage
+ * keeps it on this device and this tab session only: it never appears in a
+ * URL, a referrer header or a server log.
+ */
+export function saveTrackingGrant(reference: string, key: string): void {
+  try {
+    const next = [
+      { reference, key, at: Date.now() },
+      ...readGrants().filter((entry) => entry.reference !== reference),
+    ].slice(0, MAX_CONFIRMATIONS);
+    window.sessionStorage.setItem(TRACKING_GRANTS_KEY, JSON.stringify(next));
+  } catch {
+    // Storage unavailable: the customer can still use the same-browser
+    // capability, or request a new code.
+  }
+}
+
+/** The scoped grant for this reference on this device, or null. */
+export function trackingGrantFor(reference: string): string | null {
+  const match = readGrants().find((entry) => entry.reference === reference);
+  return match?.key ?? null;
+}
+
+/** Forget a grant that the server reported as invalid or expired. */
+export function clearTrackingGrant(reference: string): void {
+  try {
+    const next = readGrants().filter((entry) => entry.reference !== reference);
+    window.sessionStorage.setItem(TRACKING_GRANTS_KEY, JSON.stringify(next));
+  } catch {
+    // Nothing to clean up.
+  }
 }

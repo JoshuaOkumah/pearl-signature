@@ -48,6 +48,11 @@ export function Footer() {
                   FAQ
                 </Link>
               </li>
+              <li>
+                <Link href="/track" className="focus-gold rounded-sm transition-colors hover:text-cream">
+                  Track your order
+                </Link>
+              </li>
             </ul>
           </nav>
 

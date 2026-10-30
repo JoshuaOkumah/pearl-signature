@@ -387,6 +387,12 @@ function Confirmation({
           Continue browsing
         </ButtonLink>
         <Link
+          href={`/track?ref=${encodeURIComponent(order.reference)}`}
+          className="focus-gold rounded text-sm font-semibold text-navy-700 underline underline-offset-4 hover:text-navy"
+        >
+          Track this order
+        </Link>
+        <Link
           href="/cart"
           className="focus-gold rounded text-sm font-semibold text-navy-700 underline underline-offset-4 hover:text-navy"
         >
