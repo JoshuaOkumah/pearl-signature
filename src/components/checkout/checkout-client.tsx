@@ -25,6 +25,7 @@ import {
   type CheckoutAttempt,
 } from "@/lib/checkout/attempt";
 import { checkoutBlockers, priceCheckout, type PriceBlocker } from "@/lib/checkout/pricing";
+import { normalizeEmail } from "@/lib/guest/policy";
 import { formatCad } from "@/lib/format";
 import type { PaymentMethod, PlaceOrderResponse, StartPaymentActionResponse } from "@/lib/validations/order";
 import { normalizePostalCode } from "@/lib/validations/checkout";
@@ -33,6 +34,8 @@ import { CartLineRow } from "@/components/cart/cart-line-row";
 import { EmptyCart } from "@/components/cart/cart-drawer";
 import { Button } from "@/components/ui/button";
 import { CustomerForm } from "./customer-form";
+import { EmailVerification } from "./email-verification";
+import { useGuestSession } from "./use-guest-session";
 import { useCheckoutForm, useCheckoutSettings } from "./use-checkout";
 
 /**
@@ -74,6 +77,10 @@ const FAILURE_COPY: Record<string, string> = {
     "We could not place your order right now. Nothing was submitted and your basket is unchanged. Please try again.",
   cart_issue:
     "Some items changed and can no longer be ordered. Review the highlighted items in your basket, then try again.",
+  verification_required:
+    "Verify your email address above before placing the order. Your basket is unchanged.",
+  verification_unavailable:
+    "Email verification is temporarily unavailable, so new orders are paused. Your basket and details are saved.",
 };
 
 /** Notices produced while reviewing and submitting ONE order intent. */
@@ -99,12 +106,43 @@ export function CheckoutClient() {
   const cart = useCart();
   const form = useCheckoutForm();
   const settingsState = useCheckoutSettings();
+  const guest = useGuestSession();
   const router = useRouter();
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [placed, setPlaced] = useState(false);
   const [review, setReview] = useState<ReviewState>(() => emptyReview("initial"));
+
+  /* ── email verification (Phase 7B) ─────────────────────────────── */
+
+  const normalizedEmail = normalizeEmail(form.values.email);
+  // The proof for THIS checkout. `null` means "nothing proven yet, but a fresh
+  // remembered device may cover the address being typed"; "revoked" means the
+  // customer changed the address, so only a new code can restore it.
+  const [proof, setProof] = useState<{ email: string } | "revoked" | null>(null);
+
+  const sessionEmail =
+    guest.session?.authenticated && guest.session.checkoutFresh && guest.session.email
+      ? normalizeEmail(guest.session.email)
+      : null;
+
+  const verifiedEmail =
+    proof === "revoked" ? null : proof ? proof.email : sessionEmail;
+  const emailVerified =
+    verifiedEmail !== null && verifiedEmail === normalizedEmail && normalizedEmail !== "";
+
+  const verificationAvailable =
+    guest.status === "ready" && guest.session?.verificationAvailable === true;
+
+  // Changing the address invalidates the proof in the same event that changes
+  // it, so no effect has to synchronise state afterwards.
+  const updateField = (field: keyof typeof form.values, value: string): void => {
+    if (field === "email" && verifiedEmail !== null) {
+      if (normalizeEmail(value) !== verifiedEmail) setProof("revoked");
+    }
+    form.update(field, value);
+  };
 
   const settings = settingsState.settings;
   const items = useMemo(
@@ -190,6 +228,8 @@ export function CheckoutClient() {
   const awaitingAcknowledgment = Boolean(priceChange && !acknowledged);
   const canSubmit =
     settingsState.status === "ready" &&
+    verificationAvailable &&
+    emailVerified &&
     readinessBlockers.length === 0 &&
     totalsReady &&
     quoteReady &&
@@ -209,6 +249,10 @@ export function CheckoutClient() {
     }
     if (!paymentMethod) {
       updateReview({ submitError: "Choose how you would like to pay before placing the order." });
+      return;
+    }
+    if (!emailVerified) {
+      updateReview({ submitError: FAILURE_COPY.verification_required });
       return;
     }
     if (!preview?.ok || !quoteReady) return;
@@ -295,6 +339,15 @@ export function CheckoutClient() {
           updateReview({ submitError: FAILURE_COPY.cart_issue });
           cart.refresh();
           break;
+        case "verification_required":
+          updateReview({ submitError: FAILURE_COPY.verification_required });
+          setProof("revoked");
+          void guest.refresh();
+          break;
+        case "verification_unavailable":
+          updateReview({ submitError: FAILURE_COPY.verification_unavailable });
+          void guest.refresh();
+          break;
         default:
           updateReview({ submitError: FAILURE_COPY[response.reason] ?? FAILURE_COPY.unavailable });
       }
@@ -335,9 +388,26 @@ export function CheckoutClient() {
           values={form.values}
           errors={form.errors}
           settingsState={settingsState}
-          update={form.update}
+          update={updateField}
           blur={form.blur}
         />
+
+        {guest.status === "loading" ? (
+          <p className="mt-8 flex items-center gap-2 rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-ink-muted">
+            <Loader2 className="h-4 w-4 motion-safe:animate-spin text-gold-700" aria-hidden="true" />
+            Checking email verification…
+          </p>
+        ) : (
+          <EmailVerification
+            email={form.values.email}
+            verified={emailVerified}
+            available={verificationAvailable}
+            verifiedEmail={verifiedEmail}
+            disabled={submitting}
+            onVerified={(email) => setProof({ email: normalizeEmail(email) })}
+            onReset={() => setProof("revoked")}
+          />
+        )}
       </div>
 
       <aside className="w-full shrink-0 lg:max-w-md lg:sticky lg:top-24">
@@ -406,6 +476,8 @@ export function CheckoutClient() {
                 awaitingPrice={awaitingPrice}
                 awaitingAddress={awaitingAddress}
                 awaitingAcknowledgment={awaitingAcknowledgment}
+                awaitingVerification={!emailVerified}
+                verificationAvailable={verificationAvailable}
                 error={submitError}
                 onSubmit={() => void submit()}
               />
@@ -538,6 +610,8 @@ function PaymentPanel({
   awaitingPrice,
   awaitingAddress,
   awaitingAcknowledgment,
+  awaitingVerification,
+  verificationAvailable,
   error,
   onSubmit,
 }: {
@@ -550,6 +624,8 @@ function PaymentPanel({
   awaitingPrice: boolean;
   awaitingAddress: boolean;
   awaitingAcknowledgment: boolean;
+  awaitingVerification: boolean;
+  verificationAvailable: boolean;
   error: string | null;
   onSubmit: () => void;
 }) {
@@ -655,15 +731,19 @@ function PaymentPanel({
         <p role="status" className="mt-2 text-center text-xs text-ink-muted">
           {submitting
             ? "Submitting your order. Please do not close this page."
-            : canSubmit
-              ? "Your order is placed once the store confirms it was received."
-              : awaitingAcknowledgment
-                ? "Review the new total above to continue."
-                : awaitingAddress
-                  ? "Enter your delivery address to continue."
-                  : awaitingPrice
-                    ? "Verifying your total…"
-                    : "Ordering is unavailable until the store finishes its setup."}
+            : !verificationAvailable
+              ? "Email verification is unavailable, so new orders are paused."
+              : canSubmit
+                ? "Your order is placed once the store confirms it was received."
+                : awaitingVerification
+                  ? "Verify your email address above to continue."
+                  : awaitingAcknowledgment
+                    ? "Review the new total above to continue."
+                    : awaitingAddress
+                      ? "Enter your delivery address to continue."
+                      : awaitingPrice
+                        ? "Verifying your total…"
+                        : "Ordering is unavailable until the store finishes its setup."}
         </p>
       </div>
     </section>

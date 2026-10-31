@@ -54,7 +54,7 @@ import { Button } from "@/components/ui/button";
 
 type LoadState =
   | { kind: "loading" }
-  | { kind: "ready"; order: OrderConfirmationView; access: "capability" | "grant" }
+  | { kind: "ready"; order: OrderConfirmationView; access: "capability" | "grant" | "session" }
   | { kind: "no_access" }
   | { kind: "not_found" }
   | { kind: "rate_limited" }
@@ -449,7 +449,7 @@ function TrackingView({
   onRefresh,
 }: {
   order: OrderConfirmationView;
-  access: "capability" | "grant";
+  access: "capability" | "grant" | "session";
   refreshing: boolean;
   onRefresh: () => void;
 }) {

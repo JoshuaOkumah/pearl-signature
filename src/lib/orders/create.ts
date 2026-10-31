@@ -5,6 +5,8 @@ import { quoteCart } from "@/lib/cart/quote";
 import { checkoutBlockers, matchServiceArea, priceCheckout } from "@/lib/checkout/pricing";
 import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
 import { getCheckoutSettings } from "@/lib/store/config";
+import { isCheckoutVerificationFresh, type VerifiedGuestIdentity } from "@/lib/guest/policy";
+import { normalizeEmail } from "@/lib/guest/otp";
 import { notifyOrderEvent } from "@/lib/notifications/dispatch";
 import { stripeReadiness } from "@/lib/payments/stripe";
 import { OrderModel, type OrderRecord } from "@/models/order";
@@ -24,6 +26,11 @@ import type {
  *
  * Recited in order, exactly as executed:
  *
+ *  0. The caller supplies a VERIFIED guest identity (Phase 7B). No order is
+ *     created without one: the identity must exist, its email must equal the
+ *     submitted checkout email, and the verification must be recent enough for
+ *     a new checkout. Both payment methods pass through this same check, and
+ *     there is no second order-creation path that skips it.
  *  1. The request has already been parsed by `placeOrderRequestSchema`
  *     (strict allowlist: no prices, no totals, no status fields survive).
  *  2. Checkout readiness is re-read from configuration: intake, a fulfilment
@@ -124,7 +131,39 @@ async function findByKey(idempotencyKey: string): Promise<OrderRecord | null> {
 
 /* ── the service ────────────────────────────────────────────────────── */
 
-export async function createOrder(request: PlaceOrderRequest): Promise<PlaceOrderResponse> {
+/**
+ * The verification gate (Phase 7B).
+ *
+ * Deliberately a pure function over the caller-supplied identity so the rule
+ * is identical everywhere and can be unit tested: the identity must exist, it
+ * must name the SAME canonical email as the checkout form, and the
+ * verification must still be fresh enough to place a new order.
+ */
+function verificationFailure(
+  request: PlaceOrderRequest,
+  verifiedGuest: VerifiedGuestIdentity | null,
+  now = Date.now(),
+): PlaceOrderResponse | null {
+  if (!verifiedGuest) return { ok: false, reason: "verification_required" };
+  if (normalizeEmail(verifiedGuest.email) !== normalizeEmail(request.customer.email)) {
+    return { ok: false, reason: "verification_required" };
+  }
+  if (!isCheckoutVerificationFresh(verifiedGuest, now)) {
+    return { ok: false, reason: "verification_required" };
+  }
+  return null;
+}
+
+export async function createOrder(
+  request: PlaceOrderRequest,
+  options: { verifiedGuest: VerifiedGuestIdentity | null },
+): Promise<PlaceOrderResponse> {
+  // 0. Mandatory email verification. Checked before any catalogue or database
+  //    work so an unverified caller learns nothing and costs nothing.
+  const verification = verificationFailure(request, options.verifiedGuest);
+  if (verification) return verification;
+  const verifiedGuest = options.verifiedGuest!;
+
   // 1. Configuration: an unready store refuses before any catalogue work.
   const settings = await getCheckoutSettings();
   const readiness = checkoutBlockers(settings);
@@ -219,6 +258,10 @@ export async function createOrder(request: PlaceOrderRequest): Promise<PlaceOrde
       fullName: customer.fullName,
       email: customer.email,
       phone: customer.phone,
+    },
+    guest: {
+      verifiedEmail: normalizeEmail(verifiedGuest.email),
+      verifiedAt: verifiedGuest.verifiedAt,
     },
     fulfillment: {
       method,

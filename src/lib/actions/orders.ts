@@ -2,6 +2,8 @@
 
 import { headers } from "next/headers";
 import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
+import { getGuestIdentity } from "@/lib/guest/session";
+import { guestVerificationReadiness } from "@/lib/guest/readiness";
 import { createOrder } from "@/lib/orders/create";
 import { consumeOrderRateLimit } from "@/lib/orders/rate-limit";
 import { hashConfirmationKey, loadConfirmationView } from "@/lib/orders/view";
@@ -18,14 +20,20 @@ import {
 import { ORDER_RATE_WINDOW_MS } from "@/models/order-attempt";
 
 /**
- * Public order Server Actions (Phase 5).
+ * Public order Server Actions (Phase 5, verification-gated in Phase 7B).
  *
- * Both actions follow the same public-endpoint contract:
+ * Both write actions follow the same public-endpoint contract:
  *
  *   rate limit (by client address) → strict Zod allowlist → service call →
- *   minimal response. There is no session requirement (customers have no
- *   accounts) and no privileged field in either request schema, so nothing
- *   privileged can be assigned from the client.
+ *   minimal response. There is no customer account and no privileged field in
+ *   either request schema, so nothing privileged can be assigned from the
+ *   client.
+ *
+ * Order placement additionally requires a verified guest identity: the caller
+ * must present the HttpOnly remembered-device cookie whose session names the
+ * same email and was verified recently. The identity is resolved here and
+ * re-checked inside `createOrder`, so a direct Server Action call that skips
+ * this action cannot create an order either.
  *
  * Neither action ever logs customer details. Failures return neutral
  * reasons with no stack traces, no database identifiers and no hint about
@@ -66,7 +74,14 @@ export async function placeOrderAction(payload: unknown): Promise<PlaceOrderResp
   const parsed = placeOrderRequestSchema.safeParse(payload);
   if (!parsed.success) return { ok: false, reason: "invalid" };
 
-  return createOrder(parsed.data);
+  // Mandatory verified email (Phase 7B). If no code can be issued at all, the
+  // order fails closed rather than silently bypassing verification.
+  if (!guestVerificationReadiness().ready) {
+    return { ok: false, reason: "verification_unavailable" };
+  }
+
+  const verifiedGuest = await getGuestIdentity(now);
+  return createOrder(parsed.data, { verifiedGuest });
 }
 
 /** Initialize or safely reuse a hosted Stripe session for an existing order. */

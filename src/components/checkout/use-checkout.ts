@@ -9,7 +9,7 @@ import {
   type CheckoutFieldErrors,
   type CheckoutFormValues,
 } from "@/lib/validations/checkout";
-import type { CheckoutSettings } from "@/lib/validations/store-config";
+import type { CheckoutSettingsWithVerification } from "@/lib/validations/guest";
 
 /**
  * Client-side state for `/checkout` (Phase 5).
@@ -31,7 +31,7 @@ export type CheckoutSettingsStatus = "loading" | "ready" | "error";
 
 export interface CheckoutSettingsState {
   status: CheckoutSettingsStatus;
-  settings: CheckoutSettings | null;
+  settings: CheckoutSettingsWithVerification | null;
 }
 
 export function useCheckoutSettings(): CheckoutSettingsState {

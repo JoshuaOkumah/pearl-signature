@@ -3,7 +3,7 @@ import { randomBytes, createHash } from "node:crypto";
 import mongoose from "mongoose";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MongoMemoryServer } from "mongodb-memory-server";
-import { createOrder } from "./create";
+import { createOrder as createOrderWithVerification } from "./create";
 import { connectDatabase } from "@/lib/db/mongoose";
 import { placeOrderRequestSchema, type PlaceOrderRequest } from "@/lib/validations/order";
 import { AuditLogModel } from "@/models/audit-log";
@@ -68,6 +68,18 @@ function reference(): string {
 
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+/**
+ * Every order in this file is placed by a customer whose email was verified a
+ * moment ago. Phase 7B made that identity a mandatory argument, so the matrix
+ * below keeps exercising the Phase 5 behaviour it was written for; the
+ * verification gate itself has its own explicit tests.
+ */
+function createOrder(request: PlaceOrderRequest) {
+  return createOrderWithVerification(request, {
+    verifiedGuest: { email: request.customer.email, verifiedAt: new Date() },
+  });
 }
 
 async function seedCatalogue(): Promise<void> {

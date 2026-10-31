@@ -20,9 +20,13 @@ import { Schema, models, model, type InferSchemaType, type Model } from "mongoos
  *  - `order.create` — placing orders from one address.
  *  - `order.lookup` — guest confirmation reads, which also stop bulk
  *    enumeration attempts against order references.
+ *  - `otp.request` — verification-code requests per address.
+ *  - `otp.email` — verification-code requests per email (hashed key).
+ *  - `otp.verify` — code submissions per address.
+ *  - `tracking.request` / `tracking.verify` — Phase 7 recovery scopes.
  *
  * Limits are generous enough for a household (and honest about shared NAT
- * addresses) while making automated order spam expensive.
+ * addresses) while making automated order spam and code guessing expensive.
  */
 
 export const ORDER_RATE_WINDOW_MS = 15 * 60 * 1_000;
@@ -33,6 +37,12 @@ export const PAYMENT_CREATE_MAX_ATTEMPTS = 10;
 export const TRACKING_REQUEST_MAX_ATTEMPTS = 5;
 /** Cross-device tracking recovery: code submissions per address per window. */
 export const TRACKING_VERIFY_MAX_ATTEMPTS = 10;
+/** Verification-code requests per client address per window. */
+export const OTP_REQUEST_MAX_ATTEMPTS = 10;
+/** Verification-code requests per email identity per window. */
+export const OTP_EMAIL_MAX_ATTEMPTS = 5;
+/** Verification-code submissions per client address per window. */
+export const OTP_VERIFY_MAX_ATTEMPTS = 15;
 
 export const ORDER_RATE_SCOPES = [
   "order.create",
@@ -40,6 +50,9 @@ export const ORDER_RATE_SCOPES = [
   "payment.create",
   "tracking.request",
   "tracking.verify",
+  "otp.request",
+  "otp.email",
+  "otp.verify",
 ] as const;
 export type OrderRateScope = (typeof ORDER_RATE_SCOPES)[number];
 

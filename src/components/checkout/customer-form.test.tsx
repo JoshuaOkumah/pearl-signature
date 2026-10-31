@@ -34,6 +34,7 @@ const SYNTHETIC_SETTINGS: CheckoutSettingsState = {
     customerNote: null,
     onlinePaymentsEnabled: false,
     onlinePaymentsAvailable: false,
+    emailVerificationAvailable: true,
   },
 };
 

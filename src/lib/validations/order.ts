@@ -133,6 +133,8 @@ export type PlaceOrderResponse =
   | { ok: false; reason: "price_changed"; totals: OrderTotals; taxLabel: string | null }
   | { ok: false; reason: "conflict" }
   | { ok: false; reason: "payment_unavailable" }
+  | { ok: false; reason: "verification_required" }
+  | { ok: false; reason: "verification_unavailable" }
   | { ok: false; reason: "unavailable" };
 
 export interface PlacedOrderSummary {
@@ -259,27 +261,24 @@ export const trackingVerifySchema = z.object({
 export type TrackingVerifyRequest = z.output<typeof trackingVerifySchema>;
 
 /**
- * Tracking read: the Phase 5 confirmation capability (same browser) or a
- * scoped grant issued after a verified email code (another device). At least
- * one is required; the reference alone never authorises a read.
+ * Tracking read: the Phase 5 confirmation capability (same browser), a scoped
+ * grant issued after a verified email code (another device), or a live guest
+ * session whose verified email matches the order. At least one is required in
+ * practice; the reference alone never authorises a read.
  */
-export const orderTrackingRequestSchema = z
-  .object({
-    reference: z
-      .string()
-      .trim()
-      .toUpperCase()
-      .regex(ORDER_REFERENCE_PATTERN, "Malformed reference"),
-    accessKey: orderKeySchema.optional(),
-    grantKey: z
-      .string()
-      .trim()
-      .regex(/^[A-Za-z0-9_-]{43}$/, "Malformed grant")
-      .optional(),
-  })
-  .refine((value) => Boolean(value.accessKey || value.grantKey), {
-    message: "An access key is required",
-  });
+export const orderTrackingRequestSchema = z.object({
+  reference: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(ORDER_REFERENCE_PATTERN, "Malformed reference"),
+  accessKey: orderKeySchema.optional(),
+  grantKey: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9_-]{43}$/, "Malformed grant")
+    .optional(),
+});
 
 export type OrderTrackingRequest = z.output<typeof orderTrackingRequestSchema>;
 
@@ -292,7 +291,7 @@ export type TrackingVerifyResponse =
   | { ok: false; reason: "invalid" | "rate_limited" | "unavailable" };
 
 export type OrderTrackingResponse =
-  | { ok: true; order: OrderConfirmationView; access: "capability" | "grant" }
+  | { ok: true; order: OrderConfirmationView; access: "capability" | "grant" | "session" }
   | { ok: false; reason: "not_found" | "rate_limited" | "unavailable" };
 
 export const startPaymentRequestSchema = z.object({

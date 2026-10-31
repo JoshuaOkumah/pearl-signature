@@ -29,11 +29,12 @@ import {
  * is a hash and never the code itself.
  */
 
-const { sendMock, headerState } = vi.hoisted(() => ({
+const { sendMock, headerState, cookieJar } = vi.hoisted(() => ({
   sendMock: vi.fn<(input: { code: string; to: string; reference: string }) => Promise<boolean>>(
     async () => true,
   ),
   headerState: { address: "203.0.113.1" },
+  cookieJar: new Map<string, string>(),
 }));
 
 vi.mock("@/lib/notifications/send-tracking-code", () => ({
@@ -43,6 +44,15 @@ vi.mock("@/lib/notifications/send-tracking-code", () => ({
 vi.mock("next/headers", () => ({
   headers: async () => ({
     get: (name: string) => (name === "x-forwarded-for" ? headerState.address : null),
+  }),
+  cookies: async () => ({
+    get: (name: string) =>
+      cookieJar.has(name) ? { name, value: cookieJar.get(name)! } : undefined,
+    set: (name: string, value: string) => {
+      if (value) cookieJar.set(name, value);
+      else cookieJar.delete(name);
+    },
+    delete: (name: string) => cookieJar.delete(name),
   }),
 }));
 
@@ -139,6 +149,10 @@ beforeAll(async () => {
   process.env.NOTIFICATION_PROVIDER = "resend";
   process.env.RESEND_API_KEY = "re_test_only_not_a_real_key";
   process.env.EMAIL_FROM = "PEARL Signature <orders@example.test>";
+  // The HMAC key for every new code. Test-only value, never used in production.
+  process.env.GUEST_OTP_SECRET = "test-only-guest-otp-secret-0123456789abcdef";
+  // A resend is requested twice in one test; production keeps the 60 s cooldown.
+  process.env.GUEST_OTP_RESEND_COOLDOWN_SECONDS = "0";
   await connectDatabase();
   await OrderModel.createIndexes();
   await OrderAttemptModel.createIndexes();
@@ -156,12 +170,15 @@ beforeEach(async () => {
   await OrderAttemptModel.deleteMany({});
   await TrackingChallengeModel.deleteMany({});
   await OrderAccessGrantModel.deleteMany({});
+  cookieJar.clear();
 });
 
 afterAll(async () => {
   delete process.env.NOTIFICATION_PROVIDER;
   delete process.env.RESEND_API_KEY;
   delete process.env.EMAIL_FROM;
+  delete process.env.GUEST_OTP_SECRET;
+  delete process.env.GUEST_OTP_RESEND_COOLDOWN_SECONDS;
   await mongoose.disconnect();
   await mongod?.stop();
   mongod = null;
@@ -217,6 +234,24 @@ describe("loadOrderTrackingAction", () => {
     ]);
   });
 
+  it("opens the order for a remembered device whose email matches", async () => {
+    const order = await makeOrder();
+    const code = await requestCodeFor(order.reference);
+
+    nextAddress();
+    const verified = await verifyTrackingCodeAction({ reference: order.reference, code });
+    expect(verified.ok).toBe(true);
+
+    // No capability and no grant: only the HttpOnly remembered-device cookie.
+    nextAddress();
+    const response = await loadOrderTrackingAction({ reference: order.reference });
+
+    expect(response.ok).toBe(true);
+    if (!response.ok) return;
+    expect(response.access).toBe("session");
+    expect(response.order.reference).toBe(order.reference);
+  });
+
   it("opens the order on another device with a scoped grant", async () => {
     const order = await makeOrder();
     const code = await requestCodeFor(order.reference);
@@ -240,7 +275,11 @@ describe("loadOrderTrackingAction", () => {
 
   it("does not accept a grant for a different order", async () => {
     const first = await makeOrder();
-    const second = await makeOrder();
+    // A different customer's order: neither the grant nor the remembered
+    // session may open it.
+    const second = await makeOrder({
+      customer: { fullName: "Bea Other", email: "bea.other@example.com", phone: "+14165550124" },
+    });
     const code = await requestCodeFor(first.reference);
 
     nextAddress();
@@ -317,7 +356,7 @@ describe("requestTrackingCodeAction", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it("emails a six digit code and stores only its hash", async () => {
+  it("emails a six digit code and stores only a keyed digest", async () => {
     const order = await makeOrder();
     const code = await requestCodeFor(order.reference);
 
@@ -325,7 +364,11 @@ describe("requestTrackingCodeAction", () => {
     const challenge = await TrackingChallengeModel.findOne({ reference: order.reference }).lean();
     expect(challenge).not.toBeNull();
     expect(challenge?.codeHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(challenge?.codeHash).toBe(sha256(code));
+    // Phase 7B: HMAC, never an unsalted sha256 that a leaked row could reverse.
+    expect(challenge?.digestVersion).toBe("hmac-sha256-v1");
+    expect(challenge?.challengeId).toMatch(/^[0-9a-f]{32}$/);
+    expect(challenge?.codeHash).not.toBe(sha256(code));
+    expect(JSON.stringify(challenge)).not.toContain(code);
     expect(challenge?.consumedAt).toBeNull();
     expect(challenge?.attempts).toBe(0);
   });
@@ -358,7 +401,7 @@ describe("requestTrackingCodeAction", () => {
   it("bounds repeated code requests from one address", async () => {
     const order = await makeOrder();
     nextAddress();
-    for (let index = 0; index < 5; index += 1) {
+    for (let index = 0; index < 10; index += 1) {
       await requestTrackingCodeAction({ reference: order.reference, email: "no-match@example.com" });
     }
     const blocked = await requestTrackingCodeAction({ reference: order.reference, email: "no-match@example.com" });
@@ -476,7 +519,7 @@ describe("verifyTrackingCodeAction", () => {
 
   it("bounds repeated submissions from one address", async () => {
     nextAddress();
-    for (let index = 0; index < 10; index += 1) {
+    for (let index = 0; index < 15; index += 1) {
       await verifyTrackingCodeAction({ reference: reference(), code: "123456" });
     }
     const blocked = await verifyTrackingCodeAction({ reference: reference(), code: "123456" });

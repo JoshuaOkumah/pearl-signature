@@ -195,6 +195,32 @@ export const OrderSchema = new Schema(
       required: true,
     },
 
+    /**
+     * Verified guest identity at placement (Phase 7B).
+     *
+     * `verifiedEmail` is the address whose control was proven by an email code
+     * immediately before this order was accepted. It is stored so an audit can
+     * distinguish a verified order from a Phase 5 to 7 legacy order (which has
+     * `null` here) and so an owner-assisted email correction can record what
+     * was replaced. It always equals `customer.email` at creation.
+     */
+    guest: {
+      type: new Schema(
+        {
+          verifiedEmail: {
+            type: String,
+            required: true,
+            maxlength: 160,
+            lowercase: true,
+            trim: true,
+          },
+          verifiedAt: { type: Date, required: true },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
+
     fulfillment: {
       type: new Schema(
         {
@@ -368,6 +394,8 @@ OrderSchema.path("money").validate(function validateMoney(this: { money?: { subt
 OrderSchema.index({ createdAt: -1 });
 OrderSchema.index({ status: 1, createdAt: -1 });
 OrderSchema.index({ "payment.status": 1, createdAt: -1 });
+/* Phase 7B: My Orders derives its list from the verified email identity. */
+OrderSchema.index({ "customer.email": 1, createdAt: -1 });
 
 export type OrderRecord = InferSchemaType<typeof OrderSchema> & {
   _id: unknown;

@@ -158,3 +158,36 @@ export function trackingPaymentSummary(
 export function isTerminalTrackingStatus(status: OrderStatus): boolean {
   return status === "completed" || status === "cancelled";
 }
+
+export type MyOrderGroup = "active" | "completed" | "cancelled";
+
+/**
+ * Which My Orders section an order belongs to.
+ *
+ * `active` is every order still moving through fulfilment; a cancelled order is
+ * its own group so a customer never mistakes it for work in progress.
+ */
+export function myOrderGroup(status: OrderStatus): MyOrderGroup {
+  if (status === "cancelled") return "cancelled";
+  if (status === "completed") return "completed";
+  return "active";
+}
+
+/** Short, honest line of what was ordered: names and quantities, bounded. */
+export function itemsSummary(
+  items: Array<{ name: string; quantity: number }>,
+  maxLength = 90,
+): string {
+  if (items.length === 0) return "No items";
+  const parts: string[] = [];
+  for (const item of items) {
+    parts.push(`${item.name} x${item.quantity}`);
+    const candidate = parts.join(", ");
+    if (candidate.length > maxLength) {
+      parts.pop();
+      const shown = parts.length > 0 ? `${parts.join(", ")} and more` : `${item.name} x${item.quantity}`;
+      return shown.length > maxLength ? `${shown.slice(0, maxLength - 1)}…` : shown;
+    }
+  }
+  return parts.join(", ");
+}
