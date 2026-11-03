@@ -259,12 +259,18 @@ test("F: a non-matching pair answers generically and emails nothing", async ({ b
   const page = await context.newPage();
   const missingReference = "PS-0000000000";
 
+  // The public entry point is email-only recovery: it asks for no reference and
+  // shows nothing about any order.
   await page.goto("/track");
-  await expect(page.getByTestId("tracking-recovery")).toBeVisible();
+  await expect(page.getByTestId("find-my-orders")).toBeVisible();
   await expect(page.getByTestId("order-tracking")).toHaveCount(0);
 
   const before = (await sinkMessages()).filter((message) => message.subject === CODE_SUBJECT).length;
 
+  // A reference that does not exist gets the same neutral answer and the same
+  // silence as a real one.
+  await page.goto(`/track?ref=${missingReference}`);
+  await expect(page.getByTestId("tracking-recovery")).toBeVisible();
   await requestCode(page, missingReference, TRACKING_EMAIL);
 
   // Give a wrongly-triggered send time to land, then prove none did.

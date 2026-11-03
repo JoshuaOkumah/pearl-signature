@@ -266,7 +266,7 @@ export function EmailVerification({
             )}
           </Button>
           <p className="mt-2 text-xs leading-relaxed text-ink-muted">
-            Check your inbox and the spam folder. The code expires after ten minutes.
+            The code goes to this address only and expires after ten minutes.
           </p>
         </div>
       ) : (

@@ -757,3 +757,55 @@ describe("createOrder: idempotency", () => {
     expect(await OrderModel.countDocuments({})).toBe(1);
   });
 });
+
+/* ── the verified-email gate (Phase 7B) ─────────────────────────────── */
+
+describe("createOrder: the verified-email gate", () => {
+  it("refuses any order without a verified identity, before doing any work", async () => {
+    const response = await createOrderWithVerification(makeRequest(), { verifiedGuest: null });
+    expect(response).toEqual({ ok: false, reason: "verification_required" });
+    expect(await OrderModel.countDocuments({})).toBe(0);
+  });
+
+  it("refuses an identity that names a different address", async () => {
+    const response = await createOrderWithVerification(makeRequest(), {
+      verifiedGuest: { email: "someone.else@example.com", verifiedAt: new Date() },
+    });
+    expect(response).toEqual({ ok: false, reason: "verification_required" });
+    expect(await OrderModel.countDocuments({})).toBe(0);
+  });
+
+  it("refuses a verification older than the freshness window", async () => {
+    const response = await createOrderWithVerification(makeRequest(), {
+      verifiedGuest: {
+        email: "ada.obi@example.com",
+        verifiedAt: new Date(Date.now() - 31 * 60 * 1_000),
+      },
+    });
+    expect(response).toEqual({ ok: false, reason: "verification_required" });
+    expect(await OrderModel.countDocuments({})).toBe(0);
+  });
+
+  it("accepts the same mailbox typed in a different case and snapshots the proof", async () => {
+    const verifiedAt = new Date();
+    const response = await createOrderWithVerification(makeRequest(), {
+      verifiedGuest: { email: "  ADA.OBI@EXAMPLE.COM ", verifiedAt },
+    });
+    expect(response.ok).toBe(true);
+    if (!response.ok) return;
+
+    const stored = (await OrderModel.findOne({ reference: response.order.reference }).lean()) as {
+      guest?: { verifiedEmail?: string; verifiedAt?: Date };
+    } | null;
+    expect(stored?.guest?.verifiedEmail).toBe("ada.obi@example.com");
+    expect(stored?.guest?.verifiedAt?.getTime()).toBe(verifiedAt.getTime());
+  });
+
+  it("applies the gate to online payment before payment readiness is consulted", async () => {
+    const response = await createOrderWithVerification(makeRequest({ paymentMethod: "stripe" }), {
+      verifiedGuest: null,
+    });
+    expect(response).toEqual({ ok: false, reason: "verification_required" });
+    expect(await OrderModel.countDocuments({})).toBe(0);
+  });
+});

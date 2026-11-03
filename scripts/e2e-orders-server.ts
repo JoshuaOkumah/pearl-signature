@@ -48,6 +48,7 @@ import { NotificationOutboxModel } from "../src/models/notification-outbox";
 import { StoreConfigModel } from "../src/models/store-config";
 import { TrackingChallengeModel } from "../src/models/tracking-challenge";
 import { OrderAccessGrantModel } from "../src/models/order-access-grant";
+import { GuestSessionModel } from "../src/models/guest-session";
 import {
   TRACKING_CONFIRMATION_HASH,
   TRACKING_CUSTOMER_NAME,
@@ -57,6 +58,11 @@ import {
   TRACKING_REFERENCE,
   TRACKING_SINK_FILE,
 } from "../e2e/orders/tracking-fixture";
+import {
+  E2E_GUEST_OTP_COOLDOWN_SECONDS,
+  E2E_GUEST_OTP_SECRET,
+  E2E_ORDERS_SINK_FILE,
+} from "../e2e/orders/guest-fixture";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const STOREFRONT_URL = process.env.E2E_STOREFRONT_URL ?? "http://localhost:3000";
@@ -64,7 +70,13 @@ const ORDERS_PORT = Number(process.env.E2E_SERVER_PORT ?? 3003);
 const DATABASE_NAME = process.env.E2E_DB_NAME ?? "pearl_signature_e2e_orders";
 /** Seed the Phase 7 tracking fixture, file sink and processor secret. */
 const TRACKING_MODE = process.env.E2E_TRACKING_FIXTURE === "1";
-const SINK_FILE = path.join(ROOT, TRACKING_SINK_FILE);
+/**
+ * Both modes need a file sink now: checkout cannot place an order until the
+ * email address is verified with a code, and the code has to go somewhere the
+ * test process can read. Each mode writes to its OWN file so a tracking code
+ * can never be mistaken for a checkout code.
+ */
+const SINK_FILE = path.join(ROOT, TRACKING_MODE ? TRACKING_SINK_FILE : E2E_ORDERS_SINK_FILE);
 /** Stable key of the one pending outbox entry the tracking fixture seeds. */
 const PROCESSOR_FIXTURE_KEY = `order.preparing:${TRACKING_REFERENCE}:customer`;
 
@@ -333,14 +345,18 @@ async function main(): Promise<void> {
   // harness too, otherwise the code path would be exercised with no indexes.
   await TrackingChallengeModel.createIndexes();
   await OrderAccessGrantModel.createIndexes();
+  // Phase 7B remembered-device sessions need their unique token digest and TTL
+  // indexes; without them a stale row would never be swept and two rows could
+  // share a digest.
+  await GuestSessionModel.createIndexes();
+  await NotificationOutboxModel.createIndexes();
   if (TRACKING_MODE) {
     log("writing the Phase 7 tracking fixture order …");
-    await NotificationOutboxModel.createIndexes();
     await writeTrackingOrder();
-    // Start from an empty sink so a code from a previous run can never be
-    // mistaken for the code this run emailed.
-    await rm(SINK_FILE, { force: true });
   }
+  // Start from an empty sink so a code from a previous run can never be
+  // mistaken for the code this run emailed.
+  await rm(SINK_FILE, { force: true });
   await mongoose.disconnect();
 
   const serverEnv: NodeJS.ProcessEnv = {
@@ -362,23 +378,23 @@ async function main(): Promise<void> {
   serverEnv.NEXT_PUBLIC_CLOUDINARY_ENABLED = "";
   // The synthetic fixture flag is a seed-time input only (see above).
   delete serverEnv.E2E_PURCHASABLE_FIXTURES;
-  // Notifications are OFF by default in this harness: a real `.env.local`
-  // provider must never send mail from a test run. The tracking harness opts
-  // in explicitly to the file sink, which writes to a git-ignored file.
-  serverEnv.NOTIFICATION_PROVIDER = "";
+  // Notifications point at the file sink in BOTH modes: checkout cannot place
+  // an order until the email is verified, and the code must land somewhere the
+  // test process can read. Nothing here can reach a real inbox: the sink writes
+  // to a git-ignored file and is explicitly allowed only for this disposable,
+  // production-mode server. A real `.env.local` provider is always overridden.
+  serverEnv.NOTIFICATION_PROVIDER = "file-sink";
   serverEnv.RESEND_API_KEY = "";
   serverEnv.EMAIL_FROM = "";
   serverEnv.OWNER_NOTIFICATION_EMAIL = "";
-  serverEnv.NOTIFICATION_PROCESSOR_SECRET = "";
-  serverEnv.NOTIFICATION_SINK_FILE = "";
-  serverEnv.NOTIFICATION_SINK_ALLOW_PRODUCTION = "";
+  serverEnv.NOTIFICATION_SINK_FILE = SINK_FILE;
+  serverEnv.NOTIFICATION_SINK_ALLOW_PRODUCTION = "1";
   serverEnv.RESEND_WEBHOOK_SECRET = "";
-  if (TRACKING_MODE) {
-    serverEnv.NOTIFICATION_PROVIDER = "file-sink";
-    serverEnv.NOTIFICATION_SINK_FILE = SINK_FILE;
-    serverEnv.NOTIFICATION_SINK_ALLOW_PRODUCTION = "1";
-    serverEnv.NOTIFICATION_PROCESSOR_SECRET = TRACKING_PROCESSOR_SECRET;
-  }
+  // Mandatory guest verification: a strong digest key plus a disabled resend
+  // cooldown (the checkout UI still shows its own 60-second countdown).
+  serverEnv.GUEST_OTP_SECRET = E2E_GUEST_OTP_SECRET;
+  serverEnv.GUEST_OTP_RESEND_COOLDOWN_SECONDS = E2E_GUEST_OTP_COOLDOWN_SECONDS;
+  serverEnv.NOTIFICATION_PROCESSOR_SECRET = TRACKING_MODE ? TRACKING_PROCESSOR_SECRET : "";
 
   log(`starting the orders server on http://localhost:${ORDERS_PORT} …`);
   ordersServer = spawn(`npx next start --port ${ORDERS_PORT}`, {

@@ -36,7 +36,7 @@
  *         ./screenshots/admin-<surface>-<width>x<height>.png
  */
 import { chromium } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 
 const baseURL = process.env.BASE_URL ?? "http://localhost:3000";
 const outDir = process.env.OUT_DIR ?? "screenshots";
@@ -51,6 +51,10 @@ const routes = [
   "/menu/no-such-dish",
   "/about",
   "/contact",
+  // Phase 7B: the two public order-recovery entry points. A fresh browser sees
+  // the honest unauthenticated state, which is what needs the design review.
+  "/my-orders",
+  "/track",
 ];
 
 /** URL route → stable file name. */
@@ -489,6 +493,44 @@ if (ordersBaseURL && adminEmail && adminPassword) {
 
   const CART_KEY = "pearl-cart-v1";
 
+  /**
+   * Phase 7B: checkout now refuses to place an order until the email address is
+   * verified. The disposable orders harness runs the file-sink provider, so the
+   * code is read from the same JSONL file the E2E specs use. Nothing here can
+   * reach a real inbox.
+   */
+  const ordersSink =
+    process.env.ORDERS_NOTIFICATION_SINK ?? "test-results/e2e-orders-notifications.jsonl";
+  const checkoutEmail = "ada.okonkwo@example.com";
+
+  async function latestCheckoutCode(email) {
+    const deadline = Date.now() + 15_000;
+    for (;;) {
+      let messages = [];
+      try {
+        const raw = await readFile(ordersSink, "utf8");
+        messages = raw
+          .split("\n")
+          .filter((line) => line.trim() !== "")
+          .map((line) => JSON.parse(line));
+      } catch {
+        messages = [];
+      }
+      const latest = messages
+        .filter(
+          (message) =>
+            message.to === email && message.subject === "Your PEARL Signature verification code",
+        )
+        .at(-1);
+      const code = latest?.text ? /\b\d{6}\b/.exec(latest.text)?.[0] : undefined;
+      if (code) return code;
+      if (Date.now() >= deadline) {
+        throw new Error(`No verification code for ${email} was written to ${ordersSink}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
   /** One clearly synthetic line, priced by the labelled test policy. */
   const basket = [{ slug: "e2e-sample-meal", variantName: null, quantity: 1, unitPriceCents: 1250 }];
 
@@ -503,7 +545,7 @@ if (ordersBaseURL && adminEmail && adminPassword) {
 
   await buyer.getByRole("radio", { name: /Delivery/ }).check();
   await buyer.getByLabel(/^Full name/).fill("Ada Okonkwo");
-  await buyer.getByLabel(/^Email address/).fill("ada.okonkwo@example.com");
+  await buyer.getByLabel(/^Email address/).fill(checkoutEmail);
   await buyer.getByLabel(/^Phone number/).fill("(416) 555-0123");
   await buyer.getByLabel(/^Street address/).fill("100 Queen Street West");
   await buyer.getByLabel(/^City or town/).fill("Toronto");
@@ -511,6 +553,22 @@ if (ordersBaseURL && adminEmail && adminPassword) {
   await buyer.getByLabel(/^Postal code/).fill("M5H 2N2");
   await buyer.locator("#payment-cash").check();
   await buyer.getByTestId("amount-due").waitFor();
+
+  // The verification step itself, before the code is entered: this is the
+  // Phase 7B surface a customer meets on every checkout.
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 1440, height: 900 },
+  ]) {
+    await buyer.setViewportSize(viewport);
+    const panel = buyer.getByTestId("email-verification");
+    await panel.evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await checkOverflow(buyer, `checkout-verification @ ${viewport.width}`);
+    await panel.screenshot({
+      path: `${outDir}/checkout-verification-${viewport.width}x${viewport.height}.png`,
+    });
+    console.log(`✓ checkout-verification @ ${viewport.width}x${viewport.height}`);
+  }
 
   // The ready-to-order review panel, before anything is submitted.
   for (const viewport of [
@@ -565,6 +623,16 @@ if (ordersBaseURL && adminEmail && adminPassword) {
   await buyer.setViewportSize({ width: 1440, height: 900 });
   await buyer.getByRole("radio", { name: /Delivery/ }).check();
   await buyer.getByTestId("delivery-fields").waitFor();
+
+  // Phase 7B: no order can be placed until the address is verified.
+  const verification = buyer.getByTestId("email-verification");
+  await verification.getByRole("button", { name: "Send verification code" }).click();
+  await buyer.getByText(/We sent a six digit code/).waitFor();
+  const code = await latestCheckoutCode(checkoutEmail);
+  await buyer.getByLabel("Six digit code").fill(code);
+  await verification.getByRole("button", { name: "Verify email" }).click();
+  await buyer.getByTestId("email-verified").waitFor();
+
   await buyer.getByTestId("place-order").click();
   await buyer.waitForURL(/\/order-confirmation\?ref=PS-[0-9A-F]{10}/, { timeout: 30_000 });
   const reference = new URL(buyer.url()).searchParams.get("ref");
@@ -573,6 +641,9 @@ if (ordersBaseURL && adminEmail && adminPassword) {
   // The confirmation as the placing browser sees it (capability present).
   for (const viewport of orderViewports) {
     await buyer.setViewportSize(viewport);
+    // The page was scrolled to reach the payment panel; a sticky header would
+    // otherwise be painted mid-page in a full-page capture.
+    await buyer.evaluate(() => window.scrollTo(0, 0));
     await checkOverflow(buyer, `order-confirmation @ ${viewport.width}`);
     await buyer.screenshot({
       path: `${outDir}/order-confirmation-${viewport.width}x${viewport.height}.png`,
@@ -580,6 +651,37 @@ if (ordersBaseURL && adminEmail && adminPassword) {
     });
     console.log(`✓ order-confirmation @ ${viewport.width}x${viewport.height}`);
   }
+  // Phase 7B: the same customer and the same browser, with no reference to
+  // type. My Orders is the primary destination, so it is captured at every
+  // reference width, followed by one order opened from it.
+  await buyer.setViewportSize({ width: 1440, height: 900 });
+  await buyer.goto(`${ordersBaseURL}/my-orders`, { waitUntil: "domcontentloaded" });
+  await buyer.getByTestId("my-orders").waitFor({ timeout: 30_000 });
+  for (const viewport of orderViewports) {
+    await buyer.setViewportSize(viewport);
+    await buyer.evaluate(() => window.scrollTo(0, 0));
+    await checkOverflow(buyer, `my-orders @ ${viewport.width}`);
+    await buyer.screenshot({
+      path: `${outDir}/my-orders-${viewport.width}x${viewport.height}.png`,
+      fullPage: true,
+    });
+    console.log(`✓ my-orders @ ${viewport.width}x${viewport.height}`);
+  }
+
+  await buyer.setViewportSize({ width: 1440, height: 900 });
+  await buyer.getByRole("link", { name: /View Order/ }).first().click();
+  await buyer.getByTestId("order-tracking").waitFor({ timeout: 30_000 });
+  for (const viewport of orderViewports) {
+    await buyer.setViewportSize(viewport);
+    await buyer.evaluate(() => window.scrollTo(0, 0));
+    await checkOverflow(buyer, `order-tracking @ ${viewport.width}`);
+    await buyer.screenshot({
+      path: `${outDir}/order-tracking-${viewport.width}x${viewport.height}.png`,
+      fullPage: true,
+    });
+    console.log(`✓ order-tracking @ ${viewport.width}x${viewport.height}`);
+  }
+
   await buyer.close();
 
   // 2. The same link on a device that holds no capability opens nothing.

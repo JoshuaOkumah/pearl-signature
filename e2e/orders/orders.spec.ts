@@ -1,5 +1,18 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "../admin/credentials";
+import {
+  CHECKOUT_CODE_SUBJECT,
+  E2E_ORDERS_SINK_FILE,
+  RECOVERY_CODE_SUBJECT,
+} from "./guest-fixture";
+import { readLatestCode } from "./otp";
 
 /**
  * Phase 5 order suite (orders project, port 3003).
@@ -85,9 +98,9 @@ async function seedCart(page: Page, items: CartLine[]): Promise<void> {
   );
 }
 
-async function fillCustomer(page: Page, method: "delivery" | "pickup"): Promise<void> {
+async function fillCustomer(page: Page, method: "delivery" | "pickup", email: string): Promise<void> {
   await page.getByLabel(/^Full name/).fill("Ada Okonkwo");
-  await page.getByLabel(/^Email address/).fill("ada.okonkwo@example.com");
+  await page.getByLabel(/^Email address/).fill(email);
   await page.getByLabel(/^Phone number/).fill("(416) 555-0123");
   if (method === "delivery") {
     await page.getByLabel(/^Street address/).fill("100 Queen Street West");
@@ -95,6 +108,29 @@ async function fillCustomer(page: Page, method: "delivery" | "pickup"): Promise<
     await page.getByLabel(/^Province or territory/).selectOption("ON");
     await page.getByLabel(/^Postal code/).fill("M5H 2N2");
   }
+}
+
+/**
+ * Complete the mandatory Phase 7B email verification.
+ *
+ * The code is generated server-side and delivered through the file sink, so it
+ * is read from disk rather than from a real inbox. Each test uses a DISTINCT
+ * synthetic address: the per-email issuance budget is deliberately small, and a
+ * shared address would exhaust it across the suite.
+ */
+async function verifyCheckoutEmail(page: Page, email: string): Promise<void> {
+  const panel = page.getByTestId("email-verification");
+  await expect(panel).toBeVisible();
+  await panel.getByRole("button", { name: "Send verification code" }).click();
+  await expect(
+    panel.getByText(`We sent a six digit code to ${email}. It expires in ten minutes.`),
+  ).toBeVisible();
+
+  const code = await readLatestCode(email, CHECKOUT_CODE_SUBJECT, E2E_ORDERS_SINK_FILE);
+  expect(code).toMatch(/^\d{6}$/);
+  await panel.getByLabel("Six digit code").fill(code);
+  await panel.getByRole("button", { name: "Verify email" }).click();
+  await expect(page.getByTestId("email-verified")).toBeVisible();
 }
 
 async function login(page: Page): Promise<void> {
@@ -247,11 +283,13 @@ async function replayPlaceOrder(
 /* ── A: placement ───────────────────────────────────────────────────── */
 
 test("A: a guest order lands in the database and in the owner's queue", async ({ page }) => {
+  const email = "ada.delivery@example.test";
   await seedCart(page, [meal(2)]);
   const interceptor = await installPlaceOrderCapture(page);
 
   await page.goto("/checkout");
-  await fillCustomer(page, "delivery");
+  await fillCustomer(page, "delivery", email);
+  await verifyCheckoutEmail(page, email);
 
   // The owner's labelled policy is what makes a truthful total possible.
   await expect(page.getByTestId("area-supported")).toContainText(
@@ -298,11 +336,13 @@ test("A: a guest order lands in the database and in the owner's queue", async ({
 /* ── B: idempotency and price safety ────────────────────────────────── */
 
 test("B1: replaying the same submission keeps one order, not two", async ({ page }) => {
+  const email = "ada.idempotency@example.test";
   await seedCart(page, [largePortion]);
   const interceptor = await installPlaceOrderCapture(page);
 
   await page.goto("/checkout");
-  await fillCustomer(page, "delivery");
+  await fillCustomer(page, "delivery", email);
+  await verifyCheckoutEmail(page, email);
   await page.locator("#payment-cash").check();
   await page.getByTestId("place-order").click();
 
@@ -326,11 +366,13 @@ test("B1: replaying the same submission keeps one order, not two", async ({ page
 });
 
 test("B2: a total tampered with on the wire is refused before an order exists", async ({ page }) => {
+  const email = "ada.price@example.test";
   await seedCart(page, [meal(1)]);
   const interceptor = await installPlaceOrderCapture(page, { mangleTotal: true });
 
   await page.goto("/checkout");
-  await fillCustomer(page, "delivery");
+  await fillCustomer(page, "delivery", email);
+  await verifyCheckoutEmail(page, email);
   await page.locator("#payment-cash").check();
   await page.getByTestId("place-order").click();
 
@@ -410,7 +452,8 @@ test("D: both lifecycles advance legally and refuse everything else", async ({ p
   await seedCart(page, [meal(1)]);
   await page.goto("/checkout");
   await page.getByRole("radio", { name: /Pickup/ }).check();
-  await fillCustomer(page, "pickup");
+  await fillCustomer(page, "pickup", "ada.pickup@example.test");
+  await verifyCheckoutEmail(page, "ada.pickup@example.test");
   await expect(page.getByTestId("pickup-fields")).toContainText("Labelled E2E test pickup point");
   await expect(page.getByTestId("amount-due")).toHaveText(TOTAL_ONE_MEAL_PICKUP);
   await page.locator("#payment-cash").check();
@@ -538,7 +581,7 @@ test("E1: the confirmation link is worthless without its capability", async ({ b
   const barePage = await bare.newPage();
   await barePage.goto(url);
   await expect(barePage.getByTestId("confirmation-notice")).toContainText(
-    "This confirmation can only be opened where the order was placed",
+    "This order is not open on this device",
   );
   await expect(barePage.getByTestId("order-confirmation")).toHaveCount(0);
   await bare.close();
@@ -556,7 +599,9 @@ test("E1: the confirmation link is worthless without its capability", async ({ b
   );
   const wrongPage = await wrong.newPage();
   await wrongPage.goto(url);
-  await expect(wrongPage.getByTestId("confirmation-notice")).toContainText("We could not find that order");
+  await expect(wrongPage.getByTestId("confirmation-notice")).toContainText(
+    "This order is not open on this device",
+  );
   await expect(wrongPage.getByTestId("order-confirmation")).toHaveCount(0);
   await wrong.close();
 
@@ -614,9 +659,11 @@ test("E3: repeated order submissions are rate limited", async ({ page }) => {
   expect(limited, "the create limiter should trip within 25 attempts").toBe(true);
 
   // The real customer-facing flow says so plainly and submits nothing.
+  const email = "ada.ratelimit@example.test";
   await seedCart(page, [meal(1)]);
   await page.goto("/checkout");
-  await fillCustomer(page, "delivery");
+  await fillCustomer(page, "delivery", email);
+  await verifyCheckoutEmail(page, email);
   await page.locator("#payment-cash").check();
   await page.getByTestId("place-order").click();
 
@@ -626,9 +673,11 @@ test("E3: repeated order submissions are rate limited", async ({ page }) => {
 });
 
 test("online payment stays unavailable without explicit Stripe test configuration and cash remains available", async ({ page }) => {
+  const email = "ada.online@example.test";
   await seedCart(page, [meal(1)]);
   await page.goto("/checkout");
-  await fillCustomer(page, "delivery");
+  await fillCustomer(page, "delivery", email);
+  await verifyCheckoutEmail(page, email);
 
   const cash = page.locator("#payment-cash");
   const online = page.locator("#payment-stripe");
@@ -637,4 +686,374 @@ test("online payment stays unavailable without explicit Stripe test configuratio
   await expect(page.getByText("Online payment is not available yet. Cash on Arrival remains available.")).toBeVisible();
   await cash.check();
   await expect(page.getByTestId("place-order")).toBeEnabled();
+});
+
+/* -- Phase 7B guest journey (A-J) ------------------------------------- */
+
+const GUEST_BASE = "http://localhost:3003";
+
+/**
+ * A fresh browser context with its OWN client address.
+ *
+ * The rate limits are per address, so giving every journey scenario a distinct
+ * synthetic address keeps one test from spending another test's budget. It also
+ * models the real situation: a customer on another device, not the operator's
+ * machine.
+ */
+async function guestContext(
+  browser: Browser,
+  ip: string,
+  options: {
+    viewport?: { width: number; height: number };
+    isMobile?: boolean;
+    hasTouch?: boolean;
+    storageState?: Awaited<ReturnType<BrowserContext["storageState"]>>;
+  } = {},
+) {
+  return browser.newContext({
+    baseURL: GUEST_BASE,
+    extraHTTPHeaders: { "x-forwarded-for": ip },
+    ...options,
+  });
+}
+
+/** Verify only when this checkout does not already have a fresh proof. */
+async function ensureCheckoutVerified(page: Page, email: string): Promise<void> {
+  const panel = page.getByTestId("email-verification");
+  const verified = page.getByTestId("email-verified");
+  await expect(panel.or(verified)).toBeVisible();
+  if (await verified.isVisible()) return;
+  await verifyCheckoutEmail(page, email);
+}
+
+/** Seed a cart, complete the verified checkout and return the new reference. */
+async function placeCashOrder(
+  page: Page,
+  options: { email: string; items: CartLine[]; method: "delivery" | "pickup" },
+): Promise<string> {
+  await seedCart(page, options.items);
+  await page.goto("/checkout");
+  if (options.method === "pickup") {
+    await page.getByRole("radio", { name: /Pickup/ }).check();
+  }
+  await fillCustomer(page, options.method, options.email);
+  await ensureCheckoutVerified(page, options.email);
+  await page.locator("#payment-cash").check();
+  await page.getByTestId("place-order").click();
+  await expect(page).toHaveURL(/\/order-confirmation\?ref=PS-[0-9A-F]{10}/);
+  return new URL(page.url()).searchParams.get("ref") ?? "";
+}
+
+/** Email-only recovery from My Orders: request, read the sink, verify. */
+async function recoverOrders(page: Page, email: string): Promise<void> {
+  await page.goto("/my-orders");
+  await expect(page.getByTestId("find-my-orders")).toBeVisible();
+  await page.getByLabel("Email address").fill(email);
+  await page.getByRole("button", { name: "Email me a code" }).click();
+  await expect(page.getByText(/If that address can receive email/)).toBeVisible();
+
+  const code = await readLatestCode(email, RECOVERY_CODE_SUBJECT, E2E_ORDERS_SINK_FILE);
+  await page.getByLabel("Six digit code").fill(code);
+  await page.getByRole("button", { name: "Show my orders" }).click();
+  await expect(page.getByTestId("my-orders")).toBeVisible();
+}
+
+async function horizontalOverflow(page: Page): Promise<number> {
+  return page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+}
+
+test("J1: the confirmation survives closing and reopening the browser", async ({ browser }) => {
+  const email = "journey.reopen@example.test";
+  const first = await guestContext(browser, "198.51.100.11");
+  const page = await first.newPage();
+  const reference = await placeCashOrder(page, {
+    email,
+    items: [meal(1)],
+    method: "delivery",
+  });
+  await expect(page.getByTestId("order-confirmation")).toBeVisible();
+
+  // The remembered device is a host-only, HttpOnly cookie. The raw token must
+  // never be readable from JavaScript, a URL or web storage.
+  const cookie = (await first.cookies()).find((entry) => entry.name === "pearl_guest");
+  expect(cookie).toBeTruthy();
+  expect(cookie?.httpOnly).toBe(true);
+  expect(cookie?.sameSite).toBe("Lax");
+  expect(cookie?.path).toBe("/");
+  expect(cookie?.domain).toBe("localhost");
+  const browserStorage = await page.evaluate(() =>
+    JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
+  );
+  expect(browserStorage).not.toContain(cookie?.value);
+  expect(page.url()).not.toContain(cookie?.value);
+
+  // A genuinely separate lifecycle: sessionStorage is gone, only the persisted
+  // cookie store survives.
+  const persisted = await first.storageState();
+  await first.close();
+  const second = await guestContext(browser, "198.51.100.11", { storageState: persisted });
+  const reopened = await second.newPage();
+  await reopened.goto(`/order-confirmation?ref=${reference}`);
+  await expect(reopened.getByTestId("order-confirmation")).toBeVisible();
+  await expect(reopened.getByTestId("confirmation-total")).toHaveText(TOTAL_ONE_MEAL_DELIVERED);
+  await second.close();
+});
+
+test("J2: a different device opens the order only after verifying the email", async ({ browser }) => {
+  const email = "journey.device@example.test";
+  const owner = await guestContext(browser, "198.51.100.12");
+  const ownerPage = await owner.newPage();
+  const reference = await placeCashOrder(ownerPage, {
+    email,
+    items: [meal(1)],
+    method: "pickup",
+  });
+  await owner.close();
+
+  const other = await guestContext(browser, "198.51.100.13");
+  const page = await other.newPage();
+  await page.goto(`/order-confirmation?ref=${reference}`);
+  await expect(page.getByTestId("confirmation-notice")).toContainText(
+    "This order is not open on this device",
+  );
+  await expect(page.getByTestId("order-confirmation")).toHaveCount(0);
+
+  await recoverOrders(page, email);
+  await expect(page.getByText(reference)).toBeVisible();
+  await page.getByRole("link", { name: /View Order/ }).first().click();
+  await expect(page).toHaveURL(new RegExp(`/track\\?ref=${reference}`));
+  await expect(page.getByTestId("order-tracking")).toBeVisible();
+  await expect(page.getByTestId("tracking-status")).toContainText("received");
+  await other.close();
+});
+
+test("J3: every order for one verified email appears in My Orders", async ({ browser }) => {
+  const email = "journey.multiple@example.test";
+  const context = await guestContext(browser, "198.51.100.14");
+  const page = await context.newPage();
+
+  const firstReference = await placeCashOrder(page, {
+    email,
+    items: [meal(2)],
+    method: "delivery",
+  });
+  const secondReference = await placeCashOrder(page, {
+    email,
+    items: [largePortion],
+    method: "pickup",
+  });
+
+  await page.goto("/my-orders");
+  await expect(page.getByTestId("my-orders")).toBeVisible();
+  await expect(page.getByText(firstReference)).toBeVisible();
+  await expect(page.getByText(secondReference)).toBeVisible();
+  await expect(page.getByTestId("my-orders-email")).toHaveText("j***@example.test");
+  await context.close();
+});
+
+test("J4: changing the email needs a new code and hides the previous identity", async ({ browser }) => {
+  const firstEmail = "journey.first@example.test";
+  const secondEmail = "journey.second@example.test";
+  const context = await guestContext(browser, "198.51.100.15");
+  const page = await context.newPage();
+
+  const firstReference = await placeCashOrder(page, {
+    email: firstEmail,
+    items: [meal(1)],
+    method: "delivery",
+  });
+  await page.goto("/my-orders");
+  await expect(page.getByText(firstReference)).toBeVisible();
+
+  await seedCart(page, [meal(1)]);
+  await page.goto("/checkout");
+  await fillCustomer(page, "delivery", secondEmail);
+  // The address changed, so the previous proof is revoked by construction.
+  await expect(page.getByTestId("email-verification")).toBeVisible();
+  await verifyCheckoutEmail(page, secondEmail);
+  await page.locator("#payment-cash").check();
+  await page.getByTestId("place-order").click();
+  await expect(page).toHaveURL(/\/order-confirmation\?ref=PS-[0-9A-F]{10}/);
+  const secondReference = new URL(page.url()).searchParams.get("ref") ?? "";
+
+  await page.goto("/my-orders");
+  await expect(page.getByText(secondReference)).toBeVisible();
+  await expect(page.getByText(firstReference)).toHaveCount(0);
+  await context.close();
+});
+
+test("J5: a shared device switches identity without merging two customers' orders", async ({ browser }) => {
+  const firstEmail = "journey.shared.a@example.test";
+  const secondEmail = "journey.shared.b@example.test";
+
+  // The second customer orders on their own device first, so there is real
+  // history to leak if the shared device got this wrong.
+  const secondDevice = await guestContext(browser, "198.51.100.16");
+  const secondPage = await secondDevice.newPage();
+  const secondReference = await placeCashOrder(secondPage, {
+    email: secondEmail,
+    items: [meal(1)],
+    method: "pickup",
+  });
+  await secondDevice.close();
+
+  const shared = await guestContext(browser, "198.51.100.17");
+  const page = await shared.newPage();
+  const firstReference = await placeCashOrder(page, {
+    email: firstEmail,
+    items: [meal(2)],
+    method: "delivery",
+  });
+  await page.goto("/my-orders");
+  await expect(page.getByText(firstReference)).toBeVisible();
+  await expect(page.getByText(secondReference)).toHaveCount(0);
+
+  await page.getByRole("button", { name: /Forget this device/ }).click();
+  await expect(page.getByTestId("find-my-orders")).toBeVisible();
+
+  // Back and forward must not resurrect the previous identity's history.
+  await page.goBack();
+  await page.goForward();
+  await expect(page.getByTestId("find-my-orders")).toBeVisible();
+  await expect(page.getByText(firstReference)).toHaveCount(0);
+
+  await recoverOrders(page, secondEmail);
+  await expect(page.getByText(secondReference)).toBeVisible();
+  await expect(page.getByText(firstReference)).toHaveCount(0);
+  await shared.close();
+});
+
+test("J6: admin progress reaches the customer's My Orders and tracking", async ({ browser }) => {
+  const email = "journey.progress@example.test";
+  const context = await guestContext(browser, "198.51.100.18");
+  const page = await context.newPage();
+  const reference = await placeCashOrder(page, {
+    email,
+    items: [meal(1)],
+    method: "delivery",
+  });
+
+  const adminContext = await browser.newContext({ baseURL: GUEST_BASE });
+  const admin = await adminContext.newPage();
+  await login(admin);
+  await admin.goto(`/admin/orders/${reference}`);
+  await admin.getByRole("button", { name: "Mark as confirmed" }).click();
+  await expect(admin.getByText("Order marked as confirmed.")).toBeVisible();
+  await admin.getByRole("button", { name: "Mark as preparing" }).click();
+  await expect(admin.getByText("Order marked as preparing.")).toBeVisible();
+  await adminContext.close();
+
+  await page.goto("/my-orders");
+  const card = page.getByTestId("my-orders").locator("article", { hasText: reference });
+  await expect(card).toContainText("Preparing");
+  await card.getByRole("link", { name: /View Order/ }).click();
+  await expect(page.getByTestId("order-tracking")).toBeVisible();
+  await expect(page.getByTestId("tracking-status")).toContainText("being prepared");
+  await context.close();
+});
+
+test("J7: Cash on Arrival stays honestly unpaid everywhere", async ({ browser }) => {
+  const email = "journey.payment@example.test";
+  const context = await guestContext(browser, "198.51.100.19");
+  const page = await context.newPage();
+  const reference = await placeCashOrder(page, {
+    email,
+    items: [meal(1)],
+    method: "delivery",
+  });
+
+  await expect(page.getByText("Nothing has been paid online.")).toBeVisible();
+  await expect(page.getByTestId("confirmation-amount-due")).toHaveText(TOTAL_ONE_MEAL_DELIVERED);
+
+  await page.goto("/my-orders");
+  const card = page.getByTestId("my-orders").locator("article", { hasText: reference });
+  await expect(card).toContainText("Cash on arrival");
+  await expect(card).toContainText("Unpaid");
+  await context.close();
+});
+
+test("J8: a guest cookie grants no admin access and an admin cookie grants no history", async ({ browser }) => {
+  const email = "journey.security@example.test";
+  const context = await guestContext(browser, "198.51.100.20");
+  const page = await context.newPage();
+  const interceptor = await installPlaceOrderCapture(page);
+  const reference = await placeCashOrder(page, {
+    email,
+    items: [meal(1)],
+    method: "delivery",
+  });
+
+  // 1. The guest cookie is not an admin session.
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/admin\/login/);
+
+  // 2. The admin cookie is not a guest identity.
+  const adminContext = await browser.newContext({ baseURL: GUEST_BASE });
+  const admin = await adminContext.newPage();
+  await login(admin);
+  await admin.goto("/my-orders");
+  await expect(admin.getByTestId("find-my-orders")).toBeVisible();
+  await expect(admin.getByTestId("my-orders")).toHaveCount(0);
+  await adminContext.close();
+
+  // 3. The captured submission replayed with no remembered device is refused
+  //    BEFORE any order is created, even though it carries a real order body.
+  const capture = interceptor.captured();
+  expect(capture, "the place-order request should be captured").not.toBeNull();
+  const attacker = await guestContext(browser, "198.51.100.23");
+  const headers: Record<string, string> = { ...(capture as CapturedAction).headers };
+  for (const forbidden of ["host", "cookie", "content-length", "connection", "accept-encoding"]) {
+    delete headers[forbidden];
+  }
+  const replay = await attacker.request.post((capture as CapturedAction).url, {
+    headers,
+    data: (capture as CapturedAction).postData,
+  });
+  expect(await replay.text()).toContain("verification_required");
+  await attacker.close();
+
+  // The real order is still open on the device that placed it.
+  await page.goto(`/order-confirmation?ref=${reference}`);
+  await expect(page.getByTestId("order-confirmation")).toBeVisible();
+  await context.close();
+});
+
+test("J9: the whole journey works on a 390px phone without horizontal overflow", async ({ browser }) => {
+  const email = "journey.mobile@example.test";
+  const context = await guestContext(browser, "198.51.100.21", {
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  await placeCashOrder(page, { email, items: [meal(1)], method: "delivery" });
+
+  await expect(page.getByTestId("order-confirmation")).toBeVisible();
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+
+  await page.goto("/my-orders");
+  await expect(page.getByTestId("my-orders")).toBeVisible();
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+
+  await page.getByRole("link", { name: /View Order/ }).first().click();
+  await expect(page.getByTestId("order-tracking")).toBeVisible();
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+  await context.close();
+});
+
+test("J10: recovery for an address with no orders reaches an honest empty state", async ({ browser }) => {
+  const email = "journey.empty@example.test";
+  const context = await guestContext(browser, "198.51.100.22");
+  const page = await context.newPage();
+
+  await page.goto("/my-orders");
+  await expect(page.getByTestId("find-my-orders")).toBeVisible();
+  // Nothing before verification may confirm whether this address has orders.
+  await expect(page.getByText(/If that address can receive email/)).toHaveCount(0);
+
+  await recoverOrders(page, email);
+  await expect(page.getByTestId("my-orders-empty")).toBeVisible();
+  await expect(page.getByText("You haven't placed any orders yet.")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Browse the menu/ })).toBeVisible();
+  await context.close();
 });

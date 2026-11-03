@@ -121,9 +121,14 @@ function TrackingLoader({ reference }: { reference: string }) {
   const router = useRouter();
   const [accessKey] = useState(() => confirmationKeyFor(reference));
   const [grantKey, setGrantKey] = useState(() => trackingGrantFor(reference));
-  const [state, setState] = useState<LoadState>(() =>
-    accessKey || grantKey ? { kind: "loading" } : { kind: "no_access" },
-  );
+  /**
+   * Phase 7B: a remembered device is a third way in, and it lives in an
+   * HttpOnly cookie this component cannot read. So the first read always goes
+   * to the server, which decides on its own whether the session matches the
+   * order's email. A browser with no proof is answered `not_found` and shown the
+   * private-access notice, never the order.
+   */
+  const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [refreshing, setRefreshing] = useState(false);
   const requestId = useRef(0);
 
@@ -148,8 +153,15 @@ function TrackingLoader({ reference }: { reference: string }) {
         clearTrackingGrant(reference);
         setGrantKey(null);
         setState({ kind: "no_access" });
-      } else {
+      } else if (accessKey) {
+        // A capability this browser holds is wrong for this order. That is
+        // indistinguishable from an unknown reference, by design.
         setState({ kind: "not_found" });
+      } else {
+        // No local proof at all: the server already checked the remembered
+        // device and it does not cover this order. Offer the private-access
+        // notice instead of claiming the order does not exist.
+        setState({ kind: "no_access" });
       }
     } catch {
       if (id === requestId.current) setState({ kind: "unavailable" });
@@ -166,10 +178,11 @@ function TrackingLoader({ reference }: { reference: string }) {
   }, [load]);
 
   useEffect(() => {
-    if (!accessKey && !grantKey) return;
+    // Always read once: the remembered device is server-side, so the browser
+    // cannot know in advance whether it has access.
+    let active = true;
     // Defer past the commit so the effect only subscribes: the first read is
     // started asynchronously and every state change happens after an await.
-    let active = true;
     void Promise.resolve().then(() => {
       if (active) void load();
     });
