@@ -38,6 +38,7 @@ import { StoreConfigModel } from "../src/models/store-config";
 import { PaymentAttemptModel } from "../src/models/payment-attempt";
 import { StripeEventModel } from "../src/models/stripe-event";
 import { PaymentRefundModel } from "../src/models/payment-refund";
+import { GuestSessionModel } from "../src/models/guest-session";
 import { categories } from "../src/data/categories";
 import { products } from "../src/data/products";
 import { loadEnvLocal } from "./load-env-local";
@@ -206,6 +207,10 @@ async function seed(): Promise<void> {
     // and scoped access grants (unique token hash + TTL).
     await TrackingChallengeModel.createIndexes();
     await OrderAccessGrantModel.createIndexes();
+    // Phase 7B: remembered guest devices (unique token digest + TTL). The
+    // collection is useless without the unique index: it is the only guard
+    // against two rows sharing a digest.
+    await GuestSessionModel.createIndexes();
     // Phase 6: durable provider attempts and event/refund references. These
     // unique indexes are required for concurrency and event idempotency.
     await PaymentAttemptModel.createIndexes();
