@@ -29,7 +29,6 @@ type ConfirmationState =
   | { kind: "loading" }
   | { kind: "ready"; order: OrderConfirmationView }
   | { kind: "missing_reference" }
-  | { kind: "no_capability" }
   | { kind: "not_found" }
   | { kind: "rate_limited" }
   | { kind: "unavailable" };
@@ -58,28 +57,27 @@ export function OrderConfirmationClient() {
 }
 
 /**
- * Fetches one order. The capability is read once when the component is
- * created, because it decides the INITIAL state — which keeps the effect's
- * body free of synchronous state updates (it only starts the request and
- * settles in the promise callbacks).
+ * Fetches one order.
+ *
+ * The capability is read once when the component is created. It is optional:
+ * a remembered-device session can authorise the same read, which is what makes
+ * this page survive closing and reopening the browser. The effect only starts
+ * the request and settles in the promise callbacks.
  */
 function ConfirmationLoader({ reference }: { reference: string }) {
   const [accessKey] = useState(() => confirmationKeyFor(reference));
-  const [state, setState] = useState<ConfirmationState>(() =>
-    accessKey ? { kind: "loading" } : { kind: "no_capability" },
-  );
+  const [state, setState] = useState<ConfirmationState>({ kind: "loading" });
 
   useEffect(() => {
-    // Not an error: the expected state when the link is opened on another
-    // device or after this tab's session storage is gone.
-    if (!accessKey) return;
-
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let checks = 0;
     const load = async (): Promise<void> => {
       try {
-        const response: OrderConfirmationResponse = await loadOrderConfirmationAction({ reference, accessKey });
+        const response: OrderConfirmationResponse = await loadOrderConfirmationAction({
+          reference,
+          ...(accessKey ? { accessKey } : {}),
+        });
         if (cancelled) return;
         if (response.ok) {
           setState({ kind: "ready", order: response.order });
@@ -124,7 +122,10 @@ function ConfirmationLoader({ reference }: { reference: string }) {
       accessKey={accessKey ?? ""}
       onRefresh={async () => {
         setState({ kind: "loading" });
-        const response = await loadOrderConfirmationAction({ reference, accessKey });
+        const response = await loadOrderConfirmationAction({
+          reference,
+          ...(accessKey ? { accessKey } : {}),
+        });
         if (response.ok) setState({ kind: "ready", order: response.order });
         else if (response.reason === "rate_limited") setState({ kind: "rate_limited" });
         else if (response.reason === "unavailable") setState({ kind: "unavailable" });
@@ -138,7 +139,6 @@ function ConfirmationLoader({ reference }: { reference: string }) {
 
 type NoticeKind =
   | "missing_reference"
-  | "no_capability"
   | "not_found"
   | "rate_limited"
   | "unavailable";
@@ -147,19 +147,13 @@ function Notice({ state, reference }: { state: NoticeKind; reference: string }) 
   const content = {
     missing_reference: {
       title: "No order reference was provided",
-      body: "Open the confirmation link you received when your order was placed.",
-    },
-    no_capability: {
-      title: "This confirmation can only be opened where the order was placed",
-      body:
-        "For privacy, order details can only be opened from the browser session that placed the order." +
-        (reference ? ` This link refers to order ${reference}.` : ""),
+      body: "Open the confirmation link you received when your order was placed, or sign in with your email on My Orders.",
     },
     not_found: {
-      title: "We could not find that order",
+      title: "This order is not open on this device",
       body:
-        "The reference or the confirmation for it does not match anything we have. " +
-        "If you placed this order in another browser, open the confirmation there.",
+        "For privacy, order details only open where the order was placed, or after the email address on the order is verified." +
+        (reference ? ` This link refers to order ${reference}.` : ""),
     },
     rate_limited: {
       title: "Too many attempts",
@@ -183,11 +177,11 @@ function Notice({ state, reference }: { state: NoticeKind; reference: string }) 
       </p>
       <p className="mt-2 text-sm leading-relaxed text-ink-muted">{content.body}</p>
       <div className="mt-5 flex flex-wrap gap-3">
-        <ButtonLink href="/menu" variant="primary" size="sm">
-          Browse the menu
+        <ButtonLink href="/my-orders" variant="primary" size="sm">
+          Go to My Orders
         </ButtonLink>
-        <ButtonLink href="/checkout" variant="outline" size="sm">
-          Back to checkout
+        <ButtonLink href="/menu" variant="outline" size="sm">
+          Browse the menu
         </ButtonLink>
       </div>
     </div>
@@ -371,10 +365,14 @@ function Confirmation({
           {order.payment.method === "stripe" && order.payment.status !== "paid" && order.payment.status !== "refunded" && order.payment.status !== "partially_refunded" && order.payment.status !== "review_required" ? (
             <>
               <p className="mt-2 text-sm leading-relaxed text-ink-muted">Order total: <strong className="text-navy">{formatCad(order.money.totalCents)}</strong></p>
-              {order.payment.retryAvailable ? (
+              {order.payment.retryAvailable && accessKey ? (
                 <Button type="button" variant="primary" size="sm" className="mt-3" disabled={retrying} onClick={() => void retryStripePayment()}>
                   {retrying ? <><Loader2 className="h-4 w-4 motion-safe:animate-spin" aria-hidden="true" /> Connecting securely…</> : "Continue to Secure Payment"}
                 </Button>
+              ) : order.payment.retryAvailable ? (
+                <p className="mt-3 text-xs leading-relaxed text-ink-muted">
+                  To continue this online payment, open the order from the tab where it was placed.
+                </p>
               ) : null}
               {paymentError ? <p role="alert" className="mt-3 text-sm text-terracotta-700">{paymentError}</p> : null}
             </>
@@ -382,21 +380,27 @@ function Confirmation({
         </section>
       </div>
 
+      <section aria-label="Order updates" className="rounded-3xl border border-border bg-cream/70 p-5">
+        <p className="font-sans text-sm font-semibold text-navy">How updates reach you</p>
+        <p className="mt-1.5 font-sans text-sm leading-relaxed text-ink-muted">
+          When email notifications are configured, we email the address on this order each time its status
+          changes. You can also open My Orders at any time on this device, or verify your email address on
+          another device, to see this order and every other order placed with the same address.
+        </p>
+      </section>
+
       <div className="flex flex-wrap items-center gap-3">
-        <ButtonLink href="/menu" variant="primary" size="sm">
-          Continue browsing
+        <ButtonLink href={`/track?ref=${encodeURIComponent(order.reference)}`} variant="primary" size="sm">
+          Track Order
+        </ButtonLink>
+        <ButtonLink href="/my-orders" variant="outline" size="sm">
+          View My Orders
         </ButtonLink>
         <Link
-          href={`/track?ref=${encodeURIComponent(order.reference)}`}
+          href="/menu"
           className="focus-gold rounded text-sm font-semibold text-navy-700 underline underline-offset-4 hover:text-navy"
         >
-          Track this order
-        </Link>
-        <Link
-          href="/cart"
-          className="focus-gold rounded text-sm font-semibold text-navy-700 underline underline-offset-4 hover:text-navy"
-        >
-          Back to your cart
+          Continue browsing
         </Link>
       </div>
     </div>

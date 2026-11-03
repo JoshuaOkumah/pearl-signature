@@ -35,6 +35,7 @@ import {
 } from "@/lib/orders/tracking";
 import type { OrderConfirmationView } from "@/lib/validations/order";
 import { Button } from "@/components/ui/button";
+import { FindMyOrders } from "./find-my-orders";
 
 /**
  * Guest order tracking (Phase 7).
@@ -94,12 +95,21 @@ function formatDateTime(iso: string | null): string {
 
 export function OrderTrackingClient() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const reference = (searchParams.get("ref") ?? "").trim().toUpperCase();
 
   if (reference === "") {
+    // Email-only recovery: the Phase 7B entry point for a customer who has no
+    // reference and no account. A successful verification rotates the
+    // remembered-device session, so My Orders can open straight away.
     return (
-      <div className="max-w-xl">
-        <RecoveryPanel initialReference="" onGranted={() => undefined} />
+      <div className="max-w-3xl">
+        <FindMyOrders
+          heading="Find my orders"
+          onVerified={() => {
+            router.push("/my-orders");
+          }}
+        />
       </div>
     );
   }
@@ -347,6 +357,13 @@ function RecoveryPanel({
       <p className="mt-2 font-sans text-sm leading-relaxed text-ink-muted">
         Enter the order reference and the email address used for the order. If they match, we email a short
         one-time code. Recovery is only available when email delivery is configured.
+      </p>
+      <p className="mt-2 font-sans text-xs leading-relaxed text-ink-muted">
+        Do you want every order instead of one?{" "}
+        <Link href="/my-orders" className="focus-gold rounded font-semibold text-navy underline underline-offset-2">
+          Open My Orders
+        </Link>{" "}
+        and verify your email address there.
       </p>
 
       {phase === "request" ? (

@@ -215,13 +215,19 @@ export type OrderConfirmationResponse =
   | { ok: true; order: OrderConfirmationView }
   | { ok: false; reason: "not_found" | "rate_limited" | "unavailable" };
 
+/**
+ * Confirmation read: reference plus the Phase 5 capability when this browser
+ * still has one. The capability is optional because a remembered-device session
+ * (Phase 7B) is an equally valid authorisation, and the confirmation page must
+ * survive closing and reopening the browser.
+ */
 export const orderConfirmationRequestSchema = z.object({
   reference: z
     .string()
     .trim()
     .toUpperCase()
     .regex(ORDER_REFERENCE_PATTERN, "Malformed reference"),
-  accessKey: orderKeySchema,
+  accessKey: orderKeySchema.optional(),
 });
 
 export type OrderConfirmationRequest = z.output<typeof orderConfirmationRequestSchema>;

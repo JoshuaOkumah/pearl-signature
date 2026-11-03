@@ -258,7 +258,7 @@ describe("templates", () => {
     expect(message.text).toContain("Subtotal: $37.50 CAD");
     expect(message.text).toContain("Test HST: $4.88 CAD");
     expect(message.text).toContain("Payment: Cash on arrival");
-    expect(message.text).toContain(`https://pearl.example/track?ref=${REFERENCE}`);
+    expect(message.text).toContain("https://pearl.example/my-orders");
     expect(message.text).toContain("3 x Synthetic Jollof (Large)");
     expect(message.html).toContain("<!doctype html>");
     expect(message.html).toContain("Synthetic Jollof");

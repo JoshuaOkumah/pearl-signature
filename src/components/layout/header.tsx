@@ -50,7 +50,7 @@ export function Header() {
       <div className="mx-auto flex h-18 w-full max-w-6xl items-center justify-between gap-2 px-5 min-[360px]:gap-3 md:px-8">
         <Wordmark />
 
-        <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-4 md:flex lg:gap-8">
           {navItems.map((item) => (
             <DesktopNavLink key={item.href} item={item} pathname={pathname} />
           ))}

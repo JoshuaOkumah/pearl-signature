@@ -254,8 +254,11 @@ describe("orderConfirmationRequestSchema", () => {
     }
   });
 
-  it("rejects a missing or malformed capability", () => {
-    expect(orderConfirmationRequestSchema.safeParse({ reference: "PS-1A2B3C4D5E" }).success).toBe(false);
+  it("allows a missing capability for a remembered-device read but rejects a malformed one", () => {
+    // Phase 7B: a live remembered-device session can authorise the same read,
+    // so the capability is optional. A malformed one is still refused rather
+    // than silently ignored.
+    expect(orderConfirmationRequestSchema.safeParse({ reference: "PS-1A2B3C4D5E" }).success).toBe(true);
     expect(orderConfirmationRequestSchema.safeParse({ reference: "PS-1A2B3C4D5E", accessKey: "short" }).success).toBe(
       false,
     );

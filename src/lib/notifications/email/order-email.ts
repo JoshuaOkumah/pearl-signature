@@ -35,9 +35,10 @@ import { escapeHtml, renderEmailDocument } from "./layout";
  *     the verified Stripe pipeline wrote that state. A cancellation says a
  *     refund is reviewed separately, never that money was returned.
  *
- * Customer copy contains no em dashes and no capability tokens. Links point to
- * `/track?ref=...` (which still requires authorization) and the authenticated
- * admin order page.
+ * Customer copy contains no em dashes and no capability tokens. The tracking
+ * action points to the public `/my-orders` entry point, never to a guest
+ * session credential or a raw capability, so a forwarded message grants
+ * nothing. Admin links point to the authenticated admin order page.
  */
 
 export interface BuiltEmail {
@@ -61,7 +62,9 @@ function paymentMethodLabel(facts: NotificationOrderFacts): string {
 }
 
 function trackingUrl(facts: NotificationOrderFacts): string | null {
-  return facts.siteUrl ? `${facts.siteUrl}/track?ref=${encodeURIComponent(facts.reference)}` : null;
+  // The public entry point only: no guest-session credential, no capability and
+  // no order-specific token in a message that can be forwarded.
+  return facts.siteUrl ? `${facts.siteUrl}/my-orders` : null;
 }
 
 function adminOrderUrl(facts: NotificationOrderFacts): string | null {
@@ -242,12 +245,12 @@ function paymentText(facts: NotificationOrderFacts): string[] {
 
 function trackingAction(facts: NotificationOrderFacts): string {
   const url = trackingUrl(facts);
-  return url ? button(url, "Track this order") : "";
+  return url ? button(url, "Track My Order") : "";
 }
 
 function trackingText(facts: NotificationOrderFacts): string[] {
   const url = trackingUrl(facts);
-  return url ? ["Track this order:", url, ""] : [];
+  return url ? ["Track My Order:", url, ""] : [];
 }
 
 function detailRows(facts: NotificationOrderFacts, extra: DetailRow[] = []): DetailRow[] {

@@ -5,7 +5,7 @@ import { connectDatabase, logDatabaseError } from "@/lib/db/mongoose";
 import { verifyEmailCode, issueEmailCode } from "@/lib/guest/challenges";
 import { MY_ORDERS_PAGE_SIZE } from "@/lib/guest/constants";
 import { normalizeEmail } from "@/lib/guest/otp";
-import { isCheckoutVerificationFresh, maskEmail } from "@/lib/guest/policy";
+import { maskEmail } from "@/lib/guest/policy";
 import { guestVerificationReadiness } from "@/lib/guest/readiness";
 import {
   getGuestIdentity,
@@ -13,6 +13,7 @@ import {
   revokeCurrentGuestSession,
   rotateGuestSession,
 } from "@/lib/guest/session";
+import { readGuestSessionState } from "@/lib/guest/state";
 import { consumeOrderRateLimit } from "@/lib/orders/rate-limit";
 import { itemsSummary, myOrderGroup } from "@/lib/orders/tracking";
 import { OrderModel, type OrderRecord } from "@/models/order";
@@ -202,29 +203,7 @@ export async function verifyRecoveryCodeAction(payload: unknown): Promise<Verify
  * remembered device is not the same as a recent verification.
  */
 export async function getGuestSessionStateAction(): Promise<GuestSessionState> {
-  const readiness = guestVerificationReadiness();
-  const now = Date.now();
-  const identity = await getGuestIdentity(now);
-
-  if (!identity) {
-    return {
-      authenticated: false,
-      email: null,
-      verifiedAtIso: null,
-      sessionExpiresAtIso: null,
-      checkoutFresh: false,
-      verificationAvailable: readiness.ready,
-    };
-  }
-
-  return {
-    authenticated: true,
-    email: identity.email,
-    verifiedAtIso: identity.verifiedAt.toISOString(),
-    sessionExpiresAtIso: identity.expiresAt.toISOString(),
-    checkoutFresh: isCheckoutVerificationFresh(identity, now),
-    verificationAvailable: readiness.ready,
-  };
+  return readGuestSessionState(Date.now());
 }
 
 /**

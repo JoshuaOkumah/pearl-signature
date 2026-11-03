@@ -50,7 +50,7 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/track" className="focus-gold rounded-sm transition-colors hover:text-cream">
-                  Track your order
+                  Track an order
                 </Link>
               </li>
             </ul>

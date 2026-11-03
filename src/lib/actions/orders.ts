@@ -99,11 +99,18 @@ export async function startStripeCheckoutAction(payload: unknown): Promise<Start
 /**
  * Read a placed order for its confirmation page.
  *
- * Authorisation is the confirmation capability: a 32-byte random secret
- * generated in the customer's browser, stored only as a sha256 on the
- * order. The public reference alone matches nothing, so references cannot
- * be enumerated, and the capability never appears in the URL, in a referrer
- * header or in a log line.
+ * Authorisation is ONE of:
+ *
+ *  - the confirmation capability: a 32-byte random secret generated in the
+ *    customer's browser and stored only as a sha256 on the order, or
+ *  - a live remembered-device session (Phase 7B) whose verified email is the
+ *    order's email.
+ *
+ * The public reference alone matches nothing, so references cannot be
+ * enumerated, and neither credential ever appears in the URL, a referrer
+ * header or a log line. The session fallback is what keeps the confirmation
+ * visible after the browser is closed and reopened, because the HttpOnly
+ * cookie outlives the tab while sessionStorage does not.
  *
  * The response deliberately excludes customer PII (see
  * `OrderConfirmationView`), so even a leaked response body reveals only
@@ -125,10 +132,24 @@ export async function loadOrderConfirmationAction(
 
   try {
     await connectDatabase();
-    const order = (await OrderModel.findOne({
-      reference: parsed.data.reference,
-      confirmationKeyHash: hashConfirmationKey(parsed.data.accessKey),
-    }).lean()) as OrderRecord | null;
+    let order: OrderRecord | null = null;
+
+    if (parsed.data.accessKey) {
+      order = (await OrderModel.findOne({
+        reference: parsed.data.reference,
+        confirmationKeyHash: hashConfirmationKey(parsed.data.accessKey),
+      }).lean()) as OrderRecord | null;
+    }
+
+    if (!order) {
+      const identity = await getGuestIdentity(now);
+      if (identity) {
+        order = (await OrderModel.findOne({
+          reference: parsed.data.reference,
+          "customer.email": identity.email,
+        }).lean()) as OrderRecord | null;
+      }
+    }
 
     if (!order) return { ok: false, reason: "not_found" };
     return { ok: true, order: await loadConfirmationView(order) };
