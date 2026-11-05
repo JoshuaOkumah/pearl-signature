@@ -1,7 +1,10 @@
 # PEARL Signature: Transactional Email
 
-Phase 7. This document explains what the store emails, how the provider is
-configured, what happens when it is not, and which parts are still unverified.
+Phase 7 built the transactional email system. Phase 7B added the guest
+verification and recovery codes on the same provider.
+
+This document explains what the store emails, how the provider is configured,
+what happens when it is not, and which parts are still unverified.
 
 `docs/ORDER_NOTIFICATIONS.md` describes the Phase 5 outbox. This document
 supersedes it where they disagree; the Phase 5 file is kept as the historical
@@ -59,6 +62,7 @@ anything is stored, because a third-party error can echo the recipient address.
 | `NOTIFICATION_PROCESSOR_SECRET` | for the HTTP processor | `POST /api/notifications/process` answers 503 |
 | `NOTIFICATION_MONTHLY_LIMIT` | no | 3,000 |
 | `NOTIFICATION_DAILY_LIMIT` | no | 100 |
+| `GUEST_OTP_SECRET` | **for checkout** | Verification unavailable; checkout refuses to place an order (Phase 7B) |
 
 `EMAIL_FROM` accepts `orders@yourdomain.com` or
 `PEARL Signature <orders@yourdomain.com>`. Anything else, including an empty
@@ -110,6 +114,9 @@ Eleven branded templates share one layout:
 | Order cancelled | yes |
 | Payment received / cash collected | yes |
 | Payment not completed / needs review | yes |
+| Checkout verification code (Phase 7B) | yes |
+| Sign-in / recovery code (Phase 7B) | yes |
+| Confirm your new email address (Phase 7B) | yes |
 | Tracking verification code | yes |
 
 Design rules:
@@ -125,7 +132,15 @@ Design rules:
   review count, no "bestseller".
 - No secret, capability, grant token or processor secret is ever placed in an
   email. A tracking link carries only the public reference, which grants
-  nothing on its own.
+  nothing on its own. Order emails link to `/my-orders`, the public entry point,
+  and never to a URL carrying a credential.
+- **Codes are sent inline, not queued.** The verification and recovery codes are
+  the one documented exception to the outbox: the customer is waiting on them,
+  and a queued retry would only deliver a stale code. Success is reported only
+  when the provider accepted the message; if it refuses, the challenge is
+  deleted and checkout fails closed. See `docs/GUEST_EMAIL_VERIFICATION.md`.
+- The code email states the six-digit code, the ten-minute expiry, and the reason
+  for the message. It contains no link and no token.
 
 ## 6. When email fails
 
@@ -159,5 +174,9 @@ unresolved failures never expire, so a problem cannot silently disappear.
   past `accepted` in a real environment.
 - The free-tier ceilings are configured from Resend's published limits, not
   measured against a live quota.
+- **Phase 7B:** no real verification or recovery code has been delivered. The
+  environment has no `RESEND_API_KEY`, verified domain, `EMAIL_FROM` or
+  `GUEST_OTP_SECRET`, so checkout correctly reports verification unavailable.
+  See `docs/GUEST_EMAIL_VERIFICATION.md` and `docs/PHASE7B_REPORT.md` §Q.
 
 See `docs/PHASE7_REPORT.md` §N for the exact verification status.

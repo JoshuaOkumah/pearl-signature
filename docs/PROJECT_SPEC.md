@@ -1,13 +1,15 @@
 # PEARL Signature — Product Specification
 
-> Status: **Phases 1–7 implemented** (foundation, catalogue, admin, guest
-> cart and checkout review, orders, test-mode online payment, then
-> transactional email and secure guest order tracking). Phase 7 adds Resend
-> delivery on the existing notification outbox, a guarded processor, admin
-> notification observability and `/track` with cross-device email recovery.
-> Customer accounts, SMS/WhatsApp, live card payment and deployment remain out
-> of scope. This document records agreed requirements; see
-> `docs/PHASE_PROGRESS.md` for implementation and verification details.
+> Status: **Phases 1–7B implemented** (foundation, catalogue, admin, guest
+> cart and checkout review, orders, test-mode online payment, transactional
+> email and secure guest order tracking, then verified guest checkout with
+> persistent remembered devices and My Orders). Phase 7B requires a proven email
+> address before any order, remembers the device in an HttpOnly cookie, offers
+> email-only recovery, and adds `/my-orders` with complete tracking navigation.
+> Customer accounts, passwords, social login, SMS/WhatsApp, live card payment,
+> loyalty, discounts and deployment remain out of scope. This document records
+> agreed requirements; see `docs/PHASE_PROGRESS.md` and
+> `docs/PHASE7B_REPORT.md` for implementation and verification details.
 
 ---
 
@@ -150,6 +152,16 @@ remain unconfirmed and are shown as such.
 | MongoDB `tracking_challenges` collection | Hashed one-time tracking codes (10 minute TTL, 5 attempts, single use) |
 | MongoDB `order_access_grants` collection | Hashed, order-scoped, 24-hour cross-device tracking grants with a TTL index |
 | `/track` guest tracking | Timeline per fulfilment method, honest payment states, visibility-aware polling and manual refresh |
+
+### Added in Phase 7B (implemented, no new paid services)
+| Technology | Status & purpose |
+| --- | --- |
+| HMAC-SHA-256 one-time codes | Six-digit codes keyed by `GUEST_OTP_SECRET`, bound to challenge, address and purpose; no unsalted digest for new codes |
+| MongoDB `guest_sessions` collection | Hashed 256-bit remembered-device token, one verified email, 30-day absolute expiry, revocation, TTL |
+| `pearl_guest` cookie | `HttpOnly`, `SameSite=Lax`, `Path=/`, host-only, `Secure` in production, explicit 30-day `Max-Age` |
+| `/my-orders` | Server-rendered order history for the verified email, grouped, paginated, with Forget This Device |
+| Email-only recovery | "Find my orders" needs an address and nothing else; generic before verification |
+| `tracking_challenges` generalised | Single purpose-scoped challenge store for checkout, recovery, order email change and tracking; legacy rows still verifiable |
 
 ### Reserved for later phases (NOT implemented yet)
 | Technology | Purpose |
@@ -305,16 +317,50 @@ Commerce × Modern Editorial Design. Full detail lives in `docs/DESIGN_SYSTEM.md
 - Visibility-aware polling with a manual refresh that cannot overwrite a newer
   result, and no paid realtime infrastructure.
 
+### Phase 7B (implemented, no new paid services)
+- **Verified guest checkout.** A six-digit code proves the email address before
+  an order can exist. Codes come from `crypto.randomInt`, expire after ten
+  minutes, allow five wrong attempts, cannot be reused, and are stored only as
+  an HMAC-SHA-256 digest keyed by `GUEST_OTP_SECRET` and bound to the challenge,
+  address and purpose. Both payment methods pass the same gate, and `createOrder`
+  refuses any order without a fresh proof (30 minutes, configurable).
+- **A persistent remembered device.** A 256-bit opaque token in a `pearl_guest`
+  HttpOnly, host-only, SameSite=Lax cookie, stored server-side only as a sha256,
+  valid for 30 days, rotated on every verification and revocable with Forget
+  This Device. The raw token never appears in web storage, a URL, an RSC payload,
+  a log line or the database.
+- **Email-only recovery.** "Find my orders" asks for an address and nothing else,
+  answers generically until the code is verified, then rotates the remembered
+  device to that address. No order existence is disclosed before verification.
+- **`/my-orders`.** Every order for the verified email, grouped into In progress,
+  Completed and Cancelled, paginated server-side, with a masked address, an
+  honest empty state, Forget This Device and View Order. Individual orders reuse
+  the Phase 7 tracking view.
+- **Complete tracking navigation.** One primary label (**My Orders**) in the
+  desktop header, mobile menu and footer; **Track Order** on a specific order;
+  **Track My Order** in order email. The confirmation page shows the reference
+  prominently, states the payment truth, offers both actions, and survives a
+  browser restart because the server can fall back to the remembered device.
+- **Shared-device isolation.** One active verified email per session. Verifying a
+  different address rotates the session and removes the previous identity's
+  orders from view and from Back/Forward. Histories are never merged.
+- **Legacy safety.** Phase 5/7 capabilities keep working for their own order and
+  can never grant email-wide history; legacy Phase 7 tracking challenges remain
+  verifiable by reference only.
+- **Fails closed.** Without a configured provider and a strong `GUEST_OTP_SECRET`,
+  checkout says verification is unavailable and refuses to place an order. A
+  `RESEND_API_KEY` alone is not treated as proof of deliverability.
+
 ### Upcoming (documented, not implemented)
 - Live Stripe activation (real keys, real charges) and any customer-initiated
   refund or dispute flow.
 - A deployment scheduler that drains the notification queue automatically.
 - Genuine Resend delivery verification against a real verified domain.
-- Customer accounts, SMS or WhatsApp notifications, marketing email, loyalty,
-  discounts and GPS or map tracking.
+- Customer accounts, passwords, social login, SMS or WhatsApp notifications,
+  marketing email, loyalty, discounts and GPS or map tracking.
 - Pickup and delivery time slots or scheduling (none offered; any future
   promise must be supplied by the business).
-- Customer account/order history.
+- Customer-initiated cancellation, order editing or automated reordering.
 - Verified contact channels, social profiles, operating hours.
 
 ## 9. Security & accessibility priorities

@@ -1,9 +1,9 @@
-# PEARL Signature — Manual Review Guide (Phase 7)
+# PEARL Signature — Manual Review Guide (Phase 7B)
 
-This guide is for a business owner reviewing the storefront, ordering and
-payment experience. No coding knowledge is needed. Use the local test site
-supplied by the developer: the sample meals, prices, delivery area and tax label
-in the test data are synthetic and are not business values.
+This guide is for a business owner reviewing the storefront, ordering, payment
+and order-recovery experience. No coding knowledge is needed. Use the local test
+site supplied by the developer: the sample meals, prices, delivery area and tax
+label in the test data are synthetic and are not business values.
 
 ## Before you begin
 
@@ -15,6 +15,10 @@ in the test data are synthetic and are not business values.
 - **Online payment is test mode only.** If it is available at all, use the
   Stripe test card below. Never enter a real card number, and never enter
   sensitive personal information on a test site.
+- **Email verification is required before any order.** Use an email address you
+  control. If the developer has not configured email delivery, checkout will say
+  verification is unavailable and will refuse to place an order; that is correct,
+  not a bug.
 - Nothing in this phase is deployed, and no live payment can be taken.
 
 ## 1. Browse the menu
@@ -57,6 +61,16 @@ Using the synthetic products in the test environment:
 5. Confirm the total shown is the amount the server accepts. If the owner
    changes a fee or tax rate while the page is open, placing the order must ask
    the customer to review the new total instead of charging the old one.
+6. Under **Verify your email**, press **Send verification code**. A six-digit
+   code should arrive at the address you typed. It should state the ten-minute
+   expiry and contain no link.
+7. Enter the code. The panel should confirm the address is verified. Then edit
+   the email address: verification must be withdrawn and a new code required,
+   even if you change it back to the first address.
+8. Try placing an order before verifying. It must be refused and explain that
+   the email must be verified first. There must be no way to skip it.
+9. If email delivery is not configured, the panel must say verification is
+   unavailable, and the place-order button must not create an order.
 
 ## 4. Choose how to pay
 
@@ -161,6 +175,30 @@ completed results.
 7. Cancel an order and open its tracking page. It must say it was cancelled and
    must never show a completed step. A refund that Stripe has not confirmed must
    never be described as money returned.
+
+## 8A. Check My Orders and email-only recovery
+
+1. After placing an order, follow **View My Orders** on the confirmation page.
+   The order should appear under **In progress** with its reference, date, item
+   summary, payment method and status, total, and a **View Order** link.
+2. Press **Track Order** on the confirmation page. It should open the same order
+   on the tracking page.
+3. Close the browser completely, reopen it, and visit the confirmation URL again.
+   The order should still open. Then visit `/my-orders` directly: the history
+   should load without asking for a code, because this device is remembered.
+4. In a private window that has never seen the order, open `/my-orders`. It must
+   show **Find my orders** and no history. Enter the same email address and press
+   **Email me a code**. The answer must be the same generic message whether or not
+   that address has orders.
+5. Enter the code. Every order for that address should appear. An address with no
+   orders should reach an honest empty state, not an error.
+6. Open one order with **View Order**. It should reuse the tracking view.
+7. Press **Forget this device**. The history should disappear and the recovery
+   form should return. Pressing Back must not bring the previous history back.
+8. On the same browser, verify a different email address. The first address's
+   orders must disappear and must never be merged with the second address's.
+9. If verification is unavailable, `/my-orders` must say so honestly and offer
+   **Browse the menu**; it must not pretend to send a code.
 
 ## 9. Check the owner's notification screens
 

@@ -24,6 +24,11 @@
 > awaiting review** (see `docs/PHASE7_REPORT.md`, section 1I). No real email
 > has been sent: no Resend account, verified domain, sender or owner recipient
 > was supplied. Deployment and live payments remain out of scope.
+> **Phase 7B: Verified Guest Checkout, Remembered Devices & My Orders —
+> IMPLEMENTED, awaiting review** (see `docs/PHASE7B_REPORT.md`, section 1J).
+> A verified email is now required before any order; no real code has been
+> delivered because no provider or `GUEST_OTP_SECRET` was supplied. Phase 7B
+> stopped by instruction: no Phase 8 work has begun.
 
 ---
 
@@ -639,11 +644,87 @@ delivery window, fee, tax rate, contact detail or review was invented.
 
 ---
 
+## 1J. Phase 7B - verified guest checkout, remembered devices & My Orders
+
+### What shipped
+
+- **Mandatory email verification at checkout.** A six-digit code from
+  `crypto.randomInt`, valid for ten minutes, five wrong attempts, single use, and
+  stored only as an HMAC-SHA-256 digest keyed by `GUEST_OTP_SECRET` and bound to
+  the challenge, address and purpose. Both payment methods require it.
+- **Server-side enforcement.** `createOrder` refuses any order without a verified
+  identity matching the submitted address and fresher than 30 minutes
+  (configurable). The gate runs before idempotency, so an unverified replay cannot
+  return a cached success. There is no alternative unprotected endpoint.
+- **Persistent guest sessions.** A 256-bit opaque token in a `pearl_guest`
+  HttpOnly, host-only, SameSite=Lax cookie (`Secure` in production), stored
+  server-side only as a sha256, valid for 30 days, rotated on every verification,
+  and revocable with Forget This Device.
+- **Email-only recovery.** "Find my orders" asks for an address and nothing else,
+  answers generically before verification, then rotates the remembered device to
+  the proved address. No order existence is disclosed.
+- **`/my-orders`.** Every order for the verified email, grouped into In progress,
+  Completed and Cancelled, paginated server-side (10 per page), with a masked
+  address, an honest empty state and a link to the existing tracking view.
+- **Complete tracking navigation.** One primary label (**My Orders**) in the
+  desktop header, mobile menu and footer; **Track Order** on a specific order;
+  **Track My Order** in order email. The confirmation page survives closing and
+  reopening the browser because the server falls back to the remembered device.
+- **Shared-device isolation.** One active verified email per session. Switching
+  address rotates the session and removes the previous identity's orders from
+  view and from Back/Forward. Histories are never merged.
+- **Legacy safety.** Phase 5/7 capabilities keep working for their own order and
+  can never grant email-wide history. Legacy Phase 7 tracking challenges remain
+  verifiable by reference only.
+- **Fails closed.** Without a configured provider and a strong `GUEST_OTP_SECRET`,
+  checkout reports verification unavailable and refuses to place an order.
+  `RESEND_API_KEY` alone is not treated as proof of deliverability.
+
+### Explicitly not implemented
+
+Customer registration, passwords, social login, SMS or WhatsApp verification,
+paid authentication or OTP services, new payment gateways, new databases,
+loyalty, discounts, marketing, GPS tracking, deployment, live Stripe, automatic
+refunds, customer-initiated cancellation and unrelated admin features. No
+storefront redesign.
+
+### Phase 7B verification (all executed)
+
+| Command | Result |
+| --- | --- |
+| `npx next typegen` | ✅ PASS |
+| `npm run typecheck` | ✅ PASS — 0 errors |
+| `npm run lint` | ✅ PASS — 0 errors/warnings |
+| `npm run test` | ✅ PASS — **878/878** (63 files) |
+| `npm run build` | ✅ PASS — 25 routes; `/my-orders` dynamic, `/track` static shell |
+| `npm run test:e2e` | ✅ PASS — **106/106** across five projects, including orders J1–J10 |
+| `npm run screenshots` | ✅ PASS — 245 images, zero horizontal overflow |
+| Genuine Resend delivery | ❌ NOT EXECUTED — no API key, verified domain, sender, owner recipient or `GUEST_OTP_SECRET` available; no real email may be sent |
+
+### Phase 7B defects found during verification and fixed
+
+1. **Tracking page short-circuited on a remembered device.** The client skipped
+   the server read when the browser held no capability or grant, so a remembered
+   device could never open an order from `/track?ref=`. It now always performs
+   one server read; `no_access` is returned when no local proof exists and
+   `not_found` only when a presented capability was wrong.
+2. **Tracking spec started at the wrong entry point.** After `/track` became the
+   email-only entry point, the enumeration test had to start there and then
+   exercise the reference form. Updated without weakening the assertions.
+3. **Checkout verification copy described a sent code before sending.** Changed
+   to "The code goes to this address only and expires after ten minutes."
+4. **Order screenshots could not place an order.** The script now completes a
+   real verification by reading the code from the file sink.
+5. **Full-page captures painted the sticky header mid-page.** Captures now reset
+   scroll to the top first.
+
+---
+
 ## 2. Verification results (all executed)
 
 The table below is the original Phase 1 log. Each later phase carries its own
-verification table in its section (1B, 1C, 1D, 1E, 1F, 1G, 1H, 1I) and in its
-report (`docs/PHASE2_REPORT.md` through `docs/PHASE7_REPORT.md`); all commands
+verification table in its section (1B, 1C, 1D, 1E, 1F, 1G, 1H, 1I, 1J) and in its
+report (`docs/PHASE2_REPORT.md` through `docs/PHASE7B_REPORT.md`); all commands
 have been re-run after every phase.
 
 | # | Command | Result |
@@ -695,6 +776,13 @@ have been re-run after every phase.
   verified sending domain, `EMAIL_FROM`, `OWNER_NOTIFICATION_EMAIL`, a
   processor secret and a scheduler (see `docs/EMAIL_NOTIFICATIONS.md` §3 and
   `docs/BUSINESS_CONFIGURATION.md` §6).
+- **Phase 7B:** `GUEST_OTP_SECRET` (at least 32 random characters) plus working
+  email delivery, or checkout correctly refuses to place an order. One real test
+  code must be delivered and reviewed before the intake gate opens. See
+  `docs/GUEST_EMAIL_VERIFICATION.md` and `docs/BUSINESS_CONFIGURATION.md` §6–7.
+- **Phase 7B:** a documented owner-assisted process for a customer who has lost
+  access to the email address on an order (the UI points to the kitchen; the
+  procedure itself is a business decision).
 - Stripe test-mode keys and webhook secret before online payment can be
   enabled, plus the owner's decision to turn on the online payment switch. The
   readiness checklist is `docs/STRIPE_INTEGRATION.md` §4 and §11.
@@ -709,11 +797,15 @@ have been re-run after every phase.
   Phase 4 added the guest cart and checkout review; Phase 5 added real order
   records, Cash on Arrival recording and order management; Phase 6 added
   Stripe test-mode Checkout, verified webhooks and reconciliation; Phase 7 added
-  Resend delivery on the same outbox and secure guest order tracking. Online
+  Resend delivery on the same outbox and secure guest order tracking; Phase 7B
+  made a verified email mandatory for every order, added a 30-day remembered
+  device, email-only recovery and `/my-orders`. Online
   payment is off unless an operator supplies test credentials **and** turns on
   the owner switch, and no live charge path exists. Email is off until a
   provider, sender and processor secret exist, and no message is claimed as
-  sent before then. Until `MONGODB_URI` exists,
+  sent before then. Guest checkout is additionally off until
+  `GUEST_OTP_SECRET` and working delivery exist, because no order may be placed
+  without a proven address. Until `MONGODB_URI` exists,
   the site runs on labelled preview fixtures (dev/preview) or shows the honest
   unavailable state (production without configuration), and the admin requires
   a real database (the disposable e2e stack uses an in-memory MongoDB).
@@ -723,7 +815,9 @@ have been re-run after every phase.
   the honest state and `/admin/notifications` shows it.
 - **No real email has ever been sent from this project.** The Resend adapter is
   covered by mocked unit tests and the pipeline by the file-sink provider, but
-  provider acceptance and delivery remain unverified.
+  provider acceptance and delivery remain unverified. In Phase 7B this also
+  means no real verification or recovery code has been delivered; checkout
+  reports verification unavailable until it is configured.
 - **Order intake is closed until the owner configures it.** With no
   `store_configs` document (or an `unconfigured` tax treatment) checkout
   blocks submission with a stated reason; nothing is invented to fill the
@@ -759,12 +853,14 @@ have been re-run after every phase.
 
 ## 5. Next planned phase (requires separate approval)
 
-Phase 7 is implemented and awaiting review. Live Stripe activation, any
+Phase 7B is implemented and awaiting review. It stopped after Phase 7B by
+instruction: no Phase 8 work has begun. Live Stripe activation, any
 refund/dispute workflow, customer accounts, SMS or WhatsApp notifications,
-marketing email, a deployment scheduler, inventory management or deployment
-require explicit business-owner approval and the required business inputs (see
-`docs/STRIPE_INTEGRATION.md` §11 for the payment-specific pre-live steps and
-`docs/EMAIL_NOTIFICATIONS.md` §3 for the email settings). See
-`docs/PROJECT_SPEC.md` for unresolved details and
+marketing email, loyalty, discounts, a deployment scheduler, inventory
+management or deployment require explicit business-owner approval and the
+required business inputs (see `docs/STRIPE_INTEGRATION.md` §11 for the
+payment-specific pre-live steps, `docs/EMAIL_NOTIFICATIONS.md` §3 for the email
+settings and `docs/GUEST_EMAIL_VERIFICATION.md` for the verification secret and
+delivery requirements). See `docs/PROJECT_SPEC.md` for unresolved details and
 `docs/BUSINESS_CONFIGURATION.md` for the pre-launch checklist. Do not start a
 new phase without explicit approval.

@@ -168,6 +168,7 @@ Four new collections. Full field-level prose lives in
 | `idempotencyHash` | string | required, ≤ 64 | sha256 of the order intent (excludes the expected total) |
 | `confirmationKeyHash` | string | required, ≤ 64 | sha256 of the guest capability; the raw key is never stored |
 | `customer` | `{ fullName, email, phone }` | embedded, required | Exactly three fields; no other PII is collected |
+| `guest` | `{ verifiedEmail, verifiedAt }` | embedded, Phase 7B | Snapshot of the address that was proved before placement; `verifiedEmail` equals `customer.email` |
 | `fulfillment` | `{ method, address, instructions, notes, serviceAreaLabel, pickupInstructions }` | embedded | `address` is null for pickup; area label and pickup instructions are snapshots |
 | `items` | OrderItem[] | 1–30, `_id: false` | name, variant, quantity (1–99), `unitPriceCents`, `lineTotalCents`, image reference: **all frozen at purchase** |
 | `money` | `{ currency, subtotalCents, deliveryFeeCents, taxCents, totalCents, taxLabel, taxRateBps }` | embedded, integer cents | Schema validator enforces `subtotal + fee + tax === total` |
@@ -180,7 +181,8 @@ Four new collections. Full field-level prose lives in
 | `createdAt` / `updatedAt` | date | timestamps | |
 
 Indexes: unique `reference`, unique `idempotencyKey`, `createdAt` desc,
-`{ status, createdAt }`, `{ payment.status, createdAt }`. Created
+`{ status, createdAt }`, `{ payment.status, createdAt }`,
+`{ "customer.email": 1, createdAt: -1 }` (Phase 7B: My Orders). Created
 deliberately by `scripts/seed.ts` and the test harness (`autoIndex` is off).
 
 #### `orders.payment` (Phase 6)
@@ -273,14 +275,30 @@ Two collections, written only by the tracking Server Actions. Prose:
 
 ### `tracking_challenges`
 
+Phase 7B generalised this collection into the single email-code store for every
+flow (`checkout`, `recovery`, `order_email_change`, `tracking`). The name is kept
+so live TTL-indexed rows were not migrated; the model is also exported as
+`EmailVerificationChallengeModel`. Prose:
+`docs/GUEST_EMAIL_VERIFICATION.md`.
+
 | Field | Type | Notes |
 | --- | --- | --- |
-| `reference` | string | Public order reference |
-| `codeHash` | string, 64 hex | sha256 of the six-digit code; the code itself is never stored |
+| `challengeId` | string, 32 hex | 128-bit random id, part of the digest; absent on Phase 7 rows |
+| `email` | string \| null | Normalised recipient; `null` on Phase 7 tracking rows |
+| `purpose` | enum \| null | `checkout` \| `recovery` \| `order_email_change` \| `tracking`; absent on Phase 7 rows |
+| `reference` | string \| null | Public order reference for `tracking` only, otherwise `null` |
+| `codeHash` | string, 64 hex | Keyed HMAC digest; the code itself is never stored |
+| `digestVersion` | enum | `hmac-sha256-v1`; absent means a legacy Phase 7 unsalted sha256 digest |
 | `attempts` | number | Wrong-code count; cap 5 |
-| `consumedAt` | date \| null | Set atomically on successful verification (single use) |
+| `consumedAt` | date \| null | Set atomically on success or when superseded (single use) |
+| `lastSentAt` | date | Drives the 60-second resend cooldown |
 | `expiresAt` | date | **TTL index**; 10 minutes |
 | `createdAt` | date | Used to select the newest challenge |
+
+Lookups are scoped by `(email, purpose, reference)`, so a checkout code can never
+satisfy a recovery request and a tracking code for one order can never open
+another. Legacy rows (no `purpose`, no `challengeId`) remain verifiable through
+the tracking path only, and a legacy row with no email is refused.
 
 ### `order_access_grants`
 
@@ -292,6 +310,29 @@ Two collections, written only by the tracking Server Actions. Prose:
 | `expiresAt` | date | **TTL index**; 24 hours |
 | `revokedAt` | date \| null | Reserved for explicit revocation |
 | `createdAt` | date | |
+
+## Phase 7B guest session collection
+
+One collection backs the remembered device. Prose:
+`docs/GUEST_SESSION_SECURITY.md`.
+
+### `guest_sessions`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `tokenHash` | string, 64 hex, **unique** (`tokenHash_unique`) | sha256 of the opaque cookie token; the raw token is never stored |
+| `email` | string | The one verified address this session represents |
+| `verifiedAt` | date | When that address was last proved |
+| `expiresAt` | date | **TTL index**; absolute 30-day lifetime, never extended by a read |
+| `revokedAt` | date \| null | Set by Forget This Device, rotation, or owner action |
+| `ipHash` | string \| null | One-way hash of the client address, for bounded abuse investigation |
+| `createdAt` / `updatedAt` | date | timestamps |
+
+Indexes: `tokenHash` unique, `expiresAt` TTL, `{ email, revokedAt, createdAt }`.
+Created explicitly by `scripts/seed.ts` and both E2E harnesses.
+
+A session has exactly one email and never merges histories. Orders are not
+copied here: My Orders queries `orders` by `customer.email`.
 
 The browser keeps the plaintext capability in `sessionStorage`
 (`pearl-confirmations-v1`) and the plaintext grant in

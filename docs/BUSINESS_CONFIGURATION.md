@@ -1,9 +1,13 @@
 # PEARL Signature - Business Configuration
 
-Phase 5 (extended in Phase 6 and Phase 7). Everything a business must decide
-before a customer can place a real order lives in one owner-managed document:
-the `store_configs` singleton (`_id: "checkout"`). Nothing about fulfilment,
-fees, tax or payment availability is hardcoded anywhere in the codebase.
+Phase 5 (extended in Phase 6, Phase 7 and Phase 7B). Everything a business must
+decide before a customer can place a real order lives in one owner-managed
+document: the `store_configs` singleton (`_id: "checkout"`). Nothing about
+fulfilment, fees, tax or payment availability is hardcoded anywhere in the
+codebase.
+
+Phase 7B adds one hard prerequisite that is **not** stored in that document:
+guest checkout requires a working email-verification configuration. See §7.
 
 ## 1. The configuration surface
 
@@ -52,9 +56,12 @@ assumed pickup address anywhere.
 | `method_unavailable` | The chosen method is switched off |
 | `area_unsupported` | This address is outside the served area |
 | `total_out_of_bounds` | The computed total is out of range |
+| `verification_unavailable` | Email verification cannot be delivered right now |
 
 The same blockers gate order creation server-side, so a customer cannot
-submit through a modified client when the store is not ready.
+submit through a modified client when the store is not ready. In addition,
+`createOrder` refuses any order whose customer email has not been verified in
+this session within the last 30 minutes, regardless of the configuration above.
 
 ## 3. Where configuration is edited
 
@@ -174,3 +181,38 @@ decision; none can be filled in by a developer.
 - [ ] If online payment is offered: one test-mode payment completed end to end,
       its dashboard figures reconciled against Stripe, and a refund recorded
       correctly. Live keys are a separate, explicit decision.
+
+**Guest email verification (Phase 7B, required for every order)**
+
+- [ ] `GUEST_OTP_SECRET` generated (at least 32 random characters) and stored
+      outside the repository, on the server only.
+- [ ] The same provider and sender as order email are configured, so a code can
+      actually be delivered.
+- [ ] One real verification code sent to an address the owner controls, and the
+      branded template confirmed to arrive with a six-digit code and the
+      ten-minute expiry.
+- [ ] The owner accepts that, until this is done, checkout says verification is
+      unavailable and **refuses to place an order**. `RESEND_API_KEY` alone is
+      not proof that a code can be delivered.
+- [ ] `GUEST_SESSION_TTL_DAYS` (default 30) and
+      `GUEST_CHECKOUT_VERIFICATION_MINUTES` (default 30) accepted as the
+      remembered-device lifetime and the re-verification window.
+- [ ] A documented owner-assisted process exists for a customer who has lost
+      access to their email address.
+
+## 7. Verification readiness (Phase 7B)
+
+Two independent gates now stand between a customer and an order:
+
+| Gate | Source | Failure |
+| --- | --- | --- |
+| Store configuration | `store_configs` | `intake_closed`, `tax_unconfigured`, and the other blockers in §2 |
+| Email verification | Provider plus `GUEST_OTP_SECRET` | `verification_unavailable`; no order is created |
+
+The second gate exists because an order is now recoverable by email. If a code
+cannot be sent, or its digest cannot be keyed, the address cannot be proved, so
+the order cannot honestly be created. The implementation fails closed rather
+than accepting an unverified order.
+
+Configuration details and the exact code lifecycle are in
+`docs/GUEST_EMAIL_VERIFICATION.md` and `docs/GUEST_SESSION_SECURITY.md`.

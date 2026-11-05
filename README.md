@@ -105,6 +105,11 @@ Email is off until a provider, key and sender exist; the queue still records
 every event. Full setup: `docs/EMAIL_NOTIFICATIONS.md` and
 `docs/NOTIFICATION_PROCESSING.md`.
 
+Guest checkout also needs `GUEST_OTP_SECRET` (at least 32 characters). Without it,
+email verification is unavailable and checkout refuses to place an order rather
+than accepting an unverified one. Full setup:
+`docs/GUEST_EMAIL_VERIFICATION.md`.
+
 ## Quality & test commands
 
 ```bash
@@ -139,6 +144,8 @@ src/
 │   ├── cart/               # Guest cart editing surface
 │   ├── checkout/           # Checkout review, pricing and order submission
 │   ├── order-confirmation/ # Guest confirmation behind an opaque capability
+│   ├── my-orders/          # Guest order history behind a verified email (Phase 7B)
+│   ├── track/              # Guest order tracking + email-only recovery
 │   ├── api/stripe/webhook/ # Signature-verified Stripe event endpoint (POST)
 │   ├── about/page.tsx
 │   ├── contact/page.tsx
@@ -154,7 +161,7 @@ src/
 │   ├── cart/               # Cart drawer, rows, summary, quantity controls
 │   ├── checkout/           # Review UI and local customer form
 │   ├── admin/              # AdminShell, forms, tables, image manager, fields
-│   ├── tracking/           # Guest order tracking view, timeline, recovery form
+│   ├── tracking/           # My Orders, guest tracking view, timeline, recovery form
 │   ├── shared/             # Wordmark, FoodMedia, ProductCard
 │   └── providers/          # MotionProvider (reduced-motion config)
 ├── data/                   # Labelled preview fixtures (dev/preview only)
@@ -162,12 +169,13 @@ src/
 │                           # admin, admin-session, login-attempt, audit-log,
 │                           # order, order-attempt, notification-outbox, store-config,
 │                           # payment-attempt, stripe-event, payment-refund,
-│                           # tracking-challenge, order-access-grant
+│                           # tracking-challenge, order-access-grant, guest-session
 ├── lib/
 │   ├── db/                 # Server-only Mongoose connection (cached, HMR-safe)
 │   ├── auth/               # Password (Argon2id), sessions, guards, rate limit, audit
+│   ├── guest/              # OTP digests, remembered-device sessions, policy, readiness
 │   ├── cloudinary/         # Signed uploads + server-side asset verification
-│   ├── actions/            # Server Actions: login, catalogue, images, cart quote, orders, payments, tracking
+│   ├── actions/            # Server Actions: login, catalogue, images, cart quote, orders, payments, tracking, guest verification
 │   ├── cart/               # Guest cart store, quote reconciliation, limits, pricing rules
 │   ├── checkout/           # Order pricing, checkout readiness, attempt keys
 │   ├── orders/             # Order creation, lifecycle rules, public rate limiting, tracking helpers
@@ -350,6 +358,35 @@ guest order tracking (see `docs/PHASE7_REPORT.md`, `docs/EMAIL_NOTIFICATIONS.md`
   **No real email has been sent**: no Resend account, verified domain, sender or
   owner recipient was supplied, and no automatic scheduler exists yet.
 
+**Phase 7B — implemented, awaiting review:** verified guest checkout, persistent
+guest sessions, email-only order recovery and My Orders (see
+`docs/PHASE7B_REPORT.md`, `docs/GUEST_EMAIL_VERIFICATION.md`,
+`docs/GUEST_SESSION_SECURITY.md` and `docs/MY_ORDERS_EXPERIENCE.md`):
+
+- Checkout now requires a proven email address. A six-digit code is issued,
+  delivered inline and stored only as a keyed HMAC-SHA-256 digest bound to its
+  challenge, address and purpose. Both payment methods pass the same gate, and
+  `createOrder` refuses any order without a fresh proof (30 minutes).
+- A remembered device: a 256-bit opaque token in an HttpOnly, host-only,
+  SameSite=Lax cookie, stored server-side only as a sha256, valid for 30 days,
+  rotated on every verification and revocable with Forget This Device.
+- Email-only recovery: "Find my orders" asks for an address and nothing else and
+  answers generically until the code is verified. One active verified email per
+  session, so a shared device can never merge two customers' histories.
+- `/my-orders`: every order for the verified address, grouped into In progress,
+  Completed and Cancelled, paginated server-side, with a masked address, an
+  honest empty state and a link to the existing tracking view.
+- Tracking navigation in the header, mobile menu, footer, confirmation page and
+  order email, with one primary label (My Orders) and Track Order as the action
+  on a specific order. The confirmation now survives closing and reopening the
+  browser.
+- Legacy Phase 5/7 capabilities keep working for their own order and can never
+  grant email-wide history.
+- 878 Vitest tests (63 files) and 106 Playwright tests across five projects pass,
+  with zero horizontal overflow across 245 responsive screenshots.
+- Verification fails closed: without a configured provider and a strong
+  `GUEST_OTP_SECRET`, checkout says so and refuses to place an order.
+
 Hosted Atlas and real Cloudinary verification remain pending owner-supplied
 credentials. Prices, delivery areas, pickup arrangements, business hours and
 contact details remain pending until supplied by the business
@@ -375,6 +412,12 @@ itself require explicit approval for a later phase.
 | `docs/PHASE7_SPEC.md` | Phase 7 requirements snapshot |
 | `docs/PHASE7_PROGRESS.md` | Phase 7 milestones, decisions and verification log |
 | `docs/PHASE7_REPORT.md` | Phase 7 implementation report (sections A–S) |
+| `docs/PHASE7B_SPEC.md` | Phase 7B requirements snapshot |
+| `docs/PHASE7B_PROGRESS.md` | Phase 7B milestones, decisions and verification log |
+| `docs/PHASE7B_REPORT.md` | Phase 7B implementation report (sections A–U) |
+| `docs/GUEST_EMAIL_VERIFICATION.md` | Mandatory checkout codes: digest, delivery, limits, enforcement |
+| `docs/GUEST_SESSION_SECURITY.md` | Remembered-device token, cookie, rotation and revocation |
+| `docs/MY_ORDERS_EXPERIENCE.md` | `/my-orders`, email-only recovery and tracking labels |
 | `docs/EMAIL_NOTIFICATIONS.md` | Provider setup, events, templates and failure behaviour |
 | `docs/NOTIFICATION_PROCESSING.md` | Claims, leases, retries, guarded processor and scheduling |
 | `docs/ORDER_TRACKING.md` | `/track`, capability/grant access and email recovery |
