@@ -402,7 +402,6 @@ What remains to be done by the owner:
 | --- | --- | --- |
 | No real Resend configuration | Checkout cannot accept orders | Configure provider and secret |
 | Genuine Stripe test-mode payment unverified | Online payment stays disabled | Provide a test-mode key |
-| Commits cannot be pushed | Work stays local | Restore Git credentials |
 | Exposed GitHub PAT | Credential must be considered burned | Rotate it |
 | `CLOUDINARY_CLOUD_NAME` mismatch | Preview images use the honest placeholder | Confirm the cloud name |
 | No scheduler | Queued notifications need the guarded processor | Run it on a schedule |
@@ -458,12 +457,12 @@ Commits created for Phase 7B:
 | 7B-C | `0080c2d` | Create the remembered-device indexes |
 | 7B-D | `a0dce68` | Add email-only recovery, My Orders and tracking navigation |
 | 7B-E | `c034b84` | Prove the guest journey end to end |
-| 7B-F | (this commit) | Document Phase 7B and record the verification results |
+| 7B-F | `cf73319` | Document Phase 7B and record the verification results |
 
-**The push is blocked.** Git cannot sign in to the credential manager
-non-interactively in this environment, so every Phase 7B commit remains local on
-`main`, ahead of `origin/main` at `25dfedc`. Nothing was force-pushed, rewritten
-or discarded.
+**The push succeeded.** All six Phase 7B commits were pushed to
+`origin/main` (`25dfedc..cf73319`), so the work is no longer local-only. Nothing
+was force-pushed, rewritten or discarded. A small follow-up commit records this
+outcome; the milestone commits above are unchanged.
 
 No secret is committed. The E2E OTP secret is synthetic and confined to the
 repository's test fixtures, and it protects nothing outside disposable in-memory

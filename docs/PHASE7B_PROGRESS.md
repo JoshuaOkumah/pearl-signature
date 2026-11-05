@@ -169,7 +169,8 @@ external blockers and remaining tasks.
 - E2E harnesses run `next start`; new collections need explicit index creation.
 - Existing tests assert current copy; changes stay additive.
 - Resend remains unverified; no real delivery may be claimed.
-- Git push authentication remains blocked; commits stay local.
+- Git push succeeded on the final attempt (`origin/main` is now `cf73319`);
+  earlier non-interactive credential failures are historical, not current.
 
 ## Verification log
 
@@ -201,6 +202,5 @@ Targeted suites added in 7B-B to 7B-E:
 | --- | --- |
 | No `RESEND_API_KEY`, verified sending domain, `EMAIL_FROM`, `OWNER_NOTIFICATION_EMAIL` or `GUEST_OTP_SECRET` in the real environment | Checkout correctly reports verification unavailable; no real email has ever been sent |
 | Genuine Stripe test-mode payment still unverified (Phase 6 carry-over) | Online payment stays disabled until a real test-mode key is provided |
-| Git credentials cannot sign in non-interactively | All Phase 7B commits remain local |
 | `CLOUDINARY_CLOUD_NAME` does not match `pearl-signature-preview` | Preview images fall back to the honest placeholder |
 | A GitHub PAT was exposed earlier | The owner must rotate it |
