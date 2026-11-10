@@ -481,6 +481,213 @@ export async function getDashboardStats(): Promise<DashboardStats | null> {
   });
 }
 
+/* ── dashboard insights (simple + analytics views) ─────────────────── */
+
+/**
+ * Workflow and trend data for the two dashboard views.
+ *
+ * Deliberately separate from `getDashboardStats()`: that function answers
+ * "what is the state of the catalogue and the money", this one answers
+ * "what needs me today" and "how is the week going". Splitting them keeps
+ * each query list small and lets the page fail one panel without losing
+ * the other.
+ *
+ * Every number is a real aggregate over `orders` and `products`. Nothing
+ * here invents a target, a trend or a comparison period.
+ *
+ * Day buckets follow the server's timezone (see
+ * `docs/ADMIN_OPERATIONS.md`): a host in the store's province produces
+ * local days, a UTC host produces UTC days. The dashboard never claims a
+ * timezone it does not know.
+ */
+export interface AdminInsights {
+  statusCounts: Record<OrderStatus, number>;
+  queue: {
+    /** Placed and not yet accepted — the owner's first job of the day. */
+    toAccept: number;
+    /** Confirmed or being prepared. */
+    preparing: number;
+    /** Ready for pickup, waiting for the customer. */
+    ready: number;
+    /** Out for delivery. */
+    onTheWay: number;
+  };
+  today: {
+    count: number;
+    orders: Array<{
+      reference: string;
+      customerName: string;
+      status: OrderStatus;
+      totalCents: number;
+      placedAtIso: string;
+    }>;
+  };
+  menu: {
+    published: number;
+    /** Published dishes a customer can see but cannot order. */
+    withoutPrice: number;
+  };
+  /** Seven buckets, oldest first, including today. */
+  days: Array<{ dateIso: string; label: string; orders: number; collectedCents: number }>;
+  /** Best-selling dishes by units sold, cancelled orders excluded. */
+  topItems: Array<{ name: string; quantity: number }>;
+}
+
+const INSIGHT_DAYS = 7;
+
+function startOfLocalDay(date: Date): Date {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+/** The server's current UTC offset as a Mongo `timezone` string. */
+function localTimezoneOffset(): string {
+  const minutes = -new Date().getTimezoneOffset();
+  const sign = minutes >= 0 ? "+" : "-";
+  const absolute = Math.abs(minutes);
+  return `${sign}${String(Math.floor(absolute / 60)).padStart(2, "0")}:${String(
+    absolute % 60,
+  ).padStart(2, "0")}`;
+}
+
+function localDayKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+export async function getAdminInsights(): Promise<AdminInsights | null> {
+  return safe("admin-insights", null, async () => {
+    await connectDatabase();
+
+    const todayStart = startOfLocalDay(new Date());
+    const windowStart = new Date(todayStart);
+    windowStart.setDate(windowStart.getDate() - (INSIGHT_DAYS - 1));
+    const timezone = localTimezoneOffset();
+
+    const [statusGroups, todayOrders, todayCount, publishedProducts, withoutPrice, dayGroups, itemGroups] =
+      await Promise.all([
+        OrderModel.aggregate<{ _id: string | null; count: number }>([
+          { $group: { _id: "$status", count: { $sum: 1 } } },
+        ]),
+        OrderModel.find({ createdAt: { $gte: todayStart } })
+          .sort({ createdAt: -1, _id: -1 })
+          .limit(8)
+          .select({
+            reference: 1,
+            "customer.fullName": 1,
+            status: 1,
+            "money.totalCents": 1,
+            createdAt: 1,
+          })
+          .lean(),
+        OrderModel.countDocuments({ createdAt: { $gte: todayStart } }),
+        ProductModel.countDocuments({ status: "published" }),
+        ProductModel.countDocuments({
+          status: "published",
+          $or: [{ priceCents: null }, { priceCents: { $exists: false } }],
+        }),
+        OrderModel.aggregate<{ _id: string; count: number; collectedCents: number }>([
+          { $match: { createdAt: { $gte: windowStart } } },
+          {
+            $group: {
+              _id: {
+                $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone },
+              },
+              count: { $sum: 1 },
+              // Money counts only when it was actually received. A placed
+              // order is not revenue, exactly as on the money panel.
+              collectedCents: {
+                $sum: {
+                  $cond: [
+                    {
+                      $in: [
+                        "$payment.status",
+                        ["paid", "partially_refunded", "refunded"],
+                      ],
+                    },
+                    {
+                      $cond: [
+                        { $gt: [{ $ifNull: ["$payment.amountReceivedCents", 0] }, 0] },
+                        "$payment.amountReceivedCents",
+                        "$money.totalCents",
+                      ],
+                    },
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        ]),
+        OrderModel.aggregate<{ _id: string; quantity: number }>([
+          { $match: { status: { $ne: "cancelled" } } },
+          { $unwind: "$items" },
+          {
+            $group: {
+              _id: "$items.name",
+              quantity: { $sum: "$items.quantity" },
+            },
+          },
+          { $sort: { quantity: -1, _id: 1 } },
+          { $limit: 5 },
+        ]),
+      ]);
+
+    const statusCounts: Record<OrderStatus, number> = {
+      placed: 0,
+      confirmed: 0,
+      preparing: 0,
+      ready_for_pickup: 0,
+      out_for_delivery: 0,
+      completed: 0,
+      cancelled: 0,
+    };
+    for (const group of statusGroups) {
+      if (group._id && group._id in statusCounts) {
+        statusCounts[group._id as OrderStatus] = group.count;
+      }
+    }
+
+    const countByDay = new Map(dayGroups.map((group) => [group._id, group]));
+    const days = Array.from({ length: INSIGHT_DAYS }, (_, index) => {
+      const day = new Date(windowStart);
+      day.setDate(day.getDate() + index);
+      const bucket = countByDay.get(localDayKey(day));
+      return {
+        dateIso: day.toISOString(),
+        label: day.toLocaleDateString("en-CA", { weekday: "short", day: "numeric" }),
+        orders: bucket?.count ?? 0,
+        collectedCents: bucket?.collectedCents ?? 0,
+      };
+    });
+
+    return {
+      statusCounts,
+      queue: {
+        toAccept: statusCounts.placed,
+        preparing: statusCounts.confirmed + statusCounts.preparing,
+        ready: statusCounts.ready_for_pickup,
+        onTheWay: statusCounts.out_for_delivery,
+      },
+      today: {
+        count: todayCount,
+        orders: todayOrders.map((record) => ({
+          reference: record.reference,
+          customerName: record.customer.fullName,
+          status: record.status,
+          totalCents: record.money.totalCents,
+          placedAtIso: new Date(record.createdAt).toISOString(),
+        })),
+      },
+      menu: { published: publishedProducts, withoutPrice },
+      days,
+      topItems: itemGroups.map((group) => ({ name: group._id, quantity: group.quantity })),
+    };
+  });
+}
+
 /* ── orders (Phase 5) ───────────────────────────────────────────────── */
 
 export interface AdminOrderRow {

@@ -33,9 +33,9 @@ async function login(page: Page, password = E2E_ADMIN_PASSWORD): Promise<void> {
   await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
 }
 
-function statValue(page: Page, label: string): Locator {
+function statValue(page: Page, section: string, label: string): Locator {
   return page
-    .locator('section[aria-label="Catalogue statistics"]')
+    .locator(`section[aria-label="${section}"]`)
     .getByText(label, { exact: true })
     .locator("xpath=following-sibling::p[1]");
 }
@@ -80,14 +80,31 @@ test.describe("PEARL Signature — admin", () => {
   test("valid credentials open the dashboard with real seeded counts", async ({ page }) => {
     await login(page);
 
-    await expect(statValue(page, "Total products")).toHaveText("12");
-    await expect(statValue(page, "Published")).toHaveText("11");
-    await expect(statValue(page, "Drafts")).toHaveText("1");
-    await expect(statValue(page, "Unavailable")).toHaveText("0");
-    await expect(statValue(page, "Categories")).toHaveText("3");
-    await expect(page.getByText("3 active")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Recently updated" })).toBeVisible();
+    // The Simple view is the default: what needs the owner today.
+    await expect(statValue(page, "Your menu", "Dishes")).toHaveText("12");
+    await expect(statValue(page, "Your menu", "Live")).toHaveText("11");
+    await expect(statValue(page, "Your menu", "Drafts")).toHaveText("1");
+    await expect(statValue(page, "Your menu", "Unavailable")).toHaveText("0");
+    await expect(statValue(page, "Your menu", "Categories")).toHaveText("3");
+    await expect(page.getByRole("link", { name: "Simple" })).toHaveAttribute("aria-current", "page");
     await expect(page.getByText("Welcome to your dashboard")).toHaveCount(0);
+
+    // The Analytics view is a URL parameter, so it survives a reload and can
+    // be bookmarked — no client state involved.
+    await page.getByRole("link", { name: "Analytics" }).click();
+    await expect(page).toHaveURL(/view=analytics/);
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Orders, last seven days" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Analytics" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Orders, last seven days" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Analytics" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   test("sign out revokes the session server-side", async ({ page, context }) => {

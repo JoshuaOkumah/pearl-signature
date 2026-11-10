@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  Activity,
   ClipboardList,
   ExternalLink,
   LayoutDashboard,
   LogOut,
-  Mail,
   Menu,
   Package,
   Settings,
@@ -33,8 +33,16 @@ const NAV_ITEMS = [
   { href: "/admin/orders", label: "Orders", icon: ClipboardList, exact: false },
   { href: "/admin/products", label: "Products", icon: Package, exact: false },
   { href: "/admin/categories", label: "Categories", icon: Tags, exact: false },
-  { href: "/admin/notifications", label: "Notifications", icon: Mail, exact: false },
   { href: "/admin/settings", label: "Settings", icon: Settings, exact: false },
+] as const;
+
+/**
+ * Server state sits below a divider: it is something an owner checks
+ * occasionally, not part of the daily job. Notifications moved under
+ * System status for the same reason (the route itself is unchanged).
+ */
+const SECONDARY_ITEMS = [
+  { href: "/admin/system", label: "System status", icon: Activity, exact: false },
 ] as const;
 
 function isActive(pathname: string, href: string, exact: boolean): boolean {
@@ -50,30 +58,58 @@ function NavLinks({
   onNavigate?: () => void;
   variant: "sidebar" | "drawer";
 }) {
+  const linkClass = (active: boolean) =>
+    cn(
+      "flex items-center gap-3 rounded-lg px-3 py-2.5 font-sans text-[15px] font-semibold transition-colors focus-gold",
+      variant === "drawer" && "min-h-12 text-base",
+      active
+        ? "bg-navy-700 text-cream shadow-[inset_3px_0_0_0_var(--color-gold)]"
+        : "text-cream/75 hover:bg-navy-800 hover:text-cream",
+    );
+
   return (
-    <nav aria-label="Admin sections" className="flex flex-col gap-1">
-      {NAV_ITEMS.map((item) => {
-        const active = isActive(pathname, item.href, item.exact);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 font-sans text-[15px] font-semibold transition-colors focus-gold",
-              variant === "drawer" && "min-h-12 text-base",
-              active
-                ? "bg-navy-700 text-cream shadow-[inset_3px_0_0_0_var(--color-gold)]"
-                : "text-cream/75 hover:bg-navy-800 hover:text-cream",
-            )}
-          >
-            <item.icon className="size-5 shrink-0" aria-hidden="true" />
-            {item.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <div className="flex flex-col">
+      <nav aria-label="Admin sections" className="flex flex-col gap-1">
+        {NAV_ITEMS.map((item) => {
+          const active = isActive(pathname, item.href, item.exact);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
+              className={linkClass(active)}
+            >
+              <item.icon className="size-5 shrink-0" aria-hidden="true" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="mt-4 border-t border-cream/10 pt-3">
+        <p className="px-3 pb-1 font-sans text-[11px] font-bold uppercase tracking-wider text-cream/40">
+          Server
+        </p>
+        <nav aria-label="Server status" className="flex flex-col gap-1">
+          {SECONDARY_ITEMS.map((item) => {
+            const active = isActive(pathname, item.href, item.exact);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
+                className={linkClass(active)}
+              >
+                <item.icon className="size-5 shrink-0" aria-hidden="true" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
   );
 }
 

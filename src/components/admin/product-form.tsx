@@ -322,29 +322,35 @@ export function ProductForm({
       </section>
 
       {/* ── Organisation ───────────────────────────────────────────── */}
-      <section aria-labelledby="form-organisation" className="space-y-4">
-        <h2 id="form-organisation" className="font-serif text-xl font-semibold text-navy">
-          Organisation
-        </h2>
-        <TextField
-          id="product-tags"
-          name="tags"
-          label="Tags"
-          defaultValue={product?.tags.join(", ") ?? ""}
-          placeholder="e.g. spicy, family size (comma separated)"
-          hint="Optional. Up to 10 tags."
-          error={fieldErrors.tags}
-        />
-        <TextField
-          id="product-sort-order"
-          name="sortOrder"
-          label="Display order"
-          type="number"
-          defaultValue={product?.sortOrder ?? 0}
-          error={fieldErrors.sortOrder}
-          hint="Lower numbers are listed first within the category."
-        />
-      </section>
+      <details className="rounded-xl border border-border bg-cream-100/60 px-4 py-3">
+        <summary className="cursor-pointer rounded font-sans text-sm font-semibold text-navy focus-gold">
+          More options — tags and display order
+        </summary>
+        <p className="mt-1 font-sans text-[13px] text-ink-muted">
+          Optional. Leave these alone unless you want the dish grouped by a tag or listed in a
+          particular order.
+        </p>
+        <div className="mt-4 space-y-4">
+          <TextField
+            id="product-tags"
+            name="tags"
+            label="Tags"
+            defaultValue={product?.tags.join(", ") ?? ""}
+            placeholder="e.g. spicy, family size (comma separated)"
+            hint="Optional. Up to 10 tags."
+            error={fieldErrors.tags}
+          />
+          <TextField
+            id="product-sort-order"
+            name="sortOrder"
+            label="Display order"
+            type="number"
+            defaultValue={product?.sortOrder ?? 0}
+            error={fieldErrors.sortOrder}
+            hint="Lower numbers are listed first within the category."
+          />
+        </div>
+      </details>
 
       {disabled ? null : (
         <div className="flex items-center gap-3 border-t border-border pt-6">

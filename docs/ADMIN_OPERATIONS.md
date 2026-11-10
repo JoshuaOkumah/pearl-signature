@@ -26,22 +26,49 @@ not a marketing page.
 
 ## 2. Dashboard (`/admin`)
 
-Real counts computed from the database on every request — no cached or
-invented numbers:
+The dashboard has two views over the same live data. The view is part of the
+address, so it survives a reload and can be bookmarked:
 
-- Total, published, draft and unavailable (published but missing a price
-  or category) product counts.
-- Active and disabled category counts.
-- Order and money cards: orders, in progress, awaiting cash, cash outstanding,
-  paid online, cash collected, online pending, online failed or expired, gross
-  collected, confirmed refunds and net collected.
-- Recently updated products (last five edits with the edit date).
+- `/admin` — **Simple** (default)
+- `/admin?view=analytics` — **Analytics**
 
-Use the unavailable count as the operational to-do list: a product that is
-"published" but missing a price or category is invisible to customers in
-some views and must be completed. Use **Online pending** and **Online failed or
-expired** as the payment to-do list, and **Net collected** (not gross) when
-thinking about money kept.
+Nothing is cached, estimated or invented: every number is counted from the
+database on the request that renders it. Day buckets follow the **server's**
+timezone, so on a host in another region "today" is that host's day, not
+necessarily the store's.
+
+### Simple — what needs you today
+
+- **Orders to accept** — placed and not yet confirmed. This is the first job
+  of the day.
+- **In progress** — orders confirmed through out for delivery, with a split
+  of preparing / ready / on the way.
+- **Cash to collect** — money not yet received, with the number of orders it
+  belongs to.
+- **Today's orders** — the latest orders placed today, with status and total.
+- **Your menu** — total, live, draft and unavailable dish counts, the category
+  count, and a warning when live dishes have no price (customers can see them
+  but cannot order them).
+- **Quick actions** — the four things an owner does most often.
+
+Treat the "Price to be confirmed" warning as the to-do list: a live dish
+without a price is visible but not orderable.
+
+### Analytics — how the week is going
+
+- **All orders**, **orders this week**, **collected this week** (paid orders
+  only) and **still to collect**.
+- A seven-day bar chart of orders per day and a completion ring (completed
+  orders divided by finished orders; cancelled orders count against it).
+- **Where orders stand** — a bar per status, over every order ever placed.
+- **Best-selling dishes** — units sold, cancelled orders excluded.
+- **Money in detail** — cash collected, cash outstanding, paid online, gross
+  collected, confirmed refunds and net collected, plus a collected versus
+  outstanding meter.
+
+Use **Net collected** (not gross) when thinking about money kept, and
+**Still to collect** as the cash follow-up list. A placed order is never
+counted as money until it is paid.
 
 ---
 
@@ -70,7 +97,8 @@ visible on the storefront).
   each with their own price and stock; a product without variants uses
   its base price.
 - **Visibility** — draft (hidden) or published (visible once complete).
-- **Organisation** — category, optional tags, display order.
+- **Organisation** — category in the main form; optional tags and display
+  order live under **More options**, which stays collapsed until you open it.
 - **Photos** — add photos on the edit page after saving (see §5).
 
 ### Editing a product (`/admin/products/[id]/edit`)
@@ -150,8 +178,10 @@ status, reconciliation and refund records are documented in
 
 ## 6c. Notifications (`/admin/notifications`)
 
-Everything the store has queued, accepted or failed to email, and whether email
-is configured at all. See `docs/EMAIL_NOTIFICATIONS.md` and
+Reached from **System status** (`/admin/system`), not from the main
+navigation: it is a diagnostic page, not part of the daily job. Everything the
+store has queued, accepted or failed to email, and whether email is configured
+at all. See `docs/EMAIL_NOTIFICATIONS.md` and
 `docs/NOTIFICATION_PROCESSING.md` for the full model.
 
 - **Delivery readiness** states whether a send can be attempted, the provider
@@ -180,6 +210,29 @@ endpoint; see `docs/NOTIFICATION_PROCESSING.md` §9.
 
 ---
 
+## 6d. System status (`/admin/system`)
+
+Four plain-language panels, each answering "can this work right now?":
+
+- **Taking orders** — whether checkout can accept an order, and which
+  Settings decisions are still missing when it cannot.
+- **Card payments** — whether test-mode Stripe is configured. Real payments
+  are not enabled in this release.
+- **Emails to customers** — whether a message can be attempted at all.
+- **Verifying customer email** — whether a confirmation code can be issued
+  and whether cross-device tracking recovery is available.
+
+The page reports configuration only: it changes nothing and never displays a
+secret. These panels used to sit on Settings mixed in with the owner's own
+decisions, which made a missing server setting look like a setting the owner
+had forgotten to save. Settings is now only what the owner chooses (intake,
+delivery areas, pickup, tax).
+
+The detailed email queue, retries and delivery evidence are one link away on
+`/admin/notifications`.
+
+---
+
 ## 7. Troubleshooting
 
 | Symptom | Cause | Action |
@@ -188,8 +241,8 @@ endpoint; see `docs/NOTIFICATION_PROCESSING.md` §9.
 | "Too many attempts" on sign-in | Rate-limit window (15 minutes) | Wait, or reduce failed attempts |
 | Save reports "changed elsewhere" | Optimistic-concurrency guard fired | Reload the record and reapply the edit |
 | Photos cannot be added | Cloudinary not configured on this deployment | Expected; see §5 |
-| A published product does not appear | Missing price or category (unavailable) | Fix from the dashboard's unavailable count |
-| Online payment is greyed out at checkout | Stripe test configuration incomplete, or the online payment switch is off | Check the Stripe readiness panel at `/admin/settings`; see `docs/STRIPE_INTEGRATION.md` §3 |
+| A published product does not appear | Missing price or category (unavailable) | Fix from **Your menu → Unavailable** on the dashboard |
+| Online payment is greyed out at checkout | Stripe test configuration incomplete, or the online payment switch is off | Check **Card payments** on `/admin/system`; see `docs/STRIPE_INTEGRATION.md` §3 |
 | A Stripe order has no manual payment control | Correct: online payments are never recorded by hand | Use reconciliation after checking Stripe |
 | An order shows **Review required** | Provider and local facts disagree, or a cancelled order received a late payment | Read the attempts, check Stripe, then reconcile or decide on a refund in Stripe |
 | **Paid online** disagrees with Stripe | A webhook may have been missed | Open the order, run the read-only reconciliation check |

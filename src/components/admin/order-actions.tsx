@@ -38,6 +38,10 @@ const INITIAL: AdminOrderActionResult = { ok: false };
 const plainActionClass =
   "inline-flex min-h-9 items-center gap-1.5 rounded-full border border-navy/25 px-3.5 font-sans text-xs font-bold text-navy transition-colors hover:border-navy hover:bg-navy hover:text-cream focus-gold disabled:pointer-events-none disabled:opacity-50";
 
+/** The one obvious next step: filled, larger, first in reading order. */
+const primaryActionClass =
+  "inline-flex min-h-10 items-center gap-1.5 rounded-full bg-navy px-4 font-sans text-sm font-bold text-cream transition-colors hover:bg-navy-800 focus-gold disabled:pointer-events-none disabled:opacity-50";
+
 /** First message of any kind in a failed result, for a single inline alert. */
 function problemFor(state: AdminOrderActionResult): string | null {
   if (state.ok) return null;
@@ -106,6 +110,8 @@ export function OrderActions({
   const payProblem = problemFor(payState);
   const noteProblem = problemFor(noteState);
   const canCancel = allowed.includes("cancelled");
+  /** Forward steps only; cancellation has its own guarded block. */
+  const forward = allowed.filter((to) => to !== "cancelled");
 
   function statusForm(to: OrderStatus): ReactNode {
     return (
@@ -128,36 +134,36 @@ export function OrderActions({
           <p className="font-sans text-sm text-ink-muted">
             This order is finished. Its status cannot change again.
           </p>
+        ) : forward.length === 0 ? (
+          <p className="font-sans text-sm text-ink-muted">
+            No further steps. This order can still be cancelled below.
+          </p>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            {allowed.map((to) => {
-              const needsConfirm = to === "cancelled" || to === "completed";
-              const buttonLabel =
-                to === "cancelled" ? "Cancel order" : `Mark as ${ORDER_STATUS_LABELS[to].toLowerCase()}`;
-              const confirmLabel =
-                to === "cancelled" ? "Confirm cancellation" : `Confirm ${ORDER_STATUS_LABELS[to].toLowerCase()}`;
+          <div className="flex flex-wrap items-center gap-2">
+            {forward.map((to, index) => {
+              // The next step in the normal flow is the only filled button;
+              // later steps stay available but secondary.
+              const buttonLabel = `Mark as ${ORDER_STATUS_LABELS[to].toLowerCase()}`;
+              const confirmLabel = `Confirm ${ORDER_STATUS_LABELS[to].toLowerCase()}`;
+              const className = index === 0 ? primaryActionClass : plainActionClass;
 
-              if (needsConfirm) {
+              if (to === "completed") {
                 return (
                   <ConfirmSubmit
                     key={to}
                     action={statusFormAction}
-                    fields={{
-                      reference,
-                      to,
-                      expectedVersion: String(version),
-                      ...(to === "cancelled" ? { reason } : {}),
-                    }}
+                    fields={{ reference, to, expectedVersion: String(version) }}
                     buttonLabel={buttonLabel}
                     confirmLabel={confirmLabel}
-                    tone={to === "cancelled" ? "danger" : "neutral"}
+                    tone="neutral"
+                    className={className}
                   />
                 );
               }
               return (
                 <form key={to} action={statusFormAction} className="inline-flex">
                   {statusForm(to)}
-                  <button type="submit" disabled={statusPending} className={plainActionClass}>
+                  <button type="submit" disabled={statusPending} className={className}>
                     {buttonLabel}
                   </button>
                 </form>
@@ -167,8 +173,16 @@ export function OrderActions({
         )}
 
         {canCancel ? (
-          <div className="mt-4">
-            <label htmlFor="order-cancel-reason" className="mb-1.5 block font-sans text-sm font-semibold text-navy">
+          <div className="mt-5 border-t border-border pt-4">
+            <h3 className="font-sans text-sm font-bold text-navy">Cancel this order</h3>
+            <p className="mt-1 font-sans text-xs text-ink-muted">
+              Only use this when the order will not be fulfilled. The reason is stored on the order
+              and shown in its history.
+            </p>
+            <label
+              htmlFor="order-cancel-reason"
+              className="mb-1.5 mt-3 block font-sans text-sm font-semibold text-navy"
+            >
               Cancellation reason
             </label>
             <textarea
@@ -180,9 +194,20 @@ export function OrderActions({
               placeholder="Required when you cancel this order"
               className="w-full rounded-lg border border-navy/20 bg-surface px-3 py-2 font-sans text-sm text-navy placeholder:text-ink-muted/70 transition-colors hover:border-navy/35 focus-gold"
             />
-            <p className="mt-1 font-sans text-xs text-ink-muted">
-              Stored on the order and shown in its status history.
-            </p>
+            <div className="mt-3">
+              <ConfirmSubmit
+                action={statusFormAction}
+                fields={{
+                  reference,
+                  to: "cancelled",
+                  expectedVersion: String(version),
+                  reason,
+                }}
+                buttonLabel="Cancel order"
+                confirmLabel="Confirm cancellation"
+                tone="danger"
+              />
+            </div>
           </div>
         ) : null}
 

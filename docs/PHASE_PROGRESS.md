@@ -720,10 +720,72 @@ storefront redesign.
 
 ---
 
+## 1K. Admin refresh - two dashboard views & a plain-language operator surface
+
+Owner-requested refresh of the admin, after the pre-launch review found the
+dashboard hard to use without technical knowledge. No new phase was started and
+no storefront, payment, order or notification rule changed.
+
+### What shipped
+
+- **Two dashboard views over the same live data.** `/admin` is **Simple** (what
+  needs the owner today); `/admin?view=analytics` is **Analytics** (the week in
+  bars, a completion ring and the full money picture). The view is a URL
+  parameter, so it survives a reload, can be bookmarked and works with
+  Back/Forward without client state or a cookie write during render.
+- **`getAdminInsights()`** (new, alongside the untouched
+  `getDashboardStats()`): status counts, the accept/preparing/ready/on-the-way
+  queue, today's orders and count, published dishes without a price, a seven-day
+  orders-per-day series and best-selling dishes by units (cancelled orders
+  excluded). Day buckets use the server's timezone and the page never claims one
+  it does not know.
+- **Hand-rolled charts** (`dashboard-charts.tsx`): CSS bars, one SVG ring and a
+  meter. No charting dependency, no animation (so no reduced-motion special
+  case), and every value is printed as text beside its graphic.
+- **Simple view** leads with orders to accept, work in progress and cash to
+  collect, then today's orders, the menu at a glance (including live dishes that
+  still have no price) and four quick actions.
+- **Analytics view** adds all orders, orders and money this week, still to
+  collect, a seven-day bar chart, a completion ring, status bars, best sellers
+  and a "Money in detail" panel (cash collected, cash outstanding, paid online,
+  gross, confirmed refunds, net).
+- **`/admin/system`** (new): taking orders, card payments, emails to customers
+  and verifying customer email, each with a plain Ready / Needs attention badge
+  and, when it is not ready, what is missing. It reports configuration only and
+  never shows a secret. The panels moved off `/admin/settings`, which now holds
+  only the owner's own decisions.
+- **Navigation**: Dashboard, Orders, Products, Categories, Settings, with
+  **System status** under a "Server" divider. Notifications left the main nav and
+  is linked from System status; its route and page title are unchanged.
+- **Order detail**: the next step is the only filled button, later steps are
+  secondary, cancellation has its own separated block with the reason field and
+  the two-step confirm, technical provider ids collapsed into "Technical
+  details", and the actions column comes first on a phone.
+- **Product form**: tags and display order moved into a collapsed **More
+  options** block.
+
+### Verification (all executed)
+
+| Command | Result |
+| --- | --- |
+| `npx next typegen && npm run typecheck` | ✅ PASS |
+| `npm run lint` | ✅ PASS — zero errors, zero warnings |
+| `npm run test` | ✅ PASS — **878/878** (63 files) |
+| `npm run build` | ✅ PASS — all routes built, including the new dynamic `/admin/system` |
+| `npx playwright test --project=admin` | ✅ PASS — 11/11 |
+| `npx playwright test --project=orders` | ✅ PASS — 19/19 |
+| `npx playwright test --project=tracking` | ✅ PASS — 8/8 |
+
+The dashboard assertions in `e2e/admin/admin.spec.ts` and the money assertions in
+`e2e/orders/orders.spec.ts` were moved to the new sections and the analytics
+view; the numbers they check and their intent are unchanged.
+
+---
+
 ## 2. Verification results (all executed)
 
 The table below is the original Phase 1 log. Each later phase carries its own
-verification table in its section (1B, 1C, 1D, 1E, 1F, 1G, 1H, 1I, 1J) and in its
+verification table in its section (1B, 1C, 1D, 1E, 1F, 1G, 1H, 1I, 1J, 1K) and in its
 report (`docs/PHASE2_REPORT.md` through `docs/PHASE7B_REPORT.md`); all commands
 have been re-run after every phase.
 

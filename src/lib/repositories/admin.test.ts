@@ -29,6 +29,7 @@ import { OrderModel } from "@/models/order";
 import { ProductModel } from "@/models/product";
 import {
   CATEGORY_VISIBILITY_POLICY,
+  getAdminInsights,
   getAdminProduct,
   getDashboardStats,
   listAdminCategories,
@@ -396,6 +397,83 @@ describe("getDashboardStats", () => {
     vi.mocked(connectDatabase).mockRejectedValueOnce(new Error("down") as never);
     expect(await getDashboardStats()).toBeNull();
     expect(logDatabaseError).toHaveBeenCalledWith("admin-stats", expect.any(Error));
+  });
+});
+
+describe("getAdminInsights", () => {
+  const TODAY_ORDERS = [
+    {
+      reference: "PS-1A2B3C4D5E",
+      customer: { fullName: "Ada Obi" },
+      status: "placed",
+      money: { totalCents: 4_938 },
+      createdAt: new Date(),
+    },
+  ];
+
+  function todayKey(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+      now.getDate(),
+    ).padStart(2, "0")}`;
+  }
+
+  it("turns real aggregates into the queue, today list, week series and best sellers", async () => {
+    vi.mocked(OrderModel.aggregate)
+      .mockResolvedValueOnce([
+        { _id: "placed", count: 2 },
+        { _id: "confirmed", count: 1 },
+        { _id: "ready_for_pickup", count: 1 },
+        { _id: "completed", count: 3 },
+        { _id: "cancelled", count: 1 },
+      ] as never)
+      .mockResolvedValueOnce([
+        { _id: todayKey(), count: 2, collectedCents: 9_000 },
+      ] as never)
+      .mockResolvedValueOnce([{ _id: "Jollof Rice", quantity: 5 }] as never);
+
+    vi.mocked(OrderModel.find).mockImplementation(() => chain(TODAY_ORDERS) as never);
+    vi.mocked(OrderModel.countDocuments).mockResolvedValue(1 as never);
+    vi.mocked(ProductModel.countDocuments)
+      .mockResolvedValueOnce(11 as never)
+      .mockResolvedValueOnce(10 as never);
+
+    const insights = await getAdminInsights();
+    expect(insights).not.toBeNull();
+
+    // Queue buckets come from the status counts, not from a second query.
+    expect(insights!.queue).toEqual({ toAccept: 2, preparing: 1, ready: 1, onTheWay: 0 });
+    expect(insights!.statusCounts.completed).toBe(3);
+    expect(insights!.statusCounts.out_for_delivery).toBe(0);
+
+    // Today's list is capped and counted separately from the visible rows.
+    expect(insights!.today.count).toBe(1);
+    expect(insights!.today.orders[0]).toMatchObject({
+      reference: "PS-1A2B3C4D5E",
+      customerName: "Ada Obi",
+      totalCents: 4_938,
+    });
+
+    // Menu readiness: live dishes and the ones still missing a price.
+    expect(insights!.menu).toEqual({ published: 11, withoutPrice: 10 });
+    const menuFilters = vi.mocked(ProductModel.countDocuments).mock.calls.map((call) => call[0]);
+    expect(menuFilters[1]).toEqual({
+      status: "published",
+      $or: [{ priceCents: null }, { priceCents: { $exists: false } }],
+    });
+
+    // Seven buckets, oldest first, ending today.
+    expect(insights!.days).toHaveLength(7);
+    expect(insights!.days[6]).toMatchObject({ orders: 2, collectedCents: 9_000 });
+    expect(insights!.days[0].orders).toBe(0);
+
+    expect(insights!.topItems).toEqual([{ name: "Jollof Rice", quantity: 5 }]);
+  });
+
+  it("degrades to null on infrastructure failure", async () => {
+    vi.mocked(connectDatabase).mockRejectedValueOnce(new Error("down") as never);
+    expect(await getAdminInsights()).toBeNull();
+    expect(logDatabaseError).toHaveBeenCalledWith("admin-insights", expect.any(Error));
   });
 });
 

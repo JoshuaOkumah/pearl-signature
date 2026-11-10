@@ -142,9 +142,16 @@ async function login(page: Page): Promise<void> {
   await expect(page).toHaveURL("/admin");
 }
 
-function orderStat(page: Page, label: string): Locator {
+function moneyStat(page: Page, label: string): Locator {
   return page
-    .locator('section[aria-label="Order statistics"]')
+    .locator('section[aria-label="Money in detail"]')
+    .getByText(label, { exact: true })
+    .locator("xpath=following-sibling::p[1]");
+}
+
+function summaryStat(page: Page, label: string): Locator {
+  return page
+    .locator('section[aria-label="This week"]')
     .getByText(label, { exact: true })
     .locator("xpath=following-sibling::p[1]");
 }
@@ -433,15 +440,15 @@ test("C: payment is recorded once and counted honestly", async ({ page, context 
 
   // Collected money counts PAID orders only; the unpaid one is outstanding.
   await page.goto("/admin");
-  await expect(orderStat(page, "Orders")).toHaveText("2");
-  await expect(orderStat(page, "In progress")).toHaveText("2");
-  await expect(orderStat(page, "Awaiting cash")).toHaveText("1");
-  await expect(orderStat(page, "Cash collected")).toHaveText(TOTAL_TWO_MEALS);
-  await expect(orderStat(page, "Cash outstanding")).toHaveText(TOTAL_LARGE);
-  await expect(orderStat(page, "Paid online")).toHaveText("0");
-  await expect(orderStat(page, "Gross collected")).toHaveText(TOTAL_TWO_MEALS);
-  await expect(orderStat(page, "Confirmed refunds")).toHaveText("$0.00 CAD");
-  await expect(orderStat(page, "Net collected")).toHaveText(TOTAL_TWO_MEALS);
+  await expect(page.getByRole("link", { name: "In progress: 2" })).toBeVisible();
+  await page.goto("/admin?view=analytics");
+  await expect(summaryStat(page, "All orders")).toHaveText("2");
+  await expect(moneyStat(page, "Cash collected")).toHaveText(TOTAL_TWO_MEALS);
+  await expect(moneyStat(page, "Cash outstanding")).toHaveText(TOTAL_LARGE);
+  await expect(moneyStat(page, "Paid online")).toHaveText("$0.00 CAD");
+  await expect(moneyStat(page, "Gross collected")).toHaveText(TOTAL_TWO_MEALS);
+  await expect(moneyStat(page, "Confirmed refunds")).toHaveText("$0.00 CAD");
+  await expect(moneyStat(page, "Net collected")).toHaveText(TOTAL_TWO_MEALS);
 });
 
 /* ── D: lifecycle ───────────────────────────────────────────────────── */
@@ -563,11 +570,11 @@ test("D: both lifecycles advance legally and refuse everything else", async ({ p
 
   // A cancelled unpaid order is nobody's outstanding money any more.
   await page.goto("/admin");
-  await expect(orderStat(page, "Orders")).toHaveText("3");
-  await expect(orderStat(page, "In progress")).toHaveText("1");
-  await expect(orderStat(page, "Awaiting cash")).toHaveText("1");
-  await expect(orderStat(page, "Cash collected")).toHaveText(TOTAL_TWO_MEALS);
-  await expect(orderStat(page, "Cash outstanding")).toHaveText(TOTAL_ONE_MEAL_PICKUP);
+  await expect(page.getByRole("link", { name: "In progress: 1" })).toBeVisible();
+  await page.goto("/admin?view=analytics");
+  await expect(summaryStat(page, "All orders")).toHaveText("3");
+  await expect(moneyStat(page, "Cash collected")).toHaveText(TOTAL_TWO_MEALS);
+  await expect(moneyStat(page, "Cash outstanding")).toHaveText(TOTAL_ONE_MEAL_PICKUP);
 });
 
 /* ── E: security ────────────────────────────────────────────────────── */

@@ -120,9 +120,10 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
         </div>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main column */}
-        <div className="space-y-6 lg:col-span-2">
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-3">
+        {/* Main column. On a phone the actions block comes first (order-1),
+            so the operator does not scroll past the whole order to find it. */}
+        <div className="order-2 space-y-6 lg:order-1 lg:col-span-2">
           <Panel title="Customer and fulfilment">
             <dl className="grid gap-4 sm:grid-cols-2">
               <Field label="Name">{order.customerName}</Field>
@@ -222,7 +223,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
         </div>
 
         {/* Side column */}
-        <div className="space-y-6">
+        <div className="order-1 space-y-6 lg:order-2">
           <Panel title="Totals">
             <dl className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">
@@ -281,7 +282,14 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                 </p>
               ) : null}
               {order.payment.method === "stripe" && order.payment.paymentIntentId ? (
-                <p className="mt-1 break-all font-sans text-xs text-ink-muted">PaymentIntent: {order.payment.paymentIntentId}</p>
+                <details className="mt-2">
+                  <summary className="cursor-pointer rounded font-sans text-xs font-semibold text-navy-700 focus-gold">
+                    Technical details
+                  </summary>
+                  <p className="mt-1 break-all font-sans text-xs text-ink-muted">
+                    Payment reference: {order.payment.paymentIntentId}
+                  </p>
+                </details>
               ) : null}
               {order.payment.requiresReview ? (
                 <p role="alert" className="mt-2 rounded-lg bg-terracotta-700/10 px-3 py-2 font-sans text-sm font-semibold text-terracotta-700">
@@ -316,10 +324,25 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                       </p>
                       <p className="mt-1 font-sans text-xs text-ink-muted">Started {formatDateTime(attempt.createdAtIso)}</p>
                       {attempt.expiresAtIso ? <p className="font-sans text-xs text-ink-muted">Session expiry: {formatDateTime(attempt.expiresAtIso)}</p> : null}
-                      {attempt.checkoutSessionId ? <p className="mt-1 break-all font-sans text-xs text-ink-muted">Checkout Session: {attempt.checkoutSessionId}</p> : null}
-                      {attempt.paymentIntentId ? <p className="break-all font-sans text-xs text-ink-muted">PaymentIntent: {attempt.paymentIntentId}</p> : null}
                       {attempt.failureCode ? <p className="mt-1 font-sans text-xs text-terracotta-700">Provider state: {attempt.failureCode.replaceAll("_", " ")}</p> : null}
                       {attempt.succeededAtIso ? <p className="font-sans text-xs text-ink-muted">Confirmed {formatDateTime(attempt.succeededAtIso)}</p> : null}
+                      {attempt.checkoutSessionId || attempt.paymentIntentId ? (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer rounded font-sans text-xs font-semibold text-navy-700 focus-gold">
+                            Technical details
+                          </summary>
+                          {attempt.checkoutSessionId ? (
+                            <p className="mt-1 break-all font-sans text-xs text-ink-muted">
+                              Checkout Session: {attempt.checkoutSessionId}
+                            </p>
+                          ) : null}
+                          {attempt.paymentIntentId ? (
+                            <p className="break-all font-sans text-xs text-ink-muted">
+                              Payment reference: {attempt.paymentIntentId}
+                            </p>
+                          ) : null}
+                        </details>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
