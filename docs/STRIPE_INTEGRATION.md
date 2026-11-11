@@ -1,4 +1,4 @@
-# PEARL Signature - Stripe Integration
+# CLIVS - Stripe Integration
 
 Phase 6. How the hosted Stripe Checkout integration is configured, what the
 server trusts, and how to run it against Stripe test mode.

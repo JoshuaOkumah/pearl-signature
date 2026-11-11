@@ -24,25 +24,25 @@ const COPY: Record<
   { subject: string; heading: string; reason: string; footer: string }
 > = {
   checkout: {
-    subject: "Your PEARL Signature verification code",
+    subject: "Your CLIVS verification code",
     heading: "Verify your email",
     reason:
-      "Use this code to verify your email address and continue your PEARL Signature order. The code expires in ten minutes and can be used once.",
-    footer: "PEARL Signature - Canadian Nigerian kitchen. You requested this code at checkout.",
+      "Use this code to verify your email address and continue your CLIVS order. The code expires in ten minutes and can be used once.",
+    footer: "CLIVS - Canadian Nigerian kitchen. You requested this code at checkout.",
   },
   recovery: {
-    subject: "Your PEARL Signature sign-in code",
+    subject: "Your CLIVS sign-in code",
     heading: "Open your orders",
     reason:
-      "Use this code to open your PEARL Signature order history on this device. The code expires in ten minutes and can be used once.",
-    footer: "PEARL Signature - Canadian Nigerian kitchen. You requested this code to find your orders.",
+      "Use this code to open your CLIVS order history on this device. The code expires in ten minutes and can be used once.",
+    footer: "CLIVS - Canadian Nigerian kitchen. You requested this code to find your orders.",
   },
   order_email_change: {
     subject: "Confirm your new email address",
     heading: "Confirm your new email",
     reason:
-      "Use this code to confirm this email address for a PEARL Signature order. The code expires in ten minutes and can be used once.",
-    footer: "PEARL Signature - Canadian Nigerian kitchen. You requested this change on an existing order.",
+      "Use this code to confirm this email address for a CLIVS order. The code expires in ten minutes and can be used once.",
+    footer: "CLIVS - Canadian Nigerian kitchen. You requested this change on an existing order.",
   },
 };
 
@@ -70,7 +70,7 @@ export function buildGuestCodeEmail(input: GuestCodeEmailInput): BuiltEmail {
       "If you did not request this code, ignore this email. Nobody can verify the address without the code.",
     ),
     muted(`This code expires in ${input.expiresMinutes} minutes.`),
-    muted("PEARL Signature will never ask you to send this code by email, chat or phone."),
+    muted("CLIVS will never ask you to send this code by email, chat or phone."),
   ];
 
   const html = renderEmailDocument({
@@ -90,7 +90,7 @@ export function buildGuestCodeEmail(input: GuestCodeEmailInput): BuiltEmail {
     `This code expires in ${input.expiresMinutes} minutes.`,
     "If you did not request this code, ignore this email.",
     "",
-    "PEARL Signature will never ask you to send this code by email, chat or phone.",
+    "CLIVS will never ask you to send this code by email, chat or phone.",
   ].join("\n");
 
   return { subject: copy.subject, html, text };

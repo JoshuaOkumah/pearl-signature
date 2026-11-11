@@ -1,5 +1,5 @@
 /**
- * PEARL Signature owner bootstrap (Phase 3).
+ * CLIVS owner bootstrap (Phase 3).
  *
  * Creates the FIRST administrator account ("owner" role) for the admin
  * dashboard. It is deliberately an operator script that must be executed

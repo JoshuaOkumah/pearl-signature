@@ -1,4 +1,4 @@
-# PEARL Signature: Phase 6 Specification
+# CLIVS: Phase 6 Specification
 
 This file preserves the approved Phase 6 brief for work that continues after
 conversation compaction. The user's full prompt is the governing source; this

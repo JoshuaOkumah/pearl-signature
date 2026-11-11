@@ -21,7 +21,7 @@ export const instant = false;
 
 export const metadata: Metadata = {
   title: "My orders",
-  description: "Your PEARL Signature order history.",
+  description: "Your CLIVS order history.",
   // Order history is personal: never index, never follow.
   robots: { index: false, follow: false },
 };

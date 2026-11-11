@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { LockKeyhole } from "lucide-react";
@@ -26,11 +27,18 @@ export default async function AdminLoginPage() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-cream px-5 py-12">
       <main className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <p className="font-serif text-2xl font-semibold tracking-[0.08em] text-navy">
-            PEARL SIGNATURE
-          </p>
-          <p className="mt-1 font-sans text-sm font-medium text-ink-muted">Store administration</p>
+        <div className="mb-8 flex flex-col items-center text-center">
+          <span className="inline-flex items-center justify-center rounded-2xl bg-white px-5 py-4 shadow-sm">
+            <Image
+              src="/brand/clivs-logo.png"
+              alt="CLIVS"
+              width={763}
+              height={480}
+              priority
+              className="h-20 w-auto"
+            />
+          </span>
+          <p className="mt-4 font-sans text-sm font-medium text-ink-muted">Store administration</p>
         </div>
 
         <div className="rounded-2xl border border-border bg-surface p-6 shadow-sm sm:p-8">

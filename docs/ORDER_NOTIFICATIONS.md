@@ -1,4 +1,4 @@
-# PEARL Signature - Order Notifications
+# CLIVS - Order Notifications
 
 Phase 5, Milestone E. This document describes what is notified, how
 delivery works, what happens when no provider is configured, and which

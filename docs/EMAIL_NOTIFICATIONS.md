@@ -1,4 +1,4 @@
-# PEARL Signature: Transactional Email
+# CLIVS: Transactional Email
 
 Phase 7 built the transactional email system. Phase 7B added the guest
 verification and recovery codes on the same provider.
@@ -65,8 +65,15 @@ anything is stored, because a third-party error can echo the recipient address.
 | `GUEST_OTP_SECRET` | **for checkout** | Verification unavailable; checkout refuses to place an order (Phase 7B) |
 
 `EMAIL_FROM` accepts `orders@yourdomain.com` or
-`PEARL Signature <orders@yourdomain.com>`. Anything else, including an empty
+`CLIVS <orders@yourdomain.com>`. Anything else, including an empty
 string, is rejected rather than guessed.
+
+> **Rebrand action (manual):** the CLIVS rebrand does not change the sender
+> address or the Resend provider. To show the new name in inboxes, update the
+> display-name portion of the existing `EMAIL_FROM` value only — for example
+> `PEARL Signature <orders@yourdomain.com>` becomes
+> `CLIVS <orders@yourdomain.com>`. Do not change the domain or mailbox until
+> the business has verified a new sending identity in Resend.
 
 Readiness is strict: `configured` means **a send can be attempted**, never that
 something was delivered.
@@ -121,7 +128,8 @@ Eleven branded templates share one layout:
 
 Design rules:
 
-- Cream `#FDFBF7` background, navy `#1A2530` text, gold `#D4AF37` accents.
+- Warm ivory `#FAFAF5` background, deep forest `#243D30` text, warm gold
+  `#DFAF49` accents, white `#FFFFFF` content cards.
 - Brand hex lives in `src/lib/notifications/email/theme.ts`. This is the
   documented exception to the "no raw hex in components" rule: email clients
   cannot consume CSS custom properties, so the values must be inlined.

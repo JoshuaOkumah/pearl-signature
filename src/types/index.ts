@@ -1,5 +1,5 @@
 /**
- * Core domain types for PEARL Signature.
+ * Core domain types for CLIVS.
  *
  * These are the PUBLIC data-transfer shapes: pages and components only ever
  * receive these types (never raw Mongoose documents or ObjectIds). The Phase 2

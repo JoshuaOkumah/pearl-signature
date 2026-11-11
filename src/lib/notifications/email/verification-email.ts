@@ -23,7 +23,7 @@ export interface TrackingCodeEmailInput {
 }
 
 export function buildTrackingCodeEmail(input: TrackingCodeEmailInput): BuiltEmail {
-  const subject = "Your PEARL Signature tracking code";
+  const subject = "Your CLIVS tracking code";
   const code = input.code.replace(/[^0-9A-Za-z]/g, "").slice(0, 12);
 
   const blocks = [
@@ -41,14 +41,14 @@ export function buildTrackingCodeEmail(input: TrackingCodeEmailInput): BuiltEmai
       "Requested by you?",
       "If you did not request this code, ignore this email. Nobody can open the order without the code.",
     ),
-    muted("PEARL Signature will never ask you to send this code by email, chat or phone."),
+    muted("CLIVS will never ask you to send this code by email, chat or phone."),
   ];
 
   const html = renderEmailDocument({
     preheader: `Tracking code for order ${input.reference}`,
     title: subject,
     blocks,
-    footerNote: `PEARL Signature - Canadian Nigerian kitchen. Order ${input.reference}.`,
+    footerNote: `CLIVS - Canadian Nigerian kitchen. Order ${input.reference}.`,
   });
 
   const text = [
@@ -59,7 +59,7 @@ export function buildTrackingCodeEmail(input: TrackingCodeEmailInput): BuiltEmai
     `This code expires in ${input.expiresMinutes} minutes and can be used once.`,
     "If you did not request this code, ignore this email.",
     "",
-    "PEARL Signature will never ask you to send this code by email, chat or phone.",
+    "CLIVS will never ask you to send this code by email, chat or phone.",
   ].join("\n");
 
   return { subject, html, text };

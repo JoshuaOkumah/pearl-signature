@@ -11,7 +11,7 @@ import { Reveal } from "@/components/ui/reveal";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "PEARL Signature is a Canadian online kitchen dedicated to authentic Nigerian cuisine, from traditional foods and pastries to snacks and drinks, all prepared with care.",
+    "CLIVS is a Canadian online kitchen dedicated to authentic Nigerian cuisine, from traditional foods and pastries to snacks and drinks, all prepared with care.",
 };
 
 interface Value {
@@ -43,12 +43,12 @@ export default function AboutPage() {
     <>
       <Section padding="flush" className="pb-14 pt-14 md:pt-20">
         <Reveal>
-          <Eyebrow>About PEARL Signature</Eyebrow>
+          <Eyebrow>About CLIVS</Eyebrow>
           <h1 className="mt-4 max-w-2xl font-display text-4xl font-semibold leading-[1.08] tracking-[-0.01em] text-balance text-navy md:text-5xl">
             A premium online kitchen for authentic Nigerian food
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-ink-muted md:text-lg">
-            PEARL Signature is a Canadian online food business celebrating the richness of Nigerian cuisine. We are
+            CLIVS is a Canadian online food business celebrating the richness of Nigerian cuisine. We are
             an online-only kitchen with no walk-in storefront, which means every dish we make is prepared specifically
             for your order, then brought to your door or arranged for pickup.
           </p>

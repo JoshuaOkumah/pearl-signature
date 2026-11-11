@@ -1,4 +1,4 @@
-# PEARL Signature — Phase 1B Remediation Report
+# CLIVS — Phase 1B Remediation Report
 
 > **Scope:** corrective design and frontend engineering only. No backend,
 > database, payment, auth or cart work was started. Phase 2 remains unapproved.
@@ -90,7 +90,7 @@ the caller's `text-gold` both shipped, and `gold-700` won in the stylesheet.
 | `src/components/home/closing-cta.tsx` | Eyebrow uses `tone="inverse"`. |
 | `src/components/home/how-ordering-works.tsx` | Step numbers `gold` → `gold-700` (2.08 → 5.49:1). |
 | `src/components/ui/button.tsx` | `secondary` variant uses `terracotta-700`/`terracotta-800` so cream text is ≥4.5:1 at rest and hover. |
-| Copy sweep (all pages, home components, `src/data/*`, `layout.tsx`, `footer.tsx`, `wordmark.tsx`) | All 34 customer-facing em dashes removed and the sentences rewritten (natural commas, full stops, colons; no mechanical substitution). Example: "…to your table — ordered online, made with care." → "…to your table, ordered online and made with care." Metadata titles/descriptions cleaned too; wordmark aria-label now "PEARL Signature, home page". |
+| Copy sweep (all pages, home components, `src/data/*`, `layout.tsx`, `footer.tsx`, `wordmark.tsx`) | All 34 customer-facing em dashes removed and the sentences rewritten (natural commas, full stops, colons; no mechanical substitution). Example: "…to your table — ordered online, made with care." → "…to your table, ordered online and made with care." Metadata titles/descriptions cleaned too; wordmark aria-label now "CLIVS, home page". |
 | `e2e/mobile.spec.ts` | **New** 16-test regression suite (see F). |
 | `src/components/layout/header.test.tsx` | Rewritten for the modal: dialog semantics, X, focus, scroll lock, trap, repeated cycles (27 unit tests total now). |
 | `scripts/screenshots.mjs` | 10 viewports (320–1440 + two landscapes) × 4 routes + 5 open-menu captures, overflow asserted on every capture. |

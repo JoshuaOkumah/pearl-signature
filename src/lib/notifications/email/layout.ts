@@ -39,7 +39,7 @@ export interface EmailDocumentInput {
 }
 
 /**
- * Wrap body blocks in the PEARL Signature shell.
+ * Wrap body blocks in the CLIVS shell.
  *
  * The wordmark is text, not an image: an image would need a hosted asset and
  * meaningful alt text, and a text mark survives image blocking.
@@ -74,7 +74,7 @@ export function renderEmailDocument(input: EmailDocumentInput): string {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:${EMAIL_WIDTH_PX}px;margin:0 auto;background:${EMAIL_COLORS.surface};border:1px solid ${EMAIL_COLORS.sand};border-radius:18px;overflow:hidden;">
         <tr>
           <td class="ps-header" style="background:${EMAIL_COLORS.navy};padding:26px 28px;">
-            <p style="margin:0;font-family:${EMAIL_FONTS.display};font-size:19px;letter-spacing:2px;text-transform:uppercase;color:${EMAIL_COLORS.cream};">PEARL Signature</p>
+            <p style="margin:0;font-family:${EMAIL_FONTS.display};font-size:19px;letter-spacing:2px;text-transform:uppercase;color:${EMAIL_COLORS.cream};">CLIVS</p>
             <div style="height:2px;width:56px;background:${EMAIL_COLORS.gold};margin-top:10px;"></div>
             <p style="margin:10px 0 0;font-family:${EMAIL_FONTS.body};font-size:12px;letter-spacing:1px;text-transform:uppercase;color:${EMAIL_COLORS.goldSoft};">Canadian Nigerian kitchen</p>
           </td>
@@ -87,7 +87,7 @@ export function renderEmailDocument(input: EmailDocumentInput): string {
         <tr>
           <td style="background:${EMAIL_COLORS.cream};border-top:1px solid ${EMAIL_COLORS.sand};padding:18px 28px;">
             <p style="margin:0;font-family:${EMAIL_FONTS.body};font-size:12px;line-height:1.6;color:${EMAIL_COLORS.inkMuted};">${footer}</p>
-            <p style="margin:8px 0 0;font-family:${EMAIL_FONTS.body};font-size:12px;line-height:1.6;color:${EMAIL_COLORS.inkMuted};">This message was sent about a PEARL Signature order. Replies to this address are not monitored unless the store has published a contact channel.</p>
+            <p style="margin:8px 0 0;font-family:${EMAIL_FONTS.body};font-size:12px;line-height:1.6;color:${EMAIL_COLORS.inkMuted};">This message was sent about a CLIVS order. Replies to this address are not monitored unless the store has published a contact channel.</p>
           </td>
         </tr>
       </table>

@@ -4,7 +4,7 @@ import { Eyebrow, Section } from "@/components/ui/section";
 
 export const metadata: Metadata = {
   title: "Checkout",
-  description: "Review your PEARL Signature order and confirm your details.",
+  description: "Review your CLIVS order and confirm your details.",
   // Personal review state is never indexed.
   robots: { index: false, follow: false },
 };

@@ -1,4 +1,4 @@
-# PEARL Signature: Phase 7B Report
+# CLIVS: Phase 7B Report
 
 Verified guest checkout, persistent guest sessions, email-only order recovery,
 My Orders and complete tracking navigation.

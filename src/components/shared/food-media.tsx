@@ -116,7 +116,7 @@ export function FoodMedia({
         </g>
 
         {/* Plate + soft shadow */}
-        <ellipse cx="200" cy="234" rx="114" ry="15" fill="#1A2530" fillOpacity="0.08" />
+        <ellipse cx="200" cy="234" rx="114" ry="15" fill="#243D30" fillOpacity="0.08" />
         <circle cx="200" cy="176" r="104" fill={`url(#${plateId})`} stroke="#E3D8C2" strokeWidth="1.5" />
         <circle cx="200" cy="176" r="80" fill="#FDFAF3" stroke="#EAE0CC" strokeWidth="1" />
 
@@ -131,13 +131,13 @@ export function FoodMedia({
           <ellipse cx="206" cy="139" rx="10" ry="4.5" fill={theme.accent} opacity="0.8" transform="rotate(-18 206 139)" />
           <circle cx="196" cy="150" r="5" fill={theme.accent} />
           <circle cx="215" cy="166" r="4" fill={theme.accent} opacity="0.85" />
-          <circle cx="184" cy="170" r="3.5" fill="#D4AF37" opacity="0.9" />
+          <circle cx="184" cy="170" r="3.5" fill="#DFAF49" opacity="0.9" />
         </g>
 
         {/* Gentle steam */}
         <path
           d="M188 80c-5-8 5-12 0-20"
-          stroke="#1A2530"
+          stroke="#243D30"
           strokeOpacity="0.14"
           strokeWidth="3"
           strokeLinecap="round"
@@ -145,7 +145,7 @@ export function FoodMedia({
         />
         <path
           d="M212 76c-5-8 5-12 0-20"
-          stroke="#1A2530"
+          stroke="#243D30"
           strokeOpacity="0.1"
           strokeWidth="3"
           strokeLinecap="round"

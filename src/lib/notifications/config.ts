@@ -104,7 +104,7 @@ export function parseEmailAddress(raw: string | null | undefined): string | null
  * Parse `EMAIL_FROM` in either supported form:
  *
  *   `orders@example.com`
- *   `PEARL Signature <orders@example.com>`
+ *   `CLIVS <orders@example.com>`
  *
  * Quoted display names are accepted and unquoted. Anything else (including an
  * empty string) is rejected so the sender is never guessed.

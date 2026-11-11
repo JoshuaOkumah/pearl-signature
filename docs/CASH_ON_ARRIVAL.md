@@ -1,4 +1,4 @@
-# PEARL Signature - Cash on Arrival
+# CLIVS - Cash on Arrival
 
 Phase 5, Milestone C. Cash on Arrival is the only payment method in this
 phase. Nothing is charged online, no card data exists anywhere in the

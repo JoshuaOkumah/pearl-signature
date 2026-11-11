@@ -1,5 +1,5 @@
 /**
- * PEARL Signature catalogue seed (Phase 2).
+ * CLIVS catalogue seed (Phase 2).
  *
  * Creates the three launch categories and the labelled preview products by
  * upserting with `$setOnInsert` ONLY: existing documents are never modified,

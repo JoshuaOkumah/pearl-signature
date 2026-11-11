@@ -1,5 +1,5 @@
 /**
- * PEARL Signature owner password reset (Phase 3).
+ * CLIVS owner password reset (Phase 3).
  *
  * Rotates an admin account's password and revokes every live session, so
  * a stolen or lost credential can be replaced without public email

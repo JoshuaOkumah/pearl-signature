@@ -7,23 +7,23 @@
  * "no raw hex in components" rule: these constants are not React components,
  * and every template imports them instead of inlining a colour.
  *
- * Colours mirror the Phase 1 design system:
- *   soft cream #FDFBF7, deep navy #1A2530, champagne gold #D4AF37.
+ * Colours mirror the CLIVS design system:
+ *   warm ivory #FAFAF5, deep forest #243D30, warm gold #DFAF49.
  */
 
 export const EMAIL_COLORS = {
-  cream: "#FDFBF7",
-  navy: "#1A2530",
-  gold: "#D4AF37",
-  goldSoft: "#F3E6C4",
+  cream: "#FAFAF5",
+  navy: "#243D30",
+  gold: "#DFAF49",
+  goldSoft: "#F7EDD6",
   surface: "#FFFFFF",
-  sand: "#EDE4D6",
-  ink: "#33414D",
-  inkMuted: "#5F6B76",
-  leaf: "#2F6B4F",
-  leafSoft: "#EAF3EE",
-  terracotta: "#8E3A2E",
-  terracottaSoft: "#FBEDEA",
+  sand: "#E2DFCF",
+  ink: "#3A4F43",
+  inkMuted: "#5A6B60",
+  leaf: "#3F5C48",
+  leafSoft: "#E8F0E7",
+  terracotta: "#8C4A30",
+  terracottaSoft: "#F6E7DE",
 } as const;
 
 export const EMAIL_FONTS = {

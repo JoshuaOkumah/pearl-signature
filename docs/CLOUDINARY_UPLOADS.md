@@ -1,4 +1,4 @@
-# PEARL Signature — Cloudinary Upload Flow (Phase 3)
+# CLIVS — Cloudinary Upload Flow (Phase 3)
 
 > This document describes the signed, server-verified photo upload path
 > added in Phase 3. Cloudinary account provisioning and the *display*

@@ -50,7 +50,7 @@ function categoryRow(page: Page, name: string): Locator {
     .filter({ hasText: name });
 }
 
-test.describe("PEARL Signature — admin", () => {
+test.describe("CLIVS — admin", () => {
   /* ── authentication and access control ─────────────────────────────── */
 
   test("anonymous visitors are redirected to sign in without storefront chrome", async ({ page }) => {

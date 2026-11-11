@@ -400,7 +400,7 @@ function MethodOption({
           checked={selected}
           disabled={disabled}
           onChange={onSelect}
-          className="h-4 w-4 shrink-0 accent-[#1a2530]"
+          className="h-4 w-4 shrink-0 accent-navy"
         />
         <span className="text-base font-semibold text-navy">{label}</span>
       </span>

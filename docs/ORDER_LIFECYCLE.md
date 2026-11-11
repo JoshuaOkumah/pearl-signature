@@ -1,4 +1,4 @@
-# PEARL Signature - Order Lifecycle
+# CLIVS - Order Lifecycle
 
 Phase 5, Milestones C and D. This document is the operator-facing and
 developer-facing description of how an order moves from placement to a final

@@ -1,4 +1,4 @@
-# PEARL Signature - Admin Order Operations
+# CLIVS - Admin Order Operations
 
 Phase 5, Milestone D. The operator surfaces for order management:
 `/admin/orders`, `/admin/orders/[id]` and the dashboard's order metrics.

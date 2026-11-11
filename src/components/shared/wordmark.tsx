@@ -1,38 +1,54 @@
+import Image from "next/image";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * PEARL Signature typographic wordmark.
+ * CLIVS wordmark.
  *
- * Temporary (approved-direction) mark: “PEARL” in letterspaced Fraunces,
- * a small pearl detail, and an italic “Signature”. The final P+S monogram
- * logo will replace this when supplied by the business.
+ * The supplied artwork is the single source of truth: the official lockup
+ * (hand, golden apple and the CLIVS wordmark) is rendered as-is, never
+ * redrawn, recoloured or stretched. It lives at
+ * `public/brand/clivs-logo.png` and keeps its own white background.
+ *
+ * On light surfaces the artwork's white field blends into the page. On the
+ * forest footer and admin sidebar the same artwork sits on a deliberate
+ * white plate, so the white background reads as a designed badge instead of
+ * a stray rectangle.
+ *
+ * `tone` is kept from the previous wordmark API: `"navy"` means "on a light
+ * surface", `"cream"` means "on a dark surface".
  */
-export function Wordmark({ tone = "navy", className }: { tone?: "navy" | "cream"; className?: string }) {
+export function Wordmark({
+  tone = "navy",
+  className,
+  imageClassName = "h-9 min-[360px]:h-10 md:h-12",
+  priority = false,
+}: {
+  tone?: "navy" | "cream";
+  className?: string;
+  imageClassName?: string;
+  priority?: boolean;
+}) {
   return (
     <Link
       href="/"
-      aria-label="PEARL Signature, home page"
-      className={cn("focus-gold inline-flex items-center gap-2 rounded-sm", className)}
+      aria-label="CLIVS, home page"
+      className={cn("focus-gold inline-flex items-center rounded-lg", className)}
     >
-      {/* Slightly smaller below 360px so the header's cart and menu
-          buttons keep the full 20px gutter on the narrowest phones. */}
       <span
         className={cn(
-          "font-display text-[1.15rem] font-semibold uppercase leading-none tracking-[0.18em] min-[360px]:text-[1.3rem]",
-          tone === "navy" ? "text-navy" : "text-cream",
+          "inline-flex items-center justify-center",
+          tone === "cream" && "rounded-xl bg-white px-3 py-2 shadow-sm",
         )}
       >
-        Pearl
-      </span>
-      <span aria-hidden="true" className="pearl-dot" />
-      <span
-        className={cn(
-          "-ml-1 font-display text-[1rem] italic leading-none min-[360px]:text-[1.15rem]",
-          tone === "navy" ? "text-terracotta" : "text-gold",
-        )}
-      >
-        Signature
+        <Image
+          src="/brand/clivs-logo.png"
+          alt=""
+          width={763}
+          height={480}
+          priority={priority}
+          className={cn("w-auto", imageClassName)}
+        />
       </span>
     </Link>
   );

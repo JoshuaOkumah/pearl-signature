@@ -46,7 +46,7 @@ test.describe.configure({ mode: "serial" });
 test.setTimeout(180_000);
 
 const SINK_PATH = path.resolve(process.cwd(), TRACKING_SINK_FILE);
-const CODE_SUBJECT = "Your PEARL Signature tracking code";
+const CODE_SUBJECT = "Your CLIVS tracking code";
 const PREPARING_SUBJECT = `Order ${TRACKING_REFERENCE} is being prepared`;
 
 interface SinkMessage {

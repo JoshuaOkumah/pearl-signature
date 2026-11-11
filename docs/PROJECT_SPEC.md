@@ -1,4 +1,4 @@
-# PEARL Signature — Product Specification
+# CLIVS — Product Specification
 
 > Status: **Phases 1–7B implemented** (foundation, catalogue, admin, guest
 > cart and checkout review, orders, test-mode online payment, transactional
@@ -17,7 +17,7 @@
 
 | Item | Value |
 | --- | --- |
-| Business name | PEARL Signature |
+| Business name | CLIVS |
 | Type | Online food store (online-only, no walk-in storefront) |
 | Operating country | Canada |
 | Currency | CAD |
@@ -25,7 +25,7 @@
 | Payments | Online payment and cash on arrival |
 | Management | Private admin dashboard (`/admin`, implemented in Phase 3) |
 
-PEARL Signature sells authentic Nigerian cuisine — traditional foods, pastries,
+CLIVS sells authentic Nigerian cuisine — traditional foods, pastries,
 snacks and traditional drinks — through a premium website. Customers order
 online; the business prepares each order to fulfil it via delivery or a
 prearranged pickup.
@@ -175,16 +175,16 @@ No paid services, subscriptions or premium dependencies. No secrets in source.
 
 ## 7. Visual identity summary
 
-Creative concept: **THE SIGNATURE TABLE** — Warm Premium Nigerian Food
-Commerce × Modern Editorial Design. Full detail lives in `docs/DESIGN_SYSTEM.md`.
+Creative concept: **CLIVS** — Warm Premium Nigerian Food Commerce × Modern
+Editorial Design. Full detail lives in `docs/DESIGN_SYSTEM.md`.
 
-- Background: Soft Cream `#FDFBF7`
-- Structure/text/primary buttons: Deep Charcoal Navy `#1A2530`
-- Accent (restrained): Champagne Gold `#D4AF37`
-- Support: Leaf Green `#5C7A58`, Warm Terracotta `#B86A4F`, Earthy Brown `#8A6A52`
+- Background: Warm Ivory `#FAFAF5`
+- Structure/text/primary buttons: Deep Forest `#243D30`
+- Accent (restrained): Warm Gold `#DFAF49`
+- Brand warmth (decorative): Sage `#90B090`; support: Warm Clay `#A25B3F`, Earthy Brown `#7A6350`
 - Headlines: Fraunces (serif). UI/body: Manrope (sans).
-- Wordmark: temporary typographic “PEARL ● Signature” mark — the final P+S
-  monogram with a pearl detail will replace it when the business supplies it.
+- Wordmark: the official CLIVS lockup supplied by the business, rendered from
+  `public/brand/clivs-logo.png` at every brand location.
 
 ## 8. Major product features
 
@@ -386,7 +386,7 @@ each one before the first real order:
 - Pickup locations, times and windows
 - Operating hours / kitchen hours
 - Business email, phone number, social accounts
-- Official logo (P+S monogram with pearl detail)
+- Official logo (supplied CLIVS hand-and-apple lockup — in use)
 - Real product photography (current imagery is clearly temporary illustration)
 - Stripe merchant account / currency & tax rules
 - Pickup vs delivery availability per location

@@ -10,7 +10,7 @@ import type { DishTheme } from "@/types";
  * placeholder art on-brand.
  */
 
-const DEFAULT_THEME: DishTheme = { deep: "#6E5320", base: "#C9A24B", accent: "#5C7A58" };
+const DEFAULT_THEME: DishTheme = { deep: "#6E5320", base: "#C9A24B", accent: "#90B090" };
 
 export function placeholderThemeFor(categorySlug: string): DishTheme {
   const known = (categoryMap as Record<string, { theme: DishTheme } | undefined>)[categorySlug];

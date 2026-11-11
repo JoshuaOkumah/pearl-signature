@@ -1,4 +1,4 @@
-# PEARL Signature — Admin Operations Guide (Phase 3–7)
+# CLIVS — Admin Operations Guide (Phase 3–7)
 
 > Day-to-day operating instructions for the owner dashboard at `/admin`.
 > This guide assumes the owner account already exists (see

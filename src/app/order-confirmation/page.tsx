@@ -5,7 +5,7 @@ import { OrderConfirmationClient } from "@/components/checkout/order-confirmatio
 
 export const metadata: Metadata = {
   title: "Order confirmation",
-  description: "Your PEARL Signature order confirmation.",
+  description: "Your CLIVS order confirmation.",
   // Order confirmations are personal: never index, never follow.
   robots: { index: false, follow: false },
 };

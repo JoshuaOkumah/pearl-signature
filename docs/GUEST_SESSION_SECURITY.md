@@ -1,4 +1,4 @@
-# PEARL Signature: Guest Session Security
+# CLIVS: Guest Session Security
 
 Phase 7B. The remembered-device cookie that lets a guest return to their orders
 without an account, and the rules that keep it from becoming a liability.

@@ -1,4 +1,4 @@
-# PEARL Signature — Cart Architecture (Phase 4)
+# CLIVS — Cart Architecture (Phase 4)
 
 How the guest shopping cart works: what is stored, where truth lives, how the
 browser and the server reconcile, and what every surface promises the

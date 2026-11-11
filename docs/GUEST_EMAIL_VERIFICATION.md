@@ -1,4 +1,4 @@
-# PEARL Signature: Guest Email Verification
+# CLIVS: Guest Email Verification
 
 Phase 7B. The six-digit code that proves a guest controls the email address on an
 order, how it is generated, stored, delivered, rate limited and enforced.

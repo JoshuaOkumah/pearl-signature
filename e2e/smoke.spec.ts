@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("PEARL Signature — smoke", () => {
+test.describe("CLIVS — smoke", () => {
   test("homepage renders the hero and key sections", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Authentic Nigerian flavours");
@@ -10,7 +10,7 @@ test.describe("PEARL Signature — smoke", () => {
 
   test("menu page filters products by category", async ({ page }) => {
     await page.goto("/menu");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Explore the PEARL Signature menu");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Explore the CLIVS menu");
     await expect(page.getByText("Egusi Soup")).toBeVisible();
 
     await page.getByRole("button", { name: /Drinks/ }).click();

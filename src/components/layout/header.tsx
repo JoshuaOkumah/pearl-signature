@@ -43,12 +43,12 @@ export function Header() {
       className={cn(
         "sticky top-0 z-50 border-b transition-[background-color,border-color,box-shadow] duration-300",
         open || scrolled
-          ? "border-border bg-cream/90 shadow-[0_8px_30px_-18px_rgb(26_37_48/0.25)] backdrop-blur-md"
-          : "border-transparent bg-cream",
+          ? "border-border bg-surface/90 shadow-[0_8px_30px_-18px_rgb(36_61_48/0.25)] backdrop-blur-md"
+          : "border-transparent bg-surface",
       )}
     >
       <div className="mx-auto flex h-18 w-full max-w-6xl items-center justify-between gap-2 px-5 min-[360px]:gap-3 md:px-8">
-        <Wordmark />
+        <Wordmark priority />
 
         <nav aria-label="Primary" className="hidden items-center gap-4 md:flex lg:gap-8">
           {navItems.map((item) => (

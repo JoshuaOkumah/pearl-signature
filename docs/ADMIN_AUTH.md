@@ -1,4 +1,4 @@
-# PEARL Signature — Admin Authentication & Security (Phase 3)
+# CLIVS — Admin Authentication & Security (Phase 3)
 
 > This document describes the owner authentication system delivered in
 > Phase 3: Argon2id password hashing, database-backed sessions, login rate

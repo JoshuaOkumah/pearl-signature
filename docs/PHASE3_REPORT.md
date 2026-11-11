@@ -1,4 +1,4 @@
-# PEARL Signature — Phase 3 Report
+# CLIVS — Phase 3 Report
 
 **Phase:** 3 — secure admin authentication, product/category management,
 Cloudinary signed uploads.

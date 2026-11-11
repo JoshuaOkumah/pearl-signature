@@ -65,7 +65,7 @@ describe("emailReadiness", () => {
     const readiness = emailReadiness({
       NOTIFICATION_PROVIDER: "resend",
       RESEND_API_KEY: "re_test",
-      EMAIL_FROM: "PEARL Signature <orders@pearl.example>",
+      EMAIL_FROM: "CLIVS <orders@pearl.example>",
       OWNER_NOTIFICATION_EMAIL: "owner@pearl.example",
     });
     expect(readiness.configured).toBe(true);

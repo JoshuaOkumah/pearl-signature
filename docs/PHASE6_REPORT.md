@@ -1,4 +1,4 @@
-# PEARL Signature — Phase 6 Report
+# CLIVS — Phase 6 Report
 
 Secure Stripe Checkout, payment reconciliation and financial integrity.
 

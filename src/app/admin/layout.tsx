@@ -23,8 +23,8 @@ export const instant = false;
 
 export const metadata: Metadata = {
   title: {
-    default: "Admin · PEARL Signature",
-    template: "%s · PEARL Signature Admin",
+    default: "Admin · CLIVS",
+    template: "%s · CLIVS Admin",
   },
   robots: { index: false, follow: false },
 };

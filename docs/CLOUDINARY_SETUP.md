@@ -1,4 +1,4 @@
-# PEARL Signature — Cloudinary Setup (Phase 2)
+# CLIVS — Cloudinary Setup (Phase 2)
 
 Target: **Cloudinary free plan** (image storage + transformation/CDN).
 No paid plan. No other image host. No hotlinked third-party images.

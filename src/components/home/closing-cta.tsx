@@ -8,7 +8,7 @@ export function ClosingCta() {
     <Section>
       <Reveal>
         <div className="relative overflow-hidden rounded-[2.5rem] bg-navy px-6 py-16 text-center md:px-16 md:py-24">
-          {/* Decorative pearl-ring motif */}
+          {/* Decorative ring motif */}
           <div aria-hidden="true" className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full border-[14px] border-gold/15" />
           <div aria-hidden="true" className="pointer-events-none absolute -bottom-24 -right-16 h-72 w-72 rounded-full border-[14px] border-terracotta/20" />
           <div aria-hidden="true" className="pointer-events-none absolute right-10 top-10 h-2.5 w-2.5 rounded-full bg-gold/60" />

@@ -20,9 +20,9 @@ export function Footer() {
       <div className="mx-auto w-full max-w-6xl px-5 py-16 md:px-8">
         <div className="grid gap-12 md:grid-cols-[1.5fr_1fr_1fr]">
           <div>
-            <Wordmark tone="cream" />
+            <Wordmark tone="cream" imageClassName="h-12" />
             <p className="mt-5 max-w-sm text-sm leading-relaxed text-cream/70">
-              PEARL Signature is a Canadian online kitchen celebrating authentic Nigerian cuisine, from
+              CLIVS is a Canadian online kitchen celebrating authentic Nigerian cuisine, from
               traditional soups and classics to golden pastries and refreshing drinks, prepared with care
               and ordered online.
             </p>
@@ -75,7 +75,7 @@ export function Footer() {
 
         <div className="mt-14 flex flex-col gap-3 border-t border-cream/15 pt-6 text-xs text-cream/55 md:flex-row md:items-center md:justify-between">
           <p>
-            © <CopyrightYear /> PEARL Signature. All rights reserved.
+            © <CopyrightYear /> CLIVS. All rights reserved.
           </p>
           <p>Verified contact and social details will be published before launch.</p>
         </div>

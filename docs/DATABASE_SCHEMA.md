@@ -1,4 +1,4 @@
-# PEARL Signature — Database Schema (Phase 2, 3, 4, 5, 6 & 7)
+# CLIVS — Database Schema (Phase 2, 3, 4, 5, 6 & 7)
 
 Database: **MongoDB** (target: MongoDB Atlas M0 free tier).
 ODM: **Mongoose 9**. Boundary validation: **Zod 4**.

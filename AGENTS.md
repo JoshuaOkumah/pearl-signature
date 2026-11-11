@@ -10,7 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ---
 
-## PEARL Signature — project rules for agents
+## CLIVS — project rules for agents
 
 **What this is:** premium Canadian online Nigerian food store. Phase 1 (design
 system + public storefront) is complete; later phases add MongoDB Atlas M0,

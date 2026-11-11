@@ -1,4 +1,4 @@
-# PEARL Signature: Notification Processing
+# CLIVS: Notification Processing
 
 Phase 7. How entries leave `notification_outbox`, who is allowed to drain the
 queue, and what is still missing for unattended production delivery.

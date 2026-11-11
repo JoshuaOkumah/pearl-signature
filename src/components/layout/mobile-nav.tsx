@@ -116,7 +116,7 @@ export function MobileNav({ open, onClose, triggerRef, pathname }: MobileNavProp
           role="dialog"
           aria-modal="true"
           aria-label="Site navigation"
-          className="fixed inset-0 z-[70] flex flex-col bg-cream pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] md:hidden"
+          className="fixed inset-0 z-[70] flex flex-col bg-surface pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] md:hidden"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

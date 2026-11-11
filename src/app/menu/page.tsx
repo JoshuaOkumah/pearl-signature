@@ -26,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Menu",
     description:
-      "Browse the PEARL Signature menu, with traditional Nigerian soups and classics, pastries, snacks and drinks. Ordering opens soon.",
+      "Browse the CLIVS menu, with traditional Nigerian soups and classics, pastries, snacks and drinks. Ordering opens soon.",
     alternates: canonical ? { canonical } : undefined,
     // Preview fixtures are temporary content: never present them as real
     // inventory to search engines.
@@ -44,7 +44,7 @@ export default function MenuPage({ searchParams }: { searchParams: SearchParams 
           <Eyebrow>The menu</Eyebrow>
           <div className="mt-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
             <h1 className="max-w-xl font-display text-4xl font-semibold leading-[1.08] tracking-[-0.01em] text-balance text-navy md:text-5xl">
-              Explore the PEARL Signature menu
+              Explore the CLIVS menu
             </h1>
             <Badge tone="gold" className="mb-1.5">
               <Clock className="h-3.5 w-3.5" aria-hidden="true" />

@@ -33,7 +33,7 @@ function e2eProduct(input: Partial<Product> & Pick<Product, "slug" | "name" | "c
     tags: [],
     featured: false,
     sortOrder: 9_000,
-    theme: { deep: "#6E5320", base: "#C9A24B", accent: "#5C7A58" },
+    theme: { deep: "#6E5320", base: "#C9A24B", accent: "#90B090" },
     ...input,
   };
 }

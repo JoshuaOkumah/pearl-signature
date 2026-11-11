@@ -98,7 +98,7 @@ export function PurchasePanel({ product }: PurchasePanelProps) {
                       checked={checked}
                       disabled={!priced}
                       onChange={() => setSelectedName(variant.name)}
-                      className="h-4 w-4 shrink-0 accent-[#1a2530]"
+                      className="h-4 w-4 shrink-0 accent-navy"
                     />
                     <span className="text-base font-semibold text-navy">{variant.name}</span>
                     {checked ? (

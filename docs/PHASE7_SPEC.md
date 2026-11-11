@@ -1,4 +1,4 @@
-# PEARL Signature: Phase 7 Specification
+# CLIVS: Phase 7 Specification
 
 This file preserves the approved Phase 7 brief for work that continues after
 conversation compaction. The user's full prompt is the governing source; this
@@ -132,7 +132,7 @@ update, ready for pickup, out for delivery, completed, cancelled, online payment
 confirmed, Cash on Arrival collected, tracking verification code, payment issue.
 Reuse shared layout/components; avoid duplicated markup.
 
-Brand: cream `#FDFBF7`, navy `#1A2530`, champagne gold `#D4AF37`, restrained
+Brand: warm ivory `#FAFAF5`, deep forest `#243D30`, warm gold `#DFAF49`, restrained
 warm accents, email-safe system font fallbacks. Responsive, readable, accessible
 contrast, meaningful alt text, plain-text alternatives, clear primary action, no
 tracking pixels, no deceptive promotion, no invented business information and no

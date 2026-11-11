@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
@@ -187,11 +188,17 @@ export function AdminShell({ email, children }: { email: string; children: React
     <div className="min-h-dvh bg-cream">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-navy px-4 py-6 lg:flex">
-        <Link href="/admin" className="mb-8 block rounded px-1 focus-gold">
-          <span className="font-serif text-xl font-semibold tracking-[0.08em] text-cream">
-            PEARL
+        <Link href="/admin" className="mb-8 flex items-center gap-3 rounded px-1 focus-gold">
+          <span className="inline-flex items-center justify-center rounded-lg bg-white px-2 py-1.5">
+            <Image
+              src="/brand/clivs-logo.png"
+              alt=""
+              width={763}
+              height={480}
+              className="h-9 w-auto"
+            />
           </span>
-          <span className="ml-2 rounded-full bg-gold px-2 py-0.5 font-sans text-[11px] font-bold uppercase tracking-wider text-navy-900">
+          <span className="rounded-full bg-gold px-2 py-0.5 font-sans text-[11px] font-bold uppercase tracking-wider text-navy-900">
             Admin
           </span>
         </Link>
@@ -220,9 +227,15 @@ export function AdminShell({ email, children }: { email: string; children: React
         >
           <Menu className="size-5" aria-hidden="true" />
         </button>
-        <Link href="/admin" className="flex items-baseline gap-2 rounded px-1 focus-gold">
-          <span className="font-serif text-lg font-semibold tracking-[0.08em] text-cream">
-            PEARL
+        <Link href="/admin" className="flex items-center gap-2 rounded px-1 focus-gold">
+          <span className="inline-flex items-center justify-center rounded-md bg-white px-1.5 py-1">
+            <Image
+              src="/brand/clivs-logo.png"
+              alt=""
+              width={763}
+              height={480}
+              className="h-7 w-auto"
+            />
           </span>
           <span className="font-sans text-[11px] font-bold uppercase tracking-wider text-gold">
             Admin
@@ -246,9 +259,15 @@ export function AdminShell({ email, children }: { email: string; children: React
             className="absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col bg-navy px-4 py-5 shadow-2xl"
           >
             <div className="mb-6 flex items-center justify-between">
-              <span className="flex items-baseline gap-2">
-                <span className="font-serif text-xl font-semibold tracking-[0.08em] text-cream">
-                  PEARL
+              <span className="flex items-center gap-2">
+                <span className="inline-flex items-center justify-center rounded-lg bg-white px-2 py-1.5">
+                  <Image
+                    src="/brand/clivs-logo.png"
+                    alt=""
+                    width={763}
+                    height={480}
+                    className="h-8 w-auto"
+                  />
                 </span>
                 <span className="rounded-full bg-gold px-2 py-0.5 font-sans text-[11px] font-bold uppercase tracking-wider text-navy-900">
                   Admin

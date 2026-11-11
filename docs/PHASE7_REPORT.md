@@ -1,4 +1,4 @@
-# PEARL Signature — Phase 7 Final Report
+# CLIVS — Phase 7 Final Report
 
 Transactional email and secure guest order tracking.
 
@@ -172,7 +172,7 @@ Eleven templates, one layout, one plain-text builder:
 | Payment not completed / needs review | Customer + store |
 | Tracking verification code | Customer |
 
-Brand: cream `#FDFBF7`, navy `#1A2530`, gold `#D4AF37`, centralised in
+Brand: warm ivory `#FAFAF5`, deep forest `#243D30`, warm gold `#DFAF49`, centralised in
 `email/theme.ts`. This is the documented exception to the no-raw-hex rule,
 because email clients cannot consume CSS custom properties.
 

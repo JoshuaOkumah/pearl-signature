@@ -1,4 +1,4 @@
-# PEARL Signature: Phase 7B Progress
+# CLIVS: Phase 7B Progress
 
 Authoritative requirements live in `docs/PHASE7B_SPEC.md`. This file tracks
 architecture decisions, milestone progress, database changes, tests, problems,

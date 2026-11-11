@@ -5,7 +5,7 @@ import { OrderTrackingClient } from "@/components/tracking/order-tracking";
 
 export const metadata: Metadata = {
   title: "Track your order",
-  description: "Check the progress of your PEARL Signature order.",
+  description: "Check the progress of your CLIVS order.",
   // Order tracking is personal: never index, never follow.
   robots: { index: false, follow: false },
 };

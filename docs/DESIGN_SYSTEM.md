@@ -1,7 +1,7 @@
-# PEARL Signature — Design System
+# CLIVS — Design System
 
-> Creative concept: **THE SIGNATURE TABLE**
-> Direction: *Warm Premium Nigerian Food Commerce × Modern Editorial Design*
+> Creative concept: **A HAND FOR GOOD FOOD**
+> Direction: *Warm, botanical, premium Nigerian food commerce × modern editorial design*
 >
 > The single source of truth for tokens and component behaviour lives in
 > `src/app/globals.css` (Tailwind v4 `@theme`) and `src/components/**`.
@@ -11,45 +11,50 @@
 
 ## 1. Colour tokens
 
-### Brand palette (locked)
+### Brand palette (sampled from the official CLIVS logo)
 
 | Token | Hex | Role |
 | --- | --- | --- |
-| `cream` | `#FDFBF7` | Primary background — the page is predominantly cream |
-| `navy` | `#1A2530` | Structure, headings, body text, primary buttons, footer |
-| `gold` | `#D4AF37` | Restrained premium accent (rules, numbers, CTA on navy only) |
-| `leaf` | `#5C7A58` | Freshness, supportive states |
-| `terracotta` | `#B86A4F` | Appetite, warmth (italic headline accents, secondary CTA) |
-| `brown` | `#8A6A52` | Subtle warm secondary elements |
+| `cream` | `#FAFAF5` | Warm ivory page background |
+| `navy` | `#243D30` | Deep forest: structure, headings, body text, primary buttons, footer |
+| `gold` | `#DFAF49` | Restrained warm gold accent (rules, numbers, CTA on forest only) |
+| `leaf` | `#90B090` | Sage brand warmth — decorative fills only, never small text |
+| `terracotta` | `#A25B3F` | Warm clay: appetite, warnings, secondary CTA |
+| `brown` | `#7A6350` | Subtle warm secondary elements |
+
+> Token *names* are retained from the previous identity so every component keeps
+> working; only the values are the CLIVS palette.
 
 ### Derived tokens (semantic — never scatter raw hex in components)
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `cream-100` | `#F9F4EA` | Raised warm surface (alternating section bands) |
-| `cream-200` | `#F2EBDC` | Subtle fills, chips, icon circles |
-| `surface` | `#FFFEFB` | Cards |
-| `border` | `#E4DBC8` | Default component border |
-| `sand` | `#E7DCC6` | Warm hairlines, dividers |
-| `navy-800/900` | `#22303D` / `#131C25` | Primary-button hover/press |
-| `navy-600/700` | `#46586A` / `#33424F` | Inverse text steps |
-| `ink-muted` | `#52606E` | Secondary text on cream (AA-safe) |
-| `gold-600/700` | `#B4932A` / `#806519` | Gold hover / **text-safe gold** (≥4.5:1 on cream, cream-100, cream-200, surface and gold-100; never on navy — use `gold`) |
-| `gold-100` | `#F6EDCF` | Soft gold wash (badges, notes) |
-| `leaf-100`, `leaf-700` | `#E7ECDF`, `#47603F` | Fresh/positive badge states |
-| `terracotta-100/700/800` | `#F5E4DC`, `#9C553C`, `#84462F` | Warm badge states; `secondary` button bg/hover (cream text ≥4.5:1) |
-| `brown-100/700` | `#ECE2D6`, `#6F5440` | Warm secondary states |
+| `cream-100` | `#F4F4EC` | Raised warm surface (alternating section bands) |
+| `cream-200` | `#EBEBE0` | Subtle fills, chips, icon circles |
+| `surface` | `#FFFFFF` | Cards, header |
+| `border` | `#E3E1D5` | Default component border |
+| `sand` | `#E2DFCF` | Warm hairlines, dividers |
+| `navy-800/900` | `#2E4B3B` / `#182A21` | Primary-button hover/press |
+| `navy-600/700` | `#4E6E5B` / `#3C5C4A` | Inverse text steps |
+| `ink-muted` | `#4B5A51` | Secondary text on cream (AA-safe) |
+| `gold-600/700` | `#C79A36` / `#80601C` | Gold hover / **text-safe gold** (≥4.5:1 on cream, cream-100, cream-200, surface and gold-100; never on forest — use `gold`) |
+| `gold-100` | `#F7EDD6` | Soft gold wash (badges, notes) |
+| `leaf-100`, `leaf-700` | `#E8F0E7`, `#3F5C48` | Fresh/positive badge states |
+| `terracotta-100/700/800` | `#F6E7DE`, `#8C4A30`, `#7E3F28` | Warm badge states; `secondary` button bg/hover (cream text ≥4.5:1) |
+| `brown-100/700` | `#EDE5DA`, `#5F4C3C` | Warm secondary states |
 
 ### Colour rules
-- Cream is the page; navy provides structure; gold is seasoning, not a sauce.
-- **No large gold panels. No small gold text on cream** (use `gold-700`).
-- **On navy, small gold text uses `gold` (`#D4AF37`, 7.4:1), never `gold-700`**
-  (2.8:1 on navy). `Eyebrow` exposes this as `tone="inverse"`.
-- Gold as a solid button colour appears only on navy surfaces (high contrast).
+- Ivory is the page; forest provides structure; gold is seasoning, not a sauce.
+- **No large gold panels. No small gold text on ivory** (use `gold-700`).
+- **No small sage text on ivory or white** (2.4:1 — decorative only). Use
+  `leaf-700` for readable sage-toned text.
+- **On forest, small gold text uses `gold` (`#DFAF49`, 5.8:1), never `gold-700`**
+  (2.0:1 on forest). `Eyebrow` exposes this as `tone="inverse"`.
+- Gold as a solid button colour appears only on forest surfaces (high contrast).
 - Hover/focus/disabled/selected states exist for every interactive element.
 - Token text colours are verified against their **actual** backgrounds
   (computed-style contrast, WCAG 2.x AA: 4.5:1 normal, 3:1 large). Opacity
-  modifiers on navy (e.g. `text-cream/55`) composite ≥4.5:1 at their shipped
+  modifiers on forest (e.g. `text-cream/55`) composite ≥4.5:1 at their shipped
   sizes. Re-verify with `node scripts/audit-mobile.mjs` after palette changes.
 
 ## 2. Typography
@@ -59,7 +64,7 @@
 | Display | **Fraunces** (via `next/font`, `--font-fraunces`) | semibold headings, italic accents |
 | Interface/body | **Manrope** (via `next/font`, `--font-manrope`) | 400–800, all UI text |
 
-- `font-display` = Fraunces → hero H1, section H2s, card titles, wordmark,
+- `font-display` = Fraunces → hero H1, section H2s, card titles,
   pull-quotes, step numbers, accordion questions.
 - Default body = Manrope → navigation, buttons, prices, forms, descriptions,
   anything dense or interactive.
@@ -104,7 +109,7 @@ Headlines use `text-balance` to avoid orphan words.
 | `Reveal` | `ui/reveal.tsx` | one-shot scroll reveal (fade + 20px rise) |
 | `Divider` | `ui/divider.tsx` | hairline with rotated gold diamond |
 | `Skeleton` | `ui/skeleton.tsx` | `motion-safe:animate-pulse` |
-| `Wordmark` | `shared/wordmark.tsx` | temporary typographic mark + pearl dot |
+| `Wordmark` | `shared/wordmark.tsx` | official CLIVS lockup (`public/brand/clivs-logo.png`) via `next/image`; white plate on dark surfaces |
 | `FoodMedia` | `shared/food-media.tsx` | temporary plated-dish SVG illustration (Cloudinary migration path built in) |
 | `ProductCard` | `shared/product-card.tsx` | preview only — no price/cart UI |
 | `Header` / `MobileNav` / `Footer` | `layout/*` | shell; `MobileNav` is a portal-rendered full-screen modal dialog (see §6) |
@@ -202,8 +207,26 @@ and no fake photography presented as real dishes.
   clean plating, rich realistic texture, cream/earthy backgrounds.
 - Business must supply approved photos before launch; document insertion points:
   hero, category cards, product cards, brand story.
-- Temporary logo note: the current wordmark is an interim typographic mark,
-  **not** the final official logo. Replace when the P+S monogram is delivered.
+
+### Official brand assets
+
+The client-supplied artwork is the single source of truth. It was cropped of
+whitespace only — never recoloured, redrawn or distorted — and the derivatives
+all preserve its proportions.
+
+| File | Size | Use |
+| --- | --- | --- |
+| `public/brand/clivs-logo.jpeg` | 1024×1024 | Original supplied file, kept verbatim |
+| `public/brand/clivs-logo.png` | 763×480 | Trimmed lockup (hand, apple, wordmark) — header, footer, admin, login |
+| `public/brand/clivs-mark.png` | 614×640 | Mark only (hand + apple) |
+| `public/brand/clivs-og.png` | 1200×630 | Open Graph / Twitter card (lockup on a white plate over ivory) |
+| `src/app/icon.png` | 512×512 | Favicon |
+| `src/app/apple-icon.png` | 180×180 | Apple touch icon |
+
+The artwork has an opaque white background. On light surfaces (white header,
+ivory pages) it blends in; on the forest footer and admin sidebar it sits on a
+deliberate white rounded plate (`Wordmark` `tone="cream"`). Emails keep a text
+wordmark because the email policy forbids remote images.
 
 ## 9. Admin surfaces (Phase 3)
 

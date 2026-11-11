@@ -36,7 +36,7 @@ async function seedCart(page: Page, items: unknown[]): Promise<void> {
 const cartButton = (page: Page) => page.getByRole("button", { name: /Open your cart/ });
 const drawer = (page: Page) => page.getByRole("dialog", { name: "Shopping cart" });
 
-test.describe("PEARL Signature — guest cart", () => {
+test.describe("CLIVS — guest cart", () => {
   test("adds an orderable product from the menu and reflects it in the header", async ({ page }) => {
     await page.goto("/menu/e2e-sample-meal");
 

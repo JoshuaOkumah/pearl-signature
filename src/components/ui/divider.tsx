@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-/** Decorative divider — a hairline with a small gold diamond, evoking a pearl-set table. */
+/** Decorative divider - a hairline with a small gold diamond, evoking a set table. */
 export function Divider({ className }: { className?: string }) {
   return (
     <div aria-hidden="true" className={cn("flex items-center gap-3", className)}>

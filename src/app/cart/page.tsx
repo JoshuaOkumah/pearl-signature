@@ -4,7 +4,7 @@ import { Eyebrow, Section } from "@/components/ui/section";
 
 export const metadata: Metadata = {
   title: "Your cart",
-  description: "Review the dishes you have selected from the PEARL Signature menu.",
+  description: "Review the dishes you have selected from the CLIVS menu.",
   // A cart is personal state, never a landing page.
   robots: { index: false, follow: true },
 };

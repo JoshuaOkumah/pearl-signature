@@ -1,4 +1,4 @@
-# PEARL Signature - Business Configuration
+# CLIVS - Business Configuration
 
 Phase 5 (extended in Phase 6, Phase 7 and Phase 7B). Everything a business must
 decide before a customer can place a real order lives in one owner-managed

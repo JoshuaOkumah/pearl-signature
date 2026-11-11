@@ -76,8 +76,8 @@ function sessionRequest(order: OrderRecord, attempt: PaymentAttemptRecord) {
           currency: "cad",
           unit_amount: order.money.totalCents,
           product_data: {
-            name: `PEARL Signature order ${order.reference}`,
-            description: "Your accepted PEARL Signature order total.",
+            name: `CLIVS order ${order.reference}`,
+            description: "Your accepted CLIVS order total.",
           },
         },
       },

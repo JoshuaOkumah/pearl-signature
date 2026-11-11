@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
  * Admin form field primitives (Phase 3).
  *
  * Presentational only (no state): usable inside client form components
- * while staying testable. Every control follows the PEARL design system
+ * while staying testable. Every control follows the CLIVS design system
  * tokens (cream surfaces, navy text, gold focus ring via `focus-gold`)
  * and exposes proper label/error wiring (`aria-invalid`,
  * `aria-describedby`) for screen readers and keyboard users.
@@ -170,7 +170,7 @@ export function CheckboxField({
       <input
         id={id}
         type="checkbox"
-        className="mt-0.5 size-5 shrink-0 rounded border-navy/30 accent-[#1a2530] focus-gold"
+        className="mt-0.5 size-5 shrink-0 rounded border-navy/30 accent-navy focus-gold"
         {...inputProps}
       />
       <div>

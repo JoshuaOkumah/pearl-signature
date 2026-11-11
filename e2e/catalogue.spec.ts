@@ -10,13 +10,13 @@ import { expect, test } from "@playwright/test";
  * reads (unit-tested in src/lib/repositories/catalogue.test.ts).
  */
 
-test.describe("PEARL Signature — catalogue", () => {
+test.describe("CLIVS — catalogue", () => {
   /* ── menu listing ──────────────────────────────────────────────────── */
 
   test("menu lists products with cards that open detail pages", async ({ page }) => {
     await page.goto("/menu");
 
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Explore the PEARL Signature menu");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Explore the CLIVS menu");
     await expect(page.getByText("Showing all 11 dishes")).toBeVisible();
 
     // Cards link to detail pages, not to a fake cart.

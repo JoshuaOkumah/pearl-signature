@@ -1,4 +1,4 @@
-# PEARL Signature — Phase Progress
+# CLIVS — Phase Progress
 
 > **Phase 1: Project Foundation, Design System & Interactive Storefront — COMPLETE.**
 > **Phase 1B: Mobile Responsiveness, Navigation & UI Remediation — COMPLETE**
@@ -50,12 +50,12 @@
   scattered through components.
 - Fonts via `next/font`: **Fraunces** (display) + **Manrope** (interface), with a
   responsive type scale and controlled line lengths (`text-balance`, max-w copy).
-- Utility layers: `focus-gold` (keyboard focus), `skip-link`, `pearl-dot`,
+- Utility layers: `focus-gold` (keyboard focus), `skip-link`,
   `motion-safe` pulse skeletons.
 
 ### Brand components
-- Wordmark (temporary typographic “PEARL ● Signature” with pearl detail — **not**
-  the final logo).
+- Wordmark: the official CLIVS lockup supplied by the business, rendered from
+  `public/brand/clivs-logo.png` (with a white plate on dark surfaces).
 - `Button`/`ButtonLink` (primary, secondary, accent, outline, outlineLight, ghost;
   sm/md/lg/icon; disabled, focus, press states), `Chip`, `Badge`, `Section`,
   `Eyebrow`, `SectionHeading`, `Divider`, `Skeleton`, `Accordion`, `Reveal`,
@@ -819,7 +819,7 @@ have been re-run after every phase.
 
 ## 3. Outstanding items (business inputs required before launch)
 
-- Official logo (P+S monogram with pearl detail) — current wordmark is interim.
+- Official logo — supplied (CLIVS hand-and-apple lockup) and in use.
 - Real product photography — current imagery is clearly temporary illustration.
 - Cloudinary credentials (cloud name, API key, API secret) to enable photo
   uploads — until supplied, the admin shows the honest "not configured"

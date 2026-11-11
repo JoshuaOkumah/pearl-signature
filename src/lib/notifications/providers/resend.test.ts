@@ -11,7 +11,7 @@ import { createResendProvider, parseRetryAfter, resendProviderFromEnv } from "./
  * outcome to an honest failure kind and to never store a vendor body.
  */
 
-const sender = { name: "PEARL Signature", email: "orders@pearl.example", raw: "PEARL Signature <orders@pearl.example>" };
+const sender = { name: "CLIVS", email: "orders@pearl.example", raw: "CLIVS <orders@pearl.example>" };
 
 function response(status: number, body: unknown = {}, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -36,8 +36,8 @@ describe("parseSender", () => {
       email: "orders@pearl.example",
       raw: "orders@pearl.example",
     });
-    expect(parseSender('"PEARL Signature" <orders@pearl.example>')).toEqual(sender);
-    expect(parseSender("PEARL Signature <not-an-email>")).toBeNull();
+    expect(parseSender('"CLIVS" <orders@pearl.example>')).toEqual(sender);
+    expect(parseSender("CLIVS <not-an-email>")).toBeNull();
     expect(parseSender("")).toBeNull();
     expect(parseSender(undefined)).toBeNull();
   });

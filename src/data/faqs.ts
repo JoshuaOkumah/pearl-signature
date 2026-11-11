@@ -6,9 +6,9 @@ import type { FaqItem } from "@/types";
  */
 export const faqs: FaqItem[] = [
   {
-    question: "Where is PEARL Signature located?",
+    question: "Where is CLIVS located?",
     answer:
-      "PEARL Signature is an online-only business based in Canada. There is no walk-in storefront. Every order is placed through this website and prepared for home delivery or prearranged pickup.",
+      "CLIVS is an online-only business based in Canada. There is no walk-in storefront. Every order is placed through this website and prepared for home delivery or prearranged pickup.",
   },
   {
     question: "How will delivery and pickup work?",

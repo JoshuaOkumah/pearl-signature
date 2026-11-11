@@ -33,7 +33,7 @@ export function Section({ id, padding = "default", className, containerClassName
 
 
 /** Small-caps gold eyebrow with a rule, used above section headings.
- * `inverse` is for dark panels, where the light champagne gold (not the
+ * `inverse` is for dark panels, where the light warm gold (not the
  * text-safe dark gold) is the AA-correct choice. */
 export function Eyebrow({
   children,

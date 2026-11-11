@@ -1,4 +1,4 @@
-# PEARL Signature — MongoDB Atlas M0 Setup (Phase 2)
+# CLIVS — MongoDB Atlas M0 Setup (Phase 2)
 
 Target: **MongoDB Atlas M0 (free tier)**. No paid tier, no other database
 service. Supabase/Firebase/Postgres are rejected dependencies and must never

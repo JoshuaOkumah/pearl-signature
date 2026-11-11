@@ -40,7 +40,7 @@ const name = (page: Page) => page.getByLabel(/^Full name/);
 const email = (page: Page) => page.getByLabel(/^Email address/);
 const phone = (page: Page) => page.getByLabel(/^Phone number/);
 
-test.describe("PEARL Signature — checkout review", () => {
+test.describe("CLIVS — checkout review", () => {
   test("redirects an empty cart to an honest empty state, not a form", async ({ page }) => {
     await page.goto("/checkout");
 

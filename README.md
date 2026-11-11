@@ -1,8 +1,8 @@
-# PEARL Signature
+# CLIVS
 
 **Authentic Nigerian flavours, made beautifully.**
 
-PEARL Signature is a premium Canadian-based online food business serving
+CLIVS is a premium Canadian-based online food business serving
 authentic Nigerian foods, pastries, snacks and traditional drinks. Customers
 browse the menu online and order for home delivery or prearranged pickup,
 paying online or with cash on arrival.
@@ -17,6 +17,30 @@ Phase 5 (order placement, Cash on Arrival and order management), Phase 6
 mode only) and Phase 7 (transactional email and secure guest order tracking)
 are implemented. Live payments, deployment and a real email account require
 later approval (see `docs/PHASE_PROGRESS.md`).
+
+## Brand identity
+
+| Item | Value |
+| --- | --- |
+| Name | **CLIVS** (no suffix) |
+| Logo | Official supplied lockup — `public/brand/clivs-logo.png` (source `clivs-logo.jpeg`) |
+| Favicon | `src/app/icon.png` (512×512) and `src/app/apple-icon.png` (180×180), derived from the logo mark |
+| Social card | `public/brand/clivs-og.png` (1200×630) |
+| Deep forest | `#243D30` — headings, body text, structure, primary buttons |
+| Sage | `#90B090` — brand warmth and decorative fills (never small text) |
+| Warm gold | `#DFAF49` — restrained accents, rules and borders |
+| Warm ivory | `#FAFAF5` — page background |
+| White | `#FFFFFF` — cards and clean surfaces |
+| Type | Fraunces (display) + Manrope (interface), via `next/font` |
+
+Token *names* in `src/app/globals.css` (e.g. `navy`, `cream`, `leaf`) are kept
+from the previous identity; only their values are the CLIVS palette, so no
+component had to be rewritten. See `docs/DESIGN_SYSTEM.md` for the full system.
+
+> **Manual email step:** to show CLIVS as the sender name, update the display
+> name in `EMAIL_FROM` (for example `CLIVS <orders@yourdomain.com>`) without
+> changing the verified address or the Resend provider. See
+> `docs/EMAIL_NOTIFICATIONS.md`.
 
 ---
 
@@ -151,7 +175,9 @@ src/
 │   ├── contact/page.tsx
 │   ├── admin/              # Owner dashboard: login, products, categories, orders, settings
 │   ├── globals.css         # Design tokens (@theme) + base/utility styles
-│   └── icon.svg            # Favicon (pearl mark)
+│   ├── manifest.ts         # Web app manifest (CLIVS name, icons, theme colour)
+│   ├── icon.png            # Favicon (official CLIVS mark)
+│   └── apple-icon.png      # Apple touch icon (official CLIVS mark)
 ├── proxy.ts                # Next 16 Proxy: slug check + previous-slug 308 redirects
 ├── components/
 │   ├── ui/                 # Primitives: Button, Chip, Badge, Section, Accordion…
@@ -186,6 +212,7 @@ src/
 │   ├── validations/        # Zod schemas: catalogue, admin, checkout, orders, settings, tracking
 │   └── server/             # Page data loaders (io() + React cache)
 └── types/                  # Shared domain types
+public/brand/               # Official CLIVS artwork: lockup, mark, social card
 e2e/                        # Playwright: storefront, cart/checkout, admin, orders, tracking suites
 scripts/screenshots.mjs     # Design-review utility (storefront + admin + tracking captures)
 scripts/seed.ts             # Explicit, idempotent MongoDB seed (never auto-runs)

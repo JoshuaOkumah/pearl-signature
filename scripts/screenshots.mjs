@@ -519,7 +519,7 @@ if (ordersBaseURL && adminEmail && adminPassword) {
       const latest = messages
         .filter(
           (message) =>
-            message.to === email && message.subject === "Your PEARL Signature verification code",
+            message.to === email && message.subject === "Your CLIVS verification code",
         )
         .at(-1);
       const code = latest?.text ? /\b\d{6}\b/.exec(latest.text)?.[0] : undefined;

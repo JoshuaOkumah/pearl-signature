@@ -116,7 +116,7 @@ describe("loadNotificationOverview", () => {
   it("never reports readiness values that look like secrets", async () => {
     process.env.NOTIFICATION_PROVIDER = "resend";
     process.env.RESEND_API_KEY = "re_super_secret_value";
-    process.env.EMAIL_FROM = "PEARL Signature <orders@example.test>";
+    process.env.EMAIL_FROM = "CLIVS <orders@example.test>";
     try {
       const overview = await loadNotificationOverview();
       const serialised = JSON.stringify(overview);

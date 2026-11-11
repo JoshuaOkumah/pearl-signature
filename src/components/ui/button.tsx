@@ -9,11 +9,11 @@ const base =
   "inline-flex items-center justify-center gap-2 rounded-full font-sans font-semibold tracking-[0.01em] transition-all duration-200 focus-gold active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50";
 
 const variants: Record<ButtonVariant, string> = {
-  /** Deep navy — main commerce actions on cream. */
+  /** Deep forest — main commerce actions on ivory. */
   primary: "bg-navy text-cream shadow-sm hover:bg-navy-800 active:bg-navy-900",
   /** Warm terracotta — appetite-driven secondary actions (AA-verified: cream on terracotta-700). */
   secondary: "bg-terracotta-700 text-cream shadow-sm hover:bg-terracotta-800",
-  /** Champagne gold — used sparingly, only on dark panels. */
+  /** Warm gold — used sparingly, only on dark panels. */
   accent: "bg-gold text-navy-900 shadow-sm hover:bg-gold-600",
   outline: "border border-navy/25 bg-transparent text-navy hover:border-navy hover:bg-navy hover:text-cream",
   /** Outline variant legible on navy surfaces. */

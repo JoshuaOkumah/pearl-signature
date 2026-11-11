@@ -1,4 +1,4 @@
-# PEARL Signature: Phase 6 Progress
+# CLIVS: Phase 6 Progress
 
 Status: **6A-6F complete in test mode. Online payment is implemented, gated off
 by default, and has not been verified against a real Stripe account. Live

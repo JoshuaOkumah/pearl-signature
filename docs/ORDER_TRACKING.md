@@ -1,4 +1,4 @@
-# PEARL Signature: Order Tracking
+# CLIVS: Order Tracking
 
 Phase 7 built the guest-facing `/track` page, the private access model behind it,
 and the cross-device email recovery flow. Phase 7B added a third access path (a

@@ -47,7 +47,7 @@ export interface BuiltEmail {
   text: string;
 }
 
-const FOOTER = "PEARL Signature - Canadian Nigerian kitchen";
+const FOOTER = "CLIVS - Canadian Nigerian kitchen";
 
 function cad(cents: number): string {
   return formatCad(cents) ?? "Amount unavailable";
@@ -477,8 +477,8 @@ export function buildOrderEmail(
       blocks.push(paragraph("The store has not provided a delivery estimate in this message."));
       text.push("The store has not provided a delivery estimate in this message.", "");
     } else if (event === "order.completed") {
-      blocks.push(paragraph("Thank you for ordering from PEARL Signature."));
-      text.push("Thank you for ordering from PEARL Signature.", "");
+      blocks.push(paragraph("Thank you for ordering from CLIVS."));
+      text.push("Thank you for ordering from CLIVS.", "");
     } else if (event === "payment.failed") {
       if (facts.status !== "cancelled") {
         blocks.push(paragraph("Your order details are saved. You can return to your order to try again."));

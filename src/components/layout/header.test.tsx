@@ -85,7 +85,7 @@ describe("Header, mobile navigation", () => {
     // DOM order: wordmark, X, links, CTA. Boundaries wrap:
     // Tab on the last focusable (CTA link) wraps to the first (wordmark).
     const cta = within(dialog).getByRole("link", { name: /explore the menu/i });
-    const wordmark = within(dialog).getByRole("link", { name: /pearl signature/i });
+    const wordmark = within(dialog).getByRole("link", { name: /CLIVS/i });
     cta.focus();
     expect(cta).toHaveFocus();
     fireEvent.keyDown(document, { key: "Tab" });

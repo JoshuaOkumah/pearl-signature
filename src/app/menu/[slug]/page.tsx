@@ -60,7 +60,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     description,
     alternates: canonical ? { canonical } : undefined,
     openGraph: {
-      title: `${product.name} | PEARL Signature`,
+      title: `${product.name} | CLIVS`,
       description,
       // URLs arrive pre-validated (HTTPS Cloudinary) from the repository.
       ...(image ? { images: [image.secureUrl] } : {}),
@@ -98,7 +98,7 @@ function buildStructuredData(product: Product) {
     name: product.name,
     description: product.shortDescription ?? product.description,
     ...(product.images.length > 0 ? { image: product.images.map((image) => image.secureUrl) } : {}),
-    brand: { "@type": "Organization", name: "PEARL Signature" },
+    brand: { "@type": "Organization", name: "CLIVS" },
     // Offers appear ONLY with a configured price, and deliberately omit
     // availability claims (no inventory tracking exists yet).
     ...(product.priceCents !== null

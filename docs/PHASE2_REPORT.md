@@ -1,4 +1,4 @@
-# PEARL Signature — Phase 2 Report
+# CLIVS — Phase 2 Report
 
 **Phase:** 2 — Catalogue data & product experience (MongoDB Atlas M0 +
 Mongoose + Zod foundation, Cloudinary display, `/menu` + `/menu/[slug]`).

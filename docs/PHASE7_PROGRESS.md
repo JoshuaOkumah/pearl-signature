@@ -1,4 +1,4 @@
-# PEARL Signature: Phase 7 Progress
+# CLIVS: Phase 7 Progress
 
 Status: **7A–7F complete.** Transactional email and secure order tracking are
 implemented on the existing Phase 5 outbox. No real email has been sent: no

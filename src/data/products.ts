@@ -64,7 +64,7 @@ export const products: Product[] = [
     featured: true,
     description:
       "Ground melon seeds cooked into a rich, nutty soup with leafy greens, a beloved favourite at the Nigerian table.",
-    theme: { deep: "#6E5320", base: "#C9A24B", accent: "#5C7A58" },
+    theme: { deep: "#6E5320", base: "#C9A24B", accent: "#90B090" },
     // Preview media slots (not photographs): until Cloudinary holds real
     // photography, the storefront renders themed placeholders with these
     // alt texts. Real customer photography replaces these records later;
@@ -97,7 +97,7 @@ export const products: Product[] = [
     featured: true,
     description:
       "A deeply savoury classic. Carefully washed bitterleaf, simmered with peppers and traditional spices.",
-    theme: { deep: "#2E4230", base: "#5C7A58", accent: "#D4AF37" },
+    theme: { deep: "#2E4230", base: "#5C7A58", accent: "#DFAF49" },
   }),
   previewProduct({
     slug: "vegetable-soup",
@@ -106,7 +106,7 @@ export const products: Product[] = [
     featured: false,
     description:
       "Fresh leafy greens simmered in a flavourful pepper base. Vibrant, hearty and comforting.",
-    theme: { deep: "#37522F", base: "#6E8A4A", accent: "#B86A4F" },
+    theme: { deep: "#37522F", base: "#6E8A4A", accent: "#A25B3F" },
   }),
   previewProduct({
     slug: "ukwa",
@@ -115,7 +115,7 @@ export const products: Product[] = [
     featured: false,
     description:
       "Tender African breadfruit prepared the traditional way. Wholesome, filling and full of character.",
-    theme: { deep: "#6E4F33", base: "#C2A276", accent: "#5C7A58" },
+    theme: { deep: "#6E4F33", base: "#C2A276", accent: "#90B090" },
   }),
   // ── Pastries & Snacks ──────────────────────────────────────────────
   previewProduct({
@@ -125,7 +125,7 @@ export const products: Product[] = [
     featured: true,
     description:
       "A soft, warm wrap filled with seasoned meat and crisp vegetables, finished with a creamy sauce.",
-    theme: { deep: "#8A4E30", base: "#D69A5E", accent: "#5C7A58" },
+    theme: { deep: "#8A4E30", base: "#D69A5E", accent: "#90B090" },
   }),
   previewProduct({
     slug: "turkey-pie",
@@ -133,7 +133,7 @@ export const products: Product[] = [
     category: "pastries-snacks",
     featured: false,
     description: "Flaky golden pastry generously filled with savoury, well-seasoned turkey.",
-    theme: { deep: "#7C4F1E", base: "#D19A4E", accent: "#B86A4F" },
+    theme: { deep: "#7C4F1E", base: "#D19A4E", accent: "#A25B3F" },
   }),
   previewProduct({
     slug: "meat-pie",
@@ -141,7 +141,7 @@ export const products: Product[] = [
     category: "pastries-snacks",
     featured: true,
     description: "Buttery, flaky pastry with a rich minced-meat filling, a timeless Nigerian favourite.",
-    theme: { deep: "#71471F", base: "#C98F45", accent: "#8A6A52" },
+    theme: { deep: "#71471F", base: "#C98F45", accent: "#7A6350" },
   }),
   previewProduct({
     slug: "egg-roll",
@@ -149,7 +149,7 @@ export const products: Product[] = [
     category: "pastries-snacks",
     featured: false,
     description: "A whole boiled egg wrapped in soft, lightly sweet dough and fried until golden.",
-    theme: { deep: "#7A5218", base: "#D9A24B", accent: "#B86A4F" },
+    theme: { deep: "#7A5218", base: "#D9A24B", accent: "#A25B3F" },
   }),
   previewProduct({
     slug: "chicken-pie",
@@ -157,7 +157,7 @@ export const products: Product[] = [
     category: "pastries-snacks",
     featured: false,
     description: "Tender, seasoned chicken tucked into delicate golden pastry.",
-    theme: { deep: "#8A5C26", base: "#D9AD63", accent: "#5C7A58" },
+    theme: { deep: "#8A5C26", base: "#D9AD63", accent: "#90B090" },
   }),
   // ── Drinks ─────────────────────────────────────────────────────────
   previewProduct({
@@ -166,7 +166,7 @@ export const products: Product[] = [
     category: "drinks",
     featured: true,
     description: "Chilled hibiscus brew infused with warm spices. Bright, refreshing and gently tangy.",
-    theme: { deep: "#571C2A", base: "#93324A", accent: "#D4AF37" },
+    theme: { deep: "#571C2A", base: "#93324A", accent: "#DFAF49" },
   }),
   previewProduct({
     slug: "soya-milk",
@@ -174,7 +174,7 @@ export const products: Product[] = [
     category: "drinks",
     featured: false,
     description: "Smooth, creamy soya milk, freshly prepared and lightly sweetened.",
-    theme: { deep: "#9C8259", base: "#E3D3B0", accent: "#8A6A52" },
+    theme: { deep: "#9C8259", base: "#E3D3B0", accent: "#7A6350" },
   }),
   // ── Unpublished test record (never publicly readable) ──────────────
   previewProduct({
@@ -185,7 +185,7 @@ export const products: Product[] = [
     status: "draft",
     description:
       "An unpublished sample record used to verify that draft products never appear in the public catalogue.",
-    theme: { deep: "#46586A", base: "#7C8B9A", accent: "#D4AF37" },
+    theme: { deep: "#46586A", base: "#7C8B9A", accent: "#DFAF49" },
   }),
 
   // Orderable synthetic records for the disposable cart test server only.

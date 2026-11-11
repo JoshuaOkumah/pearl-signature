@@ -148,7 +148,7 @@ beforeAll(async () => {
   process.env.MONGODB_URI = mongod.getUri("pearl_tracking_test");
   process.env.NOTIFICATION_PROVIDER = "resend";
   process.env.RESEND_API_KEY = "re_test_only_not_a_real_key";
-  process.env.EMAIL_FROM = "PEARL Signature <orders@example.test>";
+  process.env.EMAIL_FROM = "CLIVS <orders@example.test>";
   // The HMAC key for every new code. Test-only value, never used in production.
   process.env.GUEST_OTP_SECRET = "test-only-guest-otp-secret-0123456789abcdef";
   // A resend is requested twice in one test; production keeps the 60 s cooldown.

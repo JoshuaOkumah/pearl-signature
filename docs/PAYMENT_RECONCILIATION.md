@@ -1,4 +1,4 @@
-# PEARL Signature - Payment Reconciliation
+# CLIVS - Payment Reconciliation
 
 Phase 6. How an operator compares one Stripe order against the provider's
 server record, and how a verified correction is applied and audited.

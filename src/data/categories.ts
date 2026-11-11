@@ -13,7 +13,7 @@ export const categories: Category[] = [
     tagline: "Soups & classics",
     description:
       "Slow-simmered soups and beloved Nigerian classics, prepared with authentic recipes and patience.",
-    theme: { deep: "#2F4630", base: "#5C7A58", accent: "#D4AF37" },
+    theme: { deep: "#2F4630", base: "#5C7A58", accent: "#DFAF49" },
   },
   {
     slug: "pastries-snacks",
@@ -22,7 +22,7 @@ export const categories: Category[] = [
     tagline: "Baked & fried favourites",
     description:
       "Golden, flaky pastries and satisfying snacks, perfect for gatherings, gifts, or a quiet treat.",
-    theme: { deep: "#7A4E22", base: "#C98F45", accent: "#5C7A58" },
+    theme: { deep: "#7A4E22", base: "#C98F45", accent: "#90B090" },
   },
   {
     slug: "drinks",
@@ -30,7 +30,7 @@ export const categories: Category[] = [
     shortName: "Drinks",
     tagline: "Traditional refreshments",
     description: "Refreshing homemade drinks, brewed the traditional way and served chilled.",
-    theme: { deep: "#571C2A", base: "#93324A", accent: "#D4AF37" },
+    theme: { deep: "#571C2A", base: "#93324A", accent: "#DFAF49" },
   },
 ];
 

@@ -22,6 +22,6 @@ export const E2E_ORDERS_SINK_FILE = "test-results/e2e-orders-notifications.jsonl
 export const E2E_GUEST_OTP_COOLDOWN_SECONDS = "0";
 
 /** Subjects the branded code emails use, so a spec can pick the right one. */
-export const CHECKOUT_CODE_SUBJECT = "Your PEARL Signature verification code";
-export const RECOVERY_CODE_SUBJECT = "Your PEARL Signature sign-in code";
+export const CHECKOUT_CODE_SUBJECT = "Your CLIVS verification code";
+export const RECOVERY_CODE_SUBJECT = "Your CLIVS sign-in code";
 export const EMAIL_CHANGE_CODE_SUBJECT = "Confirm your new email address";

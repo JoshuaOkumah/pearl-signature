@@ -9,7 +9,7 @@ import { Reveal } from "@/components/ui/reveal";
 export const metadata: Metadata = {
   title: "Contact",
   description:
-    "Get in touch with PEARL Signature. Verified contact channels are being finalised and will be published before ordering opens.",
+    "Get in touch with CLIVS. Verified contact channels are being finalised and will be published before ordering opens.",
 };
 
 interface Pathway {
@@ -38,7 +38,7 @@ const pathways: Pathway[] = [
   {
     icon: ArrowRight,
     title: "Our story",
-    description: "Learn what PEARL Signature stands for and how our kitchen works.",
+    description: "Learn what CLIVS stands for and how our kitchen works.",
     href: "/about",
     action: "About us",
   },
@@ -54,7 +54,7 @@ export default function ContactPage() {
             We’d love to hear from you
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-ink-muted md:text-lg">
-            PEARL Signature is getting ready to open for orders. Here is where things stand with reaching us.
+            CLIVS is getting ready to open for orders. Here is where things stand with reaching us.
           </p>
         </Reveal>
       </Section>

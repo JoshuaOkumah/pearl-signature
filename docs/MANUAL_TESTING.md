@@ -1,4 +1,4 @@
-# PEARL Signature — Manual Review Guide (Phase 7B)
+# CLIVS — Manual Review Guide (Phase 7B)
 
 This guide is for a business owner reviewing the storefront, ordering, payment
 and order-recovery experience. No coding knowledge is needed. Use the local test

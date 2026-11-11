@@ -1,4 +1,4 @@
-# PEARL Signature — Checkout Foundation (Phase 4)
+# CLIVS — Checkout Foundation (Phase 4)
 
 This is a **review-only** checkout foundation, not a way to place an order.
 It exists so the customer can review a basket, confirm the current menu prices

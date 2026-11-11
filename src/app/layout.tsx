@@ -6,6 +6,7 @@ import { Header } from "@/components/layout/header";
 import { CartProvider } from "@/lib/cart/context";
 import { MotionProvider } from "@/components/providers/motion-provider";
 import { SiteChrome } from "@/components/layout/site-chrome";
+import { siteUrl } from "@/lib/site-url";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -21,17 +22,38 @@ const manrope = Manrope({
   display: "swap",
 });
 
+const site = siteUrl();
+const SITE_TITLE = "CLIVS · Authentic Nigerian Cuisine, Made Beautifully";
+const SITE_DESCRIPTION =
+  "CLIVS is a Canadian online kitchen offering authentic Nigerian soups and classics, pastries, snacks and traditional drinks, available to order online for delivery or arranged pickup.";
+const SHARE_IMAGE = "/brand/clivs-og.png";
+
 export const metadata: Metadata = {
+  // Only advertised when NEXT_PUBLIC_SITE_URL is configured — never invent a domain.
+  ...(site ? { metadataBase: new URL(site) } : {}),
   title: {
-    default: "PEARL Signature · Authentic Nigerian Cuisine, Made Beautifully",
-    template: "%s · PEARL Signature",
+    default: SITE_TITLE,
+    template: "%s · CLIVS",
   },
-  description:
-    "PEARL Signature is a Canadian online kitchen offering authentic Nigerian soups and classics, pastries, snacks and traditional drinks, available to order online for delivery or arranged pickup.",
+  description: SITE_DESCRIPTION,
+  applicationName: "CLIVS",
+  openGraph: {
+    type: "website",
+    siteName: "CLIVS",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [{ url: SHARE_IMAGE, width: 1200, height: 630, alt: "CLIVS" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [SHARE_IMAGE],
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#FDFBF7",
+  themeColor: "#FAFAF5",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

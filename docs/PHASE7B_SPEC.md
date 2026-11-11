@@ -1,4 +1,4 @@
-# PEARL Signature: Phase 7B Specification
+# CLIVS: Phase 7B Specification
 
 This file preserves the approved Phase 7B brief in an implementation-ready form
 so a later session can continue without the original chat message. The user's
@@ -202,7 +202,7 @@ lifecycle.
 
 ## 12. Email notifications
 
-- Branded OTP email: PEARL Signature, six-digit code, ten-minute expiry, why it
+- Branded OTP email: CLIVS, six-digit code, ten-minute expiry, why it
   was sent, no private order data, no tokens or links, no promotional copy.
 - Recovery uses the same secure template with a distinct purpose label.
 - Order emails include a **Track My Order** action linking to the public entry
@@ -277,8 +277,8 @@ caches or expose private data in pre-rendered HTML.
 
 ## 17. Visual and mobile design
 
-Preserve the identity: cream `#FDFBF7`, navy `#1A2530`, gold `#D4AF37`, leaf
-`#5C7A58`, terracotta `#B86A4F`; Fraunces headings, Manrope UI. New interfaces
+Preserve the identity: warm ivory `#FAFAF5`, deep forest `#243D30`, warm gold
+`#DFAF49`, sage `#90B090`, terracotta `#A25B3F`; Fraunces headings, Manrope UI. New interfaces
 must feel like the premium storefront, not generic admin forms.
 
 OTP interface: clear heading, visible destination email, accessible six-digit

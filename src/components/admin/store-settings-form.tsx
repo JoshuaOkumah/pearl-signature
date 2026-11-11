@@ -267,7 +267,7 @@ export function StoreSettingsForm({ initial }: { initial: SettingsFormValues }) 
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleProvince(row.id, province.code)}
-                          className="size-3.5 accent-[#1a2530] focus-gold"
+                          className="size-3.5 accent-navy focus-gold"
                         />
                         {province.code}
                         <span className="sr-only">{province.name}</span>
@@ -360,7 +360,7 @@ export function StoreSettingsForm({ initial }: { initial: SettingsFormValues }) 
                 value="unconfigured"
                 checked={taxMode === "unconfigured"}
                 onChange={() => setTaxMode("unconfigured")}
-                className="mt-1 size-4 accent-[#1a2530] focus-gold"
+                className="mt-1 size-4 accent-navy focus-gold"
               />
               <span>
                 <span className="font-sans text-sm font-semibold text-navy">Not confirmed yet</span>
@@ -377,7 +377,7 @@ export function StoreSettingsForm({ initial }: { initial: SettingsFormValues }) 
                 value="zero"
                 checked={taxMode === "zero"}
                 onChange={() => setTaxMode("zero")}
-                className="mt-1 size-4 accent-[#1a2530] focus-gold"
+                className="mt-1 size-4 accent-navy focus-gold"
               />
               <span>
                 <span className="font-sans text-sm font-semibold text-navy">No tax collected on orders</span>
@@ -394,7 +394,7 @@ export function StoreSettingsForm({ initial }: { initial: SettingsFormValues }) 
                 value="rate"
                 checked={taxMode === "rate"}
                 onChange={() => setTaxMode("rate")}
-                className="mt-1 size-4 accent-[#1a2530] focus-gold"
+                className="mt-1 size-4 accent-navy focus-gold"
               />
               <span>
                 <span className="font-sans text-sm font-semibold text-navy">Approved rate</span>

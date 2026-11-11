@@ -1,4 +1,4 @@
-# PEARL Signature - Payment Lifecycle
+# CLIVS - Payment Lifecycle
 
 Phase 6. The states a payment can occupy, the only events allowed to move it,
 and the invariants that keep a recorded settlement honest.

@@ -61,7 +61,7 @@ for (const viewport of MOBILE) {
     expect(box.height).toBeGreaterThanOrEqual(44);
 
     // Header controls must not collide: wordmark ends before the burger starts.
-    const wordmark = page.getByRole("banner").getByRole("link", { name: "PEARL Signature, home page" });
+    const wordmark = page.getByRole("banner").getByRole("link", { name: "CLIVS, home page" });
     const wordmarkBox = (await wordmark.boundingBox())!;
     expect(wordmarkBox.x + wordmarkBox.width).toBeLessThanOrEqual(box.x);
 

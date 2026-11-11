@@ -1,4 +1,4 @@
-# PEARL Signature - Order Architecture
+# CLIVS - Order Architecture
 
 Phase 5. This is the map of how a checkout submission becomes a durable
 order, what the server trusts, and where every rule lives.
