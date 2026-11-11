@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-export type ButtonVariant = "primary" | "secondary" | "accent" | "outline" | "outlineLight" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "accent" | "danger" | "outline" | "outlineLight" | "ghost";
 export type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const base =
@@ -11,10 +11,12 @@ const base =
 const variants: Record<ButtonVariant, string> = {
   /** Deep forest — main commerce actions on ivory. */
   primary: "bg-navy text-cream shadow-sm hover:bg-navy-800 active:bg-navy-900",
-  /** Warm terracotta — appetite-driven secondary actions (AA-verified: cream on terracotta-700). */
-  secondary: "bg-terracotta-700 text-cream shadow-sm hover:bg-terracotta-800",
+  /** Sage — warm secondary actions (AA-verified: forest on leaf, cream on leaf-700). */
+  secondary: "bg-leaf text-navy-900 shadow-sm hover:bg-leaf-700 hover:text-cream",
   /** Warm gold — used sparingly, only on dark panels. */
   accent: "bg-gold text-navy-900 shadow-sm hover:bg-gold-600",
+  /** Deep umber — destructive confirmation only (cream text ≥4.5:1). */
+  danger: "bg-terracotta-700 text-cream shadow-sm hover:bg-terracotta-800",
   outline: "border border-navy/25 bg-transparent text-navy hover:border-navy hover:bg-navy hover:text-cream",
   /** Outline variant legible on navy surfaces. */
   outlineLight: "border border-cream/40 bg-transparent text-cream hover:border-cream hover:bg-cream hover:text-navy",

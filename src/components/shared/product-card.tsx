@@ -64,7 +64,6 @@ export function ProductCard({ product, size = "default", className }: ProductCar
           <span className="text-[0.7rem] font-bold uppercase tracking-[0.18em] text-gold-700">
             {product.categoryName}
           </span>
-          {product.featured ? <Badge tone="gold">Signature</Badge> : null}
         </div>
 
         <h3 className="mt-2 font-display text-xl font-semibold">

@@ -56,7 +56,7 @@ collections while they are connected.
 | `status` | `"draft" \| "published" \| "archived"` | default `"draft"` | Drafts are never publicly readable. **Phase 3:** `archived` retires a product from sale without deleting it (reversible); public reads filter `status: "published"` exclusively |
 | `availability` | `"available" \| "unavailable"` | default `"available"` | Surfaced as an "Unavailable" badge (never hidden — the item stays browsable) |
 | `stock` | `{ tracked, quantity }` | default `{ tracked: false, quantity: null }` | **Unused scaffolding for a later phase** |
-| `featured` | boolean | default `false` | Homepage Signature Favourites |
+| `featured` | boolean | default `false` | Homepage Featured dishes |
 | `tags` | string[] | ≤ 10 × ≤ 40 chars | |
 | `sortOrder` | number | default `0` | Stable listing order |
 | `createdAt` / `updatedAt` | date | timestamps | |

@@ -61,7 +61,6 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
               {unavailable ? <Badge tone="terracotta">Currently unavailable</Badge> : null}
-              {product.featured ? <Badge tone="gold">Signature</Badge> : null}
             </div>
 
             {/* Price, options, quantity and add-to-cart live in one client

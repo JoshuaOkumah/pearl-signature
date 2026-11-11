@@ -13,7 +13,7 @@ export function Hero() {
     <Section padding="flush" className="relative overflow-hidden pb-20 pt-12 md:pb-28 md:pt-20">
       {/* Soft editorial backdrop details */}
       <div aria-hidden="true" className="pointer-events-none absolute -right-24 top-10 h-72 w-72 rounded-full bg-gold-100/60 blur-3xl" />
-      <div aria-hidden="true" className="pointer-events-none absolute -left-24 bottom-0 h-72 w-72 rounded-full bg-terracotta-100/50 blur-3xl" />
+      <div aria-hidden="true" className="pointer-events-none absolute -left-24 bottom-0 h-72 w-72 rounded-full bg-leaf-100/60 blur-3xl" />
 
       <div className="relative grid items-center gap-14 lg:grid-cols-[1.02fr_0.98fr]">
         <div>
@@ -22,7 +22,7 @@ export function Hero() {
           </Reveal>
           <Reveal delay={0.08}>
             <h1 className="mt-5 font-display text-[2.65rem] font-semibold leading-[1.06] tracking-[-0.015em] text-balance text-navy sm:text-5xl lg:text-[3.5rem]">
-              Authentic Nigerian flavours, <em className="italic text-terracotta">made beautifully.</em>
+              Authentic Nigerian flavours, <em className="italic text-gold-700">made beautifully.</em>
             </h1>
           </Reveal>
           <Reveal delay={0.16}>
@@ -49,7 +49,7 @@ export function Hero() {
                 Made to order
               </li>
               <li className="flex items-center gap-2">
-                <Truck className="h-4 w-4 text-terracotta" aria-hidden="true" />
+                <Truck className="h-4 w-4 text-navy-700" aria-hidden="true" />
                 Delivery or arranged pickup
               </li>
               <li className="flex items-center gap-2">
@@ -64,7 +64,7 @@ export function Hero() {
         <Reveal delay={0.18} y={28} className="relative">
           <div className="relative mx-auto max-w-[30rem]">
             <div aria-hidden="true" className="absolute -right-8 -top-10 h-40 w-40 rounded-full border-[10px] border-gold/25" />
-            <div aria-hidden="true" className="absolute -bottom-10 -left-8 h-24 w-24 rounded-full bg-terracotta-100" />
+            <div aria-hidden="true" className="absolute -bottom-10 -left-8 h-24 w-24 rounded-full bg-leaf-100" />
 
             {egusi ? (
               <FoodMedia

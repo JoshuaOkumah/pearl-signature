@@ -50,7 +50,7 @@ export function CartButton({ triggerRef, onClick }: CartButtonProps) {
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 520, damping: 28 }}
           aria-hidden="true"
-          className="absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-terracotta-700 px-1 text-[0.6875rem] font-bold leading-none text-cream"
+          className="absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1 text-[0.6875rem] font-bold leading-none text-navy-900"
         >
           {count > 99 ? "99+" : count}
         </motion.span>

@@ -16,6 +16,9 @@
      gold    (#DFAF49) — restrained accent: rules, borders, highlights
      ivory   (#FAFAF5) — page background
      white   (#FFFFFF) — cards and clean surfaces
+
+   `terracotta` is deliberately NOT a brand colour: it is the semantic
+   warning/unavailable tone (deep umber), kept only so alerts read as alerts.
    ──────────────────────────────────────────────────────────────────── */
 @theme {
   /* Brand palette (sampled from the official CLIVS logo) */
@@ -23,7 +26,7 @@
   --color-navy: #243d30; /* deep forest: structure, text, primary buttons */
   --color-gold: #dfaf49; /* warm gold: restrained premium accent */
   --color-leaf: #90b090; /* sage: brand warmth, decorative fills */
-  --color-terracotta: #a25b3f; /* warm clay: appetite and warnings */
+  --color-terracotta: #6b4a35; /* deep umber: warnings/unavailable only (not a brand accent) */
   --color-brown: #7a6350; /* subtle warm secondary */
 
   /* Derived surfaces & steps */
@@ -46,9 +49,9 @@
   --color-leaf-700: #3f5c48; /* deep sage for text and filled steps (AA) */
   --color-leaf-100: #e8f0e7;
 
-  --color-terracotta-800: #7e3f28; /* button hover (keeps cream text ≥4.5:1) */
-  --color-terracotta-700: #8c4a30; /* text-safe clay on light surfaces (AA) */
-  --color-terracotta-100: #f6e7de;
+  --color-terracotta-800: #52372a; /* warning/destructive hover (cream text ≥4.5:1) */
+  --color-terracotta-700: #5c4033; /* text-safe umber on light surfaces (AA) */
+  --color-terracotta-100: #f0e7de;
 
   --color-brown-700: #5f4c3c;
   --color-brown-100: #ede5da;

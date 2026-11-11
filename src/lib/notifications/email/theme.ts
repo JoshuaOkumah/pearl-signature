@@ -22,8 +22,8 @@ export const EMAIL_COLORS = {
   inkMuted: "#5A6B60",
   leaf: "#3F5C48",
   leafSoft: "#E8F0E7",
-  terracotta: "#8C4A30",
-  terracottaSoft: "#F6E7DE",
+  terracotta: "#5C4033",
+  terracottaSoft: "#F0E7DE",
 } as const;
 
 export const EMAIL_FONTS = {

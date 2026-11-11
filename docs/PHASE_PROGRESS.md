@@ -71,7 +71,7 @@
   and social details.
 
 ### Pages
-- **`/`** — Hero (A), Menu Categories (B), Signature Favourites (C), Brand Story (D),
+- **`/`** — Hero (A), Menu Categories (B), Featured dishes (C), Brand Story (D),
   How Ordering Works (E), Closing CTA (F), FAQ accordion (G).
 - **`/menu`** — heading + intro, animated category chips with counts, responsive
   product grid from typed local data, empty state with reset, `aria-live` result
@@ -850,7 +850,8 @@ have been re-run after every phase.
   readiness checklist is `docs/STRIPE_INTEGRATION.md` §4 and §11.
 - Operating hours, verified business email/phone/social accounts.
 - Domain/hosting choice and production deployment.
-- Confirming that “Signature” badge/wording matches brand preferences.
+- The featured-dish badge wording was removed in the CLIVS rebrand; the
+  homepage showcase is now titled “Featured dishes”.
 
 ## 4. Known limitations
 

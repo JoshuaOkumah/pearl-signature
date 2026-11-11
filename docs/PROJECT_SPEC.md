@@ -181,7 +181,7 @@ Editorial Design. Full detail lives in `docs/DESIGN_SYSTEM.md`.
 - Background: Warm Ivory `#FAFAF5`
 - Structure/text/primary buttons: Deep Forest `#243D30`
 - Accent (restrained): Warm Gold `#DFAF49`
-- Brand warmth (decorative): Sage `#90B090`; support: Warm Clay `#A25B3F`, Earthy Brown `#7A6350`
+- Brand warmth (decorative): Sage `#90B090`; semantic support: Deep Umber `#6B4A35` (warnings only), Earthy Brown `#7A6350`
 - Headlines: Fraunces (serif). UI/body: Manrope (sans).
 - Wordmark: the official CLIVS lockup supplied by the business, rendered from
   `public/brand/clivs-logo.png` at every brand location.

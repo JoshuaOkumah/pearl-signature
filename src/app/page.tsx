@@ -4,14 +4,14 @@ import { ClosingCta } from "@/components/home/closing-cta";
 import { Faq } from "@/components/home/faq";
 import { Hero } from "@/components/home/hero";
 import { HowOrderingWorks } from "@/components/home/how-ordering-works";
-import { SignatureFavourites } from "@/components/home/signature-favourites";
+import { FeaturedFavourites } from "@/components/home/featured-favourites";
 
 export default function HomePage() {
   return (
     <>
       <Hero />
       <Categories />
-      <SignatureFavourites />
+      <FeaturedFavourites />
       <BrandStory />
       <HowOrderingWorks />
       <ClosingCta />

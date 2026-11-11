@@ -141,7 +141,7 @@ function ClearCartControl({
     return (
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Confirm clearing your cart">
         <span className="text-sm font-medium text-navy-700">Remove everything?</span>
-        <Button type="button" variant="secondary" size="sm" onClick={onConfirm}>
+        <Button type="button" variant="danger" size="sm" onClick={onConfirm}>
           Yes, clear my cart
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>

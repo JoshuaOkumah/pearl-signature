@@ -278,7 +278,7 @@ caches or expose private data in pre-rendered HTML.
 ## 17. Visual and mobile design
 
 Preserve the identity: warm ivory `#FAFAF5`, deep forest `#243D30`, warm gold
-`#DFAF49`, sage `#90B090`, terracotta `#A25B3F`; Fraunces headings, Manrope UI. New interfaces
+`#DFAF49`, sage `#90B090`, deep umber `#6B4A35` (warnings only); Fraunces headings, Manrope UI. New interfaces
 must feel like the premium storefront, not generic admin forms.
 
 OTP interface: clear heading, visible destination email, accessible six-digit

@@ -5,7 +5,7 @@ import { Section, SectionHeading } from "@/components/ui/section";
 import { ButtonLink } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SignatureFavouritesShowcase } from "./signature-favourites-showcase";
+import { FeaturedFavouritesShowcase } from "./featured-favourites-showcase";
 
 /**
  * Editorial showcase of representative dishes.
@@ -17,13 +17,13 @@ import { SignatureFavouritesShowcase } from "./signature-favourites-showcase";
  * database work happens during build, and every reader sees current
  * publication state without a redeploy.
  */
-export function SignatureFavourites() {
+export function FeaturedFavourites() {
   return (
     <Section>
       <div className="flex flex-wrap items-end justify-between gap-6">
         <Reveal>
           <SectionHeading
-            eyebrow="Signature favourites"
+            eyebrow="Featured dishes"
             title="A taste of what we’re known for"
             description="A small, lovingly curated selection of the dishes our kitchen is built around."
           />
@@ -46,10 +46,10 @@ export function SignatureFavourites() {
 async function FavouritesGrid() {
   const showcase = await loadHomepageShowcase();
   if (!showcase.ok) {
-    return <SignatureFavouritesShowcase featured={[]} total={null} state="error" />;
+    return <FeaturedFavouritesShowcase featured={[]} total={null} state="error" />;
   }
   return (
-    <SignatureFavouritesShowcase
+    <FeaturedFavouritesShowcase
       featured={showcase.data.featured}
       total={showcase.data.total}
       state="ok"

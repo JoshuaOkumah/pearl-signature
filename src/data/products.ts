@@ -106,7 +106,7 @@ export const products: Product[] = [
     featured: false,
     description:
       "Fresh leafy greens simmered in a flavourful pepper base. Vibrant, hearty and comforting.",
-    theme: { deep: "#37522F", base: "#6E8A4A", accent: "#A25B3F" },
+    theme: { deep: "#37522F", base: "#6E8A4A", accent: "#90B090" },
   }),
   previewProduct({
     slug: "ukwa",
@@ -133,7 +133,7 @@ export const products: Product[] = [
     category: "pastries-snacks",
     featured: false,
     description: "Flaky golden pastry generously filled with savoury, well-seasoned turkey.",
-    theme: { deep: "#7C4F1E", base: "#D19A4E", accent: "#A25B3F" },
+    theme: { deep: "#7C4F1E", base: "#D19A4E", accent: "#DFAF49" },
   }),
   previewProduct({
     slug: "meat-pie",
@@ -149,7 +149,7 @@ export const products: Product[] = [
     category: "pastries-snacks",
     featured: false,
     description: "A whole boiled egg wrapped in soft, lightly sweet dough and fried until golden.",
-    theme: { deep: "#7A5218", base: "#D9A24B", accent: "#A25B3F" },
+    theme: { deep: "#7A5218", base: "#D9A24B", accent: "#DFAF49" },
   }),
   previewProduct({
     slug: "chicken-pie",

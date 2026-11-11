@@ -95,7 +95,7 @@ export interface Product {
   categoryName: string;
   description: string;
   shortDescription: string | null;
-  /** Shown in the curated “Signature Favourites” showcase. */
+  /** Shown in the curated "Featured dishes" showcase. */
   featured: boolean;
   /** Placeholder palette — used only while the product has no image. */
   theme: DishTheme;

@@ -97,9 +97,9 @@ locally (see section K).
   "That's the end of the menu" state instead of a silent clamp.
 - Cards: image/placeholder, name, short description, price **only when
   configured** (`$18.00 CAD` formatting via `formatCad`; otherwise "Price
-  to be confirmed"), availability badge, Signature badge for featured
-  items, and a detail link. **No Add-to-Cart / buy affordances anywhere.**
-- Homepage "Signature Favourites" reads the DB showcase (featured +
+  to be confirmed"), availability badge, and a detail link. **No Add-to-Cart /
+  buy affordances anywhere.**
+- Homepage "Featured dishes" reads the DB showcase (featured +
   published) with an honest empty state and a calm error state.
 
 ## F. `/menu/[slug]` — detail, related, 404

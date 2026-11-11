@@ -117,7 +117,7 @@ export default function AboutPage() {
             ))}
             <Reveal delay={0.24}>
               <div className="flex items-center gap-3 rounded-2xl px-2 py-1 text-sm text-ink-muted">
-                <ChefHat className="h-4 w-4 shrink-0 text-terracotta" aria-hidden="true" />
+                <ChefHat className="h-4 w-4 shrink-0 text-gold-700" aria-hidden="true" />
                 Every dish is prepared to order, never left sitting under a heat lamp.
               </div>
             </Reveal>

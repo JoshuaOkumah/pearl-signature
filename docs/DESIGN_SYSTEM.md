@@ -19,7 +19,7 @@
 | `navy` | `#243D30` | Deep forest: structure, headings, body text, primary buttons, footer |
 | `gold` | `#DFAF49` | Restrained warm gold accent (rules, numbers, CTA on forest only) |
 | `leaf` | `#90B090` | Sage brand warmth — decorative fills only, never small text |
-| `terracotta` | `#A25B3F` | Warm clay: appetite, warnings, secondary CTA |
+| `terracotta` | `#6B4A35` | Deep umber: semantic warnings and unavailable states only — never a brand accent |
 | `brown` | `#7A6350` | Subtle warm secondary elements |
 
 > Token *names* are retained from the previous identity so every component keeps
@@ -40,7 +40,7 @@
 | `gold-600/700` | `#C79A36` / `#80601C` | Gold hover / **text-safe gold** (≥4.5:1 on cream, cream-100, cream-200, surface and gold-100; never on forest — use `gold`) |
 | `gold-100` | `#F7EDD6` | Soft gold wash (badges, notes) |
 | `leaf-100`, `leaf-700` | `#E8F0E7`, `#3F5C48` | Fresh/positive badge states |
-| `terracotta-100/700/800` | `#F6E7DE`, `#8C4A30`, `#7E3F28` | Warm badge states; `secondary` button bg/hover (cream text ≥4.5:1) |
+| `terracotta-100/700/800` | `#F0E7DE`, `#5C4033`, `#52372A` | Warning panels, error text, `danger` button bg/hover (cream text ≥4.5:1) |
 | `brown-100/700` | `#EDE5DA`, `#5F4C3C` | Warm secondary states |
 
 ### Colour rules
@@ -101,7 +101,7 @@ Headlines use `text-balance` to avoid orphan words.
 
 | Component | File | Notes |
 | --- | --- | --- |
-| `Button` / `ButtonLink` | `ui/button.tsx` | variants: `primary` (navy), `secondary` (terracotta), `accent` (gold, dark surfaces), `outline`, `outlineLight`, `ghost`; sizes `sm/md/lg/icon`; focus ring, `active:scale-[0.98]`, disabled opacity |
+| `Button` / `ButtonLink` | `ui/button.tsx` | variants: `primary` (forest), `secondary` (sage), `accent` (gold, dark surfaces), `danger` (umber, destructive confirmation), `outline`, `outlineLight`, `ghost`; sizes `sm/md/lg/icon`; focus ring, `active:scale-[0.98]`, disabled opacity |
 | `Chip` | `ui/chip.tsx` | `aria-pressed`, animated active pill (`layoutId`), counts |
 | `Badge` | `ui/badge.tsx` | tones: neutral/gold/leaf/terracotta/navy |
 | `Section` / `Eyebrow` / `SectionHeading` | `ui/section.tsx` | editorial heading stack |
@@ -243,7 +243,7 @@ reads consistently, but drops the storefront chrome entirely:
 - **Tokens:** cream backgrounds, `surface` cards with `border` hairlines,
   navy headings (`font-serif` page titles), `ink-muted` secondary text,
   `Badge` tones for status (leaf = published/active, neutral = draft,
-  terracotta = archived/disabled). Gold stays restrained: focus rings and
+  terracotta (deep umber) = archived/disabled). Gold stays restrained: focus rings and
   the wordmark dot only.
 - **Forms:** shared admin field primitives (`TextField`, `TextAreaField`,
   `SelectField`, `CheckboxField`) with labels carrying "(required)",
@@ -309,7 +309,7 @@ the customer, explicit for the owner.
 - **Place order:** `variant="primary"`, full width, with a polite
   `role="status"` line underneath that always explains the current state
   (verifying, awaiting address, awaiting acknowledgment, submitting,
-  unavailable). Submission errors use a terracotta `role="alert"` block with
+  unavailable). Submission errors use an umber `role="alert"` block with
   `data-testid="submit-error"`.
 - **Price-change panel:** a gold-bordered `role="alert"` block stating the
   new total, the previous total and that the order was not submitted, with
@@ -331,7 +331,7 @@ the customer, explicit for the owner.
   consequential actions (cancel, complete) and payment recording use the
   two-step control, which changes its own label to the consequence and
   returns to rest when focus leaves.
-- **Danger tone:** cancellation uses `terracotta-700` once armed; ordinary
+- **Danger tone:** cancellation uses the deep umber `terracotta-700` once armed; ordinary
   progression stays navy, so colour follows consequence rather than
   decoration.
 - **Results:** `FormAlert` in `success` or `error` tone directly under the

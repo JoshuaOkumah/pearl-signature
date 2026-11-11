@@ -35,11 +35,9 @@ describe("ProductCard", () => {
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
   });
 
-  it("badges Signature products", () => {
+  it("does not label featured products with a Signature badge", () => {
     renderWithCart(<ProductCard product={egusi} />);
-    expect(screen.getByText("Signature")).toBeInTheDocument(); // egusi is featured
-    renderWithCart(<ProductCard product={{ ...egusi, featured: false }} />);
-    expect(screen.getAllByText("Signature")).toHaveLength(1);
+    expect(screen.queryByText("Signature")).not.toBeInTheDocument();
   });
 
   it("shows the short description when configured", () => {
