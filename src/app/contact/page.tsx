@@ -9,7 +9,7 @@ import { Reveal } from "@/components/ui/reveal";
 export const metadata: Metadata = {
   title: "Contact",
   description:
-    "Get in touch with CLIVS. Verified contact channels are being finalised and will be published before ordering opens.",
+    "Get in touch with CLIVS. Verified contact channels will be published here once they are confirmed.",
 };
 
 interface Pathway {
@@ -31,7 +31,7 @@ const pathways: Pathway[] = [
   {
     icon: MessageCircle,
     title: "Common questions",
-    description: "Delivery, pickup, payment and opening plans, answered honestly in our FAQ.",
+    description: "Delivery, pickup, payment and ordering, answered honestly in our FAQ.",
     href: "/#faq",
     action: "Read the FAQ",
   },
@@ -54,7 +54,7 @@ export default function ContactPage() {
             We’d love to hear from you
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-ink-muted md:text-lg">
-            CLIVS is getting ready to open for orders. Here is where things stand with reaching us.
+            Here is where things stand with reaching us.
           </p>
         </Reveal>
       </Section>
@@ -67,7 +67,7 @@ export default function ContactPage() {
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gold-100 text-gold-700">
                   <MailQuestion className="h-6 w-6" aria-hidden="true" />
                 </span>
-                <Badge tone="gold">Coming before launch</Badge>
+                <Badge tone="gold">Not yet published</Badge>
               </div>
               <h2 className="mt-6 font-display text-2xl font-semibold text-navy">
                 Verified contact channels are being finalised
@@ -78,8 +78,8 @@ export default function ContactPage() {
                 than give you details that might change.
               </p>
               <p className="mt-4 text-sm leading-relaxed text-ink-muted md:text-base">
-                When ordering opens, order enquiries, delivery coordination and pickup arrangements will all be
-                handled through those published channels.
+                Once published, order enquiries, delivery coordination and pickup arrangements will all be handled
+                through those channels.
               </p>
             </div>
           </Reveal>

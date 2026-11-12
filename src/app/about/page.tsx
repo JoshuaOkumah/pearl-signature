@@ -50,7 +50,7 @@ export default function AboutPage() {
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-ink-muted md:text-lg">
             CLIVS is a Canadian online food business celebrating the richness of Nigerian cuisine. We are
             an online-only kitchen with no walk-in storefront, which means every dish we make is prepared specifically
-            for your order, then brought to your door or arranged for pickup.
+            for your order, then collected at an arranged pickup or delivered where delivery is available.
           </p>
         </Reveal>
       </Section>

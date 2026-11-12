@@ -852,6 +852,11 @@ have been re-run after every phase.
 - Domain/hosting choice and production deployment.
 - The featured-dish badge wording was removed in the CLIVS rebrand; the
   homepage showcase is now titled “Featured dishes”.
+- Storefront ordering copy is configuration-driven: the hero facts, menu badge,
+  “How ordering works” steps and FAQ answers are derived from `store_configs`
+  at request time (`src/lib/store/ordering-copy.ts` +
+  `getPublicOrderingCopy()`), so they follow the owner's intake, delivery,
+  pickup and online-payment switches instead of hardcoding a launch state.
 
 ## 4. Known limitations
 

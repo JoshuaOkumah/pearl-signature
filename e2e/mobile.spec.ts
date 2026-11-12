@@ -222,7 +222,7 @@ test("key text pairs meet WCAG AA contrast", async ({ page }) => {
     ["footer copyright (cream/55 on navy)", "All rights reserved", 4.5],
     ["footer blurb (cream/70 on navy)", "Canadian online kitchen celebrating", 4.5],
     ["closing CTA eyebrow (gold on navy)", "Your table is waiting", 4.5],
-    ["CTA paragraph (cream/75 on navy)", "Ordering opens soon", 4.5],
+    ["CTA paragraph (cream/75 on navy)", "prepared to order in our kitchen", 4.5],
   ];
 
   for (const [label, text, min] of pairs) {

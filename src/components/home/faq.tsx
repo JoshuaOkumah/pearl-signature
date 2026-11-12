@@ -1,4 +1,7 @@
-import { faqs } from "@/data/faqs";
+import { Suspense } from "react";
+import { buildFaqs } from "@/data/faqs";
+import { getPublicOrderingCopy } from "@/lib/store/public-ordering";
+import { UNKNOWN_ORDERING_COPY, type OrderingCopy } from "@/lib/store/ordering-copy";
 import { Accordion } from "@/components/ui/accordion";
 import { Section, SectionHeading } from "@/components/ui/section";
 import { Reveal } from "@/components/ui/reveal";
@@ -11,13 +14,24 @@ export function Faq() {
           <SectionHeading
             eyebrow="Questions, answered"
             title="Good to know"
-            description="Everything we can tell you today, answered honestly. Details like delivery areas and opening dates will be confirmed before launch."
+            description="Straight answers about ordering, delivery, payment and the food we cook."
           />
         </Reveal>
         <Reveal delay={0.12}>
-          <Accordion items={faqs} />
+          <Suspense fallback={<FaqList copy={UNKNOWN_ORDERING_COPY} />}>
+            <ConfiguredFaqList />
+          </Suspense>
         </Reveal>
       </div>
     </Section>
   );
+}
+
+async function ConfiguredFaqList() {
+  const copy = await getPublicOrderingCopy();
+  return <FaqList copy={copy} />;
+}
+
+function FaqList({ copy }: { copy: OrderingCopy }) {
+  return <Accordion items={buildFaqs(copy)} />;
 }

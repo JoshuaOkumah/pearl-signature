@@ -25,7 +25,7 @@ const manrope = Manrope({
 const site = siteUrl();
 const SITE_TITLE = "CLIVS · Authentic Nigerian Cuisine, Made Beautifully";
 const SITE_DESCRIPTION =
-  "CLIVS is a Canadian online kitchen offering authentic Nigerian soups and classics, pastries, snacks and traditional drinks, available to order online for delivery or arranged pickup.";
+  "CLIVS is a Canadian online kitchen offering authentic Nigerian soups and classics, pastries, snacks and traditional drinks, available to order online for pickup, or delivery where the kitchen delivers.";
 const SHARE_IMAGE = "/brand/clivs-og.png";
 
 export const metadata: Metadata = {

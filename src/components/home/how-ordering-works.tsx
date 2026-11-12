@@ -1,41 +1,53 @@
 import { Banknote, CreditCard, Search, Truck, UtensilsCrossed } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { Suspense } from "react";
+import { getPublicOrderingCopy } from "@/lib/store/public-ordering";
+import { UNKNOWN_ORDERING_COPY, type OrderingCopy } from "@/lib/store/ordering-copy";
 import { Section, SectionHeading } from "@/components/ui/section";
 import { Reveal } from "@/components/ui/reveal";
 
 interface Step {
+  /** Stable across configuration changes so React updates text in place. */
+  id: "explore" | "choose" | "fulfilment" | "payment";
   icon: LucideIcon;
   title: string;
   description: string;
 }
 
-const steps: Step[] = [
-  {
-    icon: Search,
-    title: "Explore the menu",
-    description: "Browse traditional foods, pastries and drinks, with honest descriptions of every dish.",
-  },
-  {
-    icon: UtensilsCrossed,
-    title: "Choose your favourites",
-    description: "Select the dishes you love, each one prepared to order just for you.",
-  },
-  {
-    icon: Truck,
-    title: "Delivery or pickup",
-    description: "Have your order brought to your door, or prearrange a convenient pickup.",
-  },
-  {
-    icon: CreditCard,
-    title: "Complete your order",
-    description: "Pay securely online, or choose cash on arrival, whichever suits you.",
-  },
-];
-
 /**
- * The planned ordering journey. Ordering itself is not implemented in
- * Phase 1 — the copy says so plainly.
+ * The ordering journey. Steps three and four describe fulfilment and payment,
+ * so they follow the owner's live configuration instead of hardcoding a state
+ * the business may not offer.
  */
+function buildSteps(copy: OrderingCopy): Step[] {
+  return [
+    {
+      id: "explore",
+      icon: Search,
+      title: "Explore the menu",
+      description: "Browse traditional foods, pastries and drinks, with honest descriptions of every dish.",
+    },
+    {
+      id: "choose",
+      icon: UtensilsCrossed,
+      title: "Choose your favourites",
+      description: "Select the dishes you love, each one prepared to order just for you.",
+    },
+    {
+      id: "fulfilment",
+      icon: Truck,
+      title: copy.fulfilmentStepTitle,
+      description: copy.fulfilmentStepBody,
+    },
+    {
+      id: "payment",
+      icon: CreditCard,
+      title: copy.paymentStepTitle,
+      description: copy.paymentStepBody,
+    },
+  ];
+}
+
 export function HowOrderingWorks() {
   return (
     <Section id="how-ordering" className="scroll-mt-20 bg-cream-100/70">
@@ -44,13 +56,30 @@ export function HowOrderingWorks() {
           align="center"
           eyebrow="How ordering works"
           title="From our kitchen to your table, in four simple steps"
-          description="Online ordering is being prepared. Here is the experience we are building for you."
+          description="Here is how an order works, from browsing the menu to collection."
         />
       </Reveal>
 
+      <Suspense fallback={<OrderingSteps copy={UNKNOWN_ORDERING_COPY} />}>
+        <ConfiguredOrderingSteps />
+      </Suspense>
+    </Section>
+  );
+}
+
+async function ConfiguredOrderingSteps() {
+  const copy = await getPublicOrderingCopy();
+  return <OrderingSteps copy={copy} />;
+}
+
+function OrderingSteps({ copy }: { copy: OrderingCopy }) {
+  const steps = buildSteps(copy);
+
+  return (
+    <>
       <ol className="mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {steps.map((step, index) => (
-          <Reveal key={step.title} delay={0.08 * index} className="h-full">
+          <Reveal key={step.id} delay={0.08 * index} className="h-full">
             <li className="relative flex h-full flex-col rounded-3xl border border-border bg-surface p-6 shadow-card">
               <div className="flex items-center justify-between">
                 <span className="flex h-11 w-11 items-center justify-center rounded-full bg-cream-200 text-navy">
@@ -73,11 +102,10 @@ export function HowOrderingWorks() {
             <Banknote className="h-5 w-5" aria-hidden="true" />
           </span>
           <p className="text-sm leading-relaxed text-navy-700">
-            <strong className="font-bold text-navy">Payment, your way.</strong> We plan to offer secure online payment
-            alongside cash on arrival. Online checkout is being prepared and will open together with ordering.
+            <strong className="font-bold text-navy">{copy.paymentNoteTitle}</strong> {copy.paymentNoteBody}
           </p>
         </div>
       </Reveal>
-    </Section>
+    </>
   );
 }

@@ -77,7 +77,7 @@ export function Footer() {
           <p>
             © <CopyrightYear /> CLIVS. All rights reserved.
           </p>
-          <p>Verified contact and social details will be published before launch.</p>
+          <p>Verified contact and social details will be published here once confirmed.</p>
         </div>
       </div>
     </footer>

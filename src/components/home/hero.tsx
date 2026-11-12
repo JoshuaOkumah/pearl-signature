@@ -1,5 +1,8 @@
 import { ArrowRight, CreditCard, Leaf, Truck } from "lucide-react";
+import { Suspense } from "react";
 import { getProduct } from "@/data/products";
+import { getPublicOrderingCopy } from "@/lib/store/public-ordering";
+import { UNKNOWN_ORDERING_COPY, type OrderingCopy } from "@/lib/store/ordering-copy";
 import { ButtonLink } from "@/components/ui/button";
 import { Eyebrow, Section } from "@/components/ui/section";
 import { Reveal } from "@/components/ui/reveal";
@@ -43,20 +46,9 @@ export function Hero() {
             </div>
           </Reveal>
           <Reveal delay={0.32}>
-            <ul className="mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm font-semibold text-navy-700">
-              <li className="flex items-center gap-2">
-                <Leaf className="h-4 w-4 text-leaf" aria-hidden="true" />
-                Made to order
-              </li>
-              <li className="flex items-center gap-2">
-                <Truck className="h-4 w-4 text-navy-700" aria-hidden="true" />
-                Delivery or arranged pickup
-              </li>
-              <li className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-gold-700" aria-hidden="true" />
-                Online or cash payment
-              </li>
-            </ul>
+            <Suspense fallback={<HeroFacts copy={UNKNOWN_ORDERING_COPY} />}>
+              <ConfiguredHeroFacts />
+            </Suspense>
           </Reveal>
         </div>
 
@@ -92,5 +84,34 @@ export function Hero() {
         </Reveal>
       </div>
     </Section>
+  );
+}
+
+async function ConfiguredHeroFacts() {
+  const copy = await getPublicOrderingCopy();
+  return <HeroFacts copy={copy} />;
+}
+
+/**
+ * The three hero facts. Only "Made to order" is unconditional; fulfilment and
+ * payment are read from the owner's configuration so the hero never promises a
+ * service the business has not enabled.
+ */
+function HeroFacts({ copy }: { copy: OrderingCopy }) {
+  return (
+    <ul className="mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm font-semibold text-navy-700">
+      <li className="flex items-center gap-2">
+        <Leaf className="h-4 w-4 text-leaf" aria-hidden="true" />
+        Made to order
+      </li>
+      <li className="flex items-center gap-2">
+        <Truck className="h-4 w-4 text-navy-700" aria-hidden="true" />
+        {copy.fulfilmentFact}
+      </li>
+      <li className="flex items-center gap-2">
+        <CreditCard className="h-4 w-4 text-gold-700" aria-hidden="true" />
+        {copy.paymentFact}
+      </li>
+    </ul>
   );
 }

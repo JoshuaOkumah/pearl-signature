@@ -144,11 +144,11 @@ export function PurchasePanel({ product }: PurchasePanelProps) {
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-terracotta-700" aria-hidden="true" />
             {blockedReason}
           </p>
-          {/* Unpriced products keep the timing the storefront promises
-              everywhere else: pricing arrives when ordering opens. */}
+          {/* Unpriced products say so directly, without tying the delay to an
+              ordering state the store may already have opened. */}
           {!priceIsKnown && !unavailable ? (
             <p className="mt-2 text-sm text-ink-muted">
-              Final pricing is published when ordering opens.
+              Pricing for this dish has not been published yet.
             </p>
           ) : null}
         </>

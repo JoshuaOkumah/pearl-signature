@@ -20,7 +20,7 @@ export function ClosingCta() {
               Bring the taste of home to <em className="italic text-gold">your</em> table
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-cream/75 md:text-lg">
-              Explore the full menu of traditional foods, pastries and drinks. Ordering opens soon.
+              Explore the full menu of traditional foods, pastries and drinks, prepared to order in our kitchen.
             </p>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
               <ButtonLink href="/menu" variant="accent" size="lg">

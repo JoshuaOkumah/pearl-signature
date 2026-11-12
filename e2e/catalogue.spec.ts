@@ -206,7 +206,7 @@ test.describe("CLIVS — catalogue", () => {
     // Unconfigured price: honest state, no fabricated amount, no ordering UI.
     // (Related cards below show the same state, hence .first().)
     await expect(page.getByText("Price to be confirmed").first()).toBeVisible();
-    await expect(page.getByText(/Final pricing is published when ordering opens/)).toBeVisible();
+    await expect(page.getByText(/Pricing for this dish has not been published yet/)).toBeVisible();
     await expect(page.getByText("Add to cart")).toHaveCount(0);
 
     // Gallery area renders (placeholder media until real photography lands).
