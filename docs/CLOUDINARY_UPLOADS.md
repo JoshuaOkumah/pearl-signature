@@ -193,17 +193,27 @@ before the config file, so a restart picks it up). Restart the dev
 server, or rebuild and restart for production. Until then nothing
 crashes: the storefront keeps its placeholder art, and the admin shows
 the fallback boxes with an explanation (see `src/lib/images.ts` —
-`canDeliverImage` is the single render gate for `FoodMedia`, the admin
-product table and the image manager).
+`imageDeliveryIssue` / `canDeliverImage` is the single render gate for
+`FoodMedia`, the admin product table and the image manager).
 
 **A saved photo still will not display although delivery is enabled**:
 the URL's cloud does not match `CLOUDINARY_CLOUD_NAME`. Both the
 remote-pattern and the render guard are scoped to the exact configured
 cloud, so URLs belonging to a different cloud (for example a photo
 attached by editing the database directly instead of uploading through
-the product page) never deliver. Re-upload the photo through the product
-edit page, which stores verified URLs for the configured cloud, or fix
+the product page) never deliver. The product editor names the problem
+("stored in a different Cloudinary account") instead of showing a bare
+preview box. Re-upload the photo through the product edit page, which
+stores verified URLs for the configured cloud, or fix
 `CLOUDINARY_CLOUD_NAME` if it is wrong.
+
+> The guard used to fall back to a shape-only check in the browser,
+> because client components cannot read `CLOUDINARY_CLOUD_NAME`. That
+> accepted a foreign-cloud URL and `next/image` then threw
+> `hostname "res.cloudinary.com" is not configured under images`,
+> crashing the admin product edit page. `next.config.ts` now also
+> inlines `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`, so the guard and the
+> loader agree in every runtime.
 
 **End-to-end tests never touch real Cloudinary**: the disposable admin
 stack (`scripts/e2e-admin-server.ts`) deliberately blanks the Cloudinary

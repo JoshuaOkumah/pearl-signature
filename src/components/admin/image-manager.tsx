@@ -11,7 +11,7 @@ import {
   saveImagesAction,
 } from "@/lib/actions/images";
 import { MAX_IMAGE_BYTES } from "@/lib/cloudinary/shared";
-import { canDeliverImage } from "@/lib/images";
+import { imageDeliveryIssue, type ImageDeliveryIssue } from "@/lib/images";
 import { FormAlert } from "@/components/admin/field";
 
 /**
@@ -40,6 +40,23 @@ interface ImageRow {
 interface UploadState {
   fileName: string;
   percent: number;
+}
+
+/**
+ * Operator-facing explanation for a photo that cannot be shown. `null` covers
+ * the cases handled elsewhere: a deliverable photo, or a build with no
+ * Cloudinary configuration at all (which has its own banner).
+ */
+function rowIssueMessage(issue: ImageDeliveryIssue | null): string | null {
+  switch (issue) {
+    case "wrong_cloud":
+      return "This photo is stored in a different Cloudinary account than the one this site serves images from, so it cannot be shown or published. Upload the photo again with the button above, then remove this entry.";
+    case "invalid_url":
+      return "This photo address is not a valid Cloudinary delivery URL, so it cannot be shown.";
+    case "delivery_disabled":
+    case null:
+      return null;
+  }
 }
 
 function isTooLarge(file: File): boolean {
@@ -235,7 +252,13 @@ export function ImageManager({
   // (the `next/image` remote-pattern is decided when the build runs / the
   // server starts). Such URLs must never reach `next/image` — it throws
   // during render — and the operator is told why previews are missing.
-  const previewsAvailable = rows.every((row) => canDeliverImage({ secureUrl: row.secureUrl }));
+  //
+  // A URL that belongs to a DIFFERENT Cloudinary account than the one this
+  // build serves from is a separate case: it is a valid URL, but the image
+  // loader will reject it, so it must never reach `next/image` either.
+  const deliveryIssues = rows.map((row) => imageDeliveryIssue({ secureUrl: row.secureUrl }));
+  const deliveryMessages = deliveryIssues.map(rowIssueMessage);
+  const deliveryDisabled = deliveryIssues.includes("delivery_disabled");
 
   return (
     <section aria-labelledby="images-heading" className="space-y-4">
@@ -317,7 +340,7 @@ export function ImageManager({
         </div>
       )}
 
-      {rows.length > 0 && !previewsAvailable ? (
+      {rows.length > 0 && deliveryDisabled ? (
         <div className="flex items-start gap-3 rounded-xl border border-border bg-cream-100 px-4 py-3">
           <AlertTriangle className="mt-0.5 size-4.5 shrink-0 text-gold-700" aria-hidden="true" />
           <p className="font-sans text-sm text-ink-muted">
@@ -342,7 +365,7 @@ export function ImageManager({
             >
               <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="relative aspect-square w-full shrink-0 overflow-hidden rounded-xl bg-cream-200 sm:size-28">
-                  {canDeliverImage({ secureUrl: row.secureUrl }) ? (
+                  {deliveryIssues[index] === null ? (
                     <Image
                       src={row.secureUrl}
                       alt=""
@@ -368,6 +391,12 @@ export function ImageManager({
                       </span>
                     ) : null}
                   </div>
+                  {deliveryMessages[index] ? (
+                    <p className="flex items-start gap-2 rounded-lg border border-gold/40 bg-gold-100/50 px-3 py-2 font-sans text-xs leading-relaxed text-navy-700">
+                      <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-gold-700" aria-hidden="true" />
+                      <span>{deliveryMessages[index]}</span>
+                    </p>
+                  ) : null}
                   <div>
                     <label
                       htmlFor={`image-alt-${index}`}

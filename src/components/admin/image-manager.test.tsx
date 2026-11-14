@@ -64,6 +64,38 @@ describe("ImageManager previews", () => {
     expect(getByText(/Photos are saved in Cloudinary, but this server/)).toBeInTheDocument();
   });
 
+  it("never hands a photo from another Cloudinary account to next/image", () => {
+    // Regression: the client bundle cannot read the server-only
+    // CLOUDINARY_CLOUD_NAME, so the guard used to accept any cloud while the
+    // image loader only allowed the configured one. next/image then threw
+    // "hostname res.cloudinary.com is not configured under images" and the
+    // product edit page crashed.
+    vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_ENABLED", "1");
+    vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", "clivs-kitchen");
+    const { container, getByText, queryByText } = render(
+      <ImageManager
+        productId="p1"
+        productName="Egusi Soup"
+        images={[
+          {
+            secureUrl:
+              "https://res.cloudinary.com/pearl-signature-preview/image/upload/v1/preview/egusi-soup-serving.jpg",
+            publicId: "preview/egusi-soup-serving",
+            alt: "Egusi soup",
+          },
+        ]}
+        uploadsConfigured={false}
+      />,
+    );
+
+    expect(container.querySelector("img")).not.toBeInTheDocument();
+    expect(getByText("Preview not available")).toBeInTheDocument();
+    expect(getByText(/different Cloudinary account/)).toBeInTheDocument();
+    // Delivery IS configured here, so the "server not configured" banner would
+    // be the wrong explanation.
+    expect(queryByText(/not configured to display/)).not.toBeInTheDocument();
+  });
+
   it("renders the empty state without the delivery notice when there are no photos", () => {
     vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_ENABLED", "0");
     const { getByText, queryByText } = render(

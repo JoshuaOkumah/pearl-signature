@@ -37,6 +37,11 @@ const nextConfig: NextConfig = {
     : {}),
   env: {
     NEXT_PUBLIC_CLOUDINARY_ENABLED: cloudName ? "1" : "0",
+    // The SAME cloud name the remote pattern above is scoped to. Client
+    // components cannot read the server-only CLOUDINARY_CLOUD_NAME, so without
+    // this the render guard accepted URLs from any Cloudinary account while
+    // the image loader rejected them (crashing the admin product editor).
+    NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: cloudName,
   },
 };
 

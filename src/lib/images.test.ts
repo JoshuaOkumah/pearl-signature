@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { canDeliverImage, isCloudinaryDeliveryEnabled, isCloudinaryUrl } from "./images";
+import {
+  canDeliverImage,
+  imageDeliveryIssue,
+  isCloudinaryDeliveryEnabled,
+  isCloudinaryUrl,
+} from "./images";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -27,6 +32,48 @@ describe("isCloudinaryUrl", () => {
     vi.stubEnv("CLOUDINARY_CLOUD_NAME", "pearl-signature");
     expect(isCloudinaryUrl("https://res.cloudinary.com/pearl-signature/image/upload/a.jpg")).toBe(true);
     expect(isCloudinaryUrl("https://res.cloudinary.com/other-cloud/image/upload/a.jpg")).toBe(false);
+  });
+
+  it("pins URLs with the public cloud name, which client components can read", () => {
+    // Regression: the admin image manager is a client component, where the
+    // server-only CLOUDINARY_CLOUD_NAME is undefined. Without a public value
+    // the guard accepted any cloud and next/image threw at render time.
+    vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", "clivs-kitchen");
+    expect(isCloudinaryUrl("https://res.cloudinary.com/clivs-kitchen/image/upload/v1/p/a.jpg")).toBe(true);
+    expect(
+      isCloudinaryUrl("https://res.cloudinary.com/pearl-signature-preview/image/upload/v1/preview/a.jpg"),
+    ).toBe(false);
+  });
+});
+
+describe("imageDeliveryIssue", () => {
+  it("accepts a photo from the configured cloud", () => {
+    vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_ENABLED", "1");
+    vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", "clivs-kitchen");
+    expect(
+      imageDeliveryIssue({ secureUrl: "https://res.cloudinary.com/clivs-kitchen/image/upload/a.jpg" }),
+    ).toBeNull();
+  });
+
+  it("reports a photo stored in a different Cloudinary account", () => {
+    vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_ENABLED", "1");
+    vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", "clivs-kitchen");
+    expect(
+      imageDeliveryIssue({
+        secureUrl: "https://res.cloudinary.com/pearl-signature-preview/image/upload/v1/preview/a.jpg",
+      }),
+    ).toBe("wrong_cloud");
+  });
+
+  it("reports a disabled build and invalid values separately", () => {
+    vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_ENABLED", "0");
+    vi.stubEnv("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME", "clivs-kitchen");
+    expect(
+      imageDeliveryIssue({ secureUrl: "https://res.cloudinary.com/clivs-kitchen/image/upload/a.jpg" }),
+    ).toBe("delivery_disabled");
+    expect(imageDeliveryIssue({ secureUrl: "https://evil.example.com/a.jpg" })).toBe("invalid_url");
+    expect(imageDeliveryIssue({ secureUrl: "not a url" })).toBe("invalid_url");
+    expect(imageDeliveryIssue(null)).toBe("invalid_url");
   });
 });
 

@@ -45,14 +45,20 @@ client-visible config.
 1. **Build gate:** if `CLOUDINARY_CLOUD_NAME` is set when `next build`
    runs, `next.config.ts` adds `images.remotePatterns` for
    `res.cloudinary.com` (your cloud only — an allowlist, not `*`) and
-   inlines `NEXT_PUBLIC_CLOUDINARY_ENABLED=1`.
+   inlines `NEXT_PUBLIC_CLOUDINARY_ENABLED=1` plus
+   `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` (the same cloud the pattern is
+   scoped to). The public copy exists because the render gate also runs in
+   **client** components (the admin product editor and product table),
+   where the server-only variable is not readable.
 2. **Render gate:** `FoodMedia` renders a real `next/image` only when the
    flag is on **and** the URL validates (`src/lib/images.ts`):
    - `https://`
    - host exactly `res.cloudinary.com` (anything else is rejected —
      this is what keeps arbitrary/hostile URLs out of the `<img>`)
    - path shape `/<cloud>/image/upload/...`, and when the cloud name is
-     configured, pinned to **your** cloud
+     configured, pinned to **your** cloud — in the browser too, so a photo
+     stored in a different Cloudinary account is never handed to
+     `next/image` (which would throw during render)
    - Cloudinary URL, with `alt` from the record, explicit `width`/`height`
      (or ratio box) to prevent layout shift, and `sizes` for responsive
      selection.
